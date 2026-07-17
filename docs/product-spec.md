@@ -329,6 +329,18 @@ coverage
 - **PREVIEW-009:** Recursos remotos podem ser carregados apenas conforme a política de privacidade e segurança definida para a implementação.
 - **PREVIEW-010:** O Preview deve oferecer tipografia legível e largura de texto confortável, sem modificar o arquivo.
 
+### Exemplo de diagrama Mermaid
+
+O Preview deve renderizar este fluxo, usado também como caso de validação visual:
+
+```mermaid
+flowchart LR
+    A[Coding agent] --> B[Cria ou atualiza Markdown]
+    B --> C[Watcher local]
+    C --> D[Agent Context]
+    D --> E[Preview, Source ou Diff Git]
+```
+
 ### 10.9 Links
 
 - **LINK-001:** Links relativos para arquivos Markdown existentes dentro de um Local devem abrir dentro do aplicativo.
