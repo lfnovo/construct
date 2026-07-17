@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
+import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, MapPin, Moon, PanelTop, Rows3, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -55,7 +56,7 @@ function formatWhen(timestamp: number) {
 }
 
 function statusLabel(kind: HistoryKind) {
-  return { created: "Novo", modified: "Alterado", renamed: "Renomeado", removed: "Removido" }[kind];
+  return { created: "New", modified: "Changed", renamed: "Renamed", removed: "Removed" }[kind];
 }
 
 type TreeNode = { children: Map<string, TreeNode>; entry?: FileEntry };
@@ -77,24 +78,24 @@ function makeTree(entries: FileEntry[]) {
 function FileTree({ entries, onOpen, onContext }: { entries: FileEntry[]; onOpen: (file: FileEntry, newPane?: boolean) => void; onContext: (event: React.MouseEvent, file: FileEntry) => void }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const tree = useMemo(() => makeTree(entries), [entries]);
-  const render = (node: TreeNode, prefix: string): React.ReactNode[] => Array.from(node.children.entries())
+  const render = (node: TreeNode, prefix: string, depth = 0): React.ReactNode[] => Array.from(node.children.entries())
     .sort(([leftName, left], [rightName, right]) => Number(!left.entry) - Number(!right.entry) || leftName.localeCompare(rightName))
     .flatMap(([name, child]) => {
       const key = `${prefix}/${name}`;
       if (child.entry) {
-        return <button className="file-row" key={key} title={child.entry.relativePath} onClick={() => onOpen(child.entry!)} onContextMenu={(event) => onContext(event, child.entry!)}>
-          <span className="file-icon">#</span><span>{name}</span>
+        return <button className="file-row" style={{ paddingLeft: 8 + depth * 15 }} key={key} title={child.entry.relativePath} onClick={() => onOpen(child.entry!)} onContextMenu={(event) => onContext(event, child.entry!)}>
+          <FileText className="file-icon" size={14} strokeWidth={1.8} /><span>{name}</span>
         </button>;
       }
       const isOpen = expanded.has(key);
       return [
-        <button className="folder-row" key={key} onClick={() => setExpanded((current) => { const next = new Set(current); isOpen ? next.delete(key) : next.add(key); return next; })}>
-          <span>{isOpen ? "⌄" : "›"}</span><span className="folder-icon">⌁</span><span>{name}</span>
+        <button className="folder-row" style={{ paddingLeft: 7 + depth * 15 }} key={key} onClick={() => setExpanded((current) => { const next = new Set(current); isOpen ? next.delete(key) : next.add(key); return next; })}>
+          {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {isOpen ? <FolderOpen className="folder-icon" size={14} /> : <Folder className="folder-icon" size={14} />}<span>{name}</span>
         </button>,
-        ...(isOpen ? render(child, key) : []),
+        ...(isOpen ? render(child, key, depth + 1) : []),
       ];
     });
-  return <div className="file-tree">{entries.length ? render(tree, "") : <p className="empty-sidebar">Nenhum Markdown encontrado.</p>}</div>;
+  return <div className="file-tree">{entries.length ? render(tree, "") : <p className="empty-sidebar">No Markdown files found.</p>}</div>;
 }
 
 function SplitView({ node, panes, activePaneId, onActivate, onRatio, children }: {
@@ -141,6 +142,7 @@ export default function App() {
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(295);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -266,7 +268,7 @@ export default function App() {
     const existing = pane?.tabs.find((tab) => tab.path === file.path);
     if (existing) { setPane(targetId, (current) => ({ ...current, activeTabId: existing.id })); return; }
     const location = locationsRef.current.find((item) => file.path.startsWith(item.path));
-    if (!location) return notify("O arquivo não pertence a um Local disponível.");
+    if (!location) return notify("This file does not belong to an available location.");
     try {
       const [contents, git] = await Promise.all([api.readMarkdownFile(file.path), api.getGitInfo(file.path)]);
       const tab: DocumentTab = { id: crypto.randomUUID(), path: file.path, locationId: location.id, title: file.name, relativePath: file.relativePath, mode: "preview", content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, dirty: false, conflict: false, deleted: false, git };
@@ -277,7 +279,7 @@ export default function App() {
   const openPath = useCallback((path: string) => {
     const file = Object.values(filesRef.current).flat().find((item) => item.path === path);
     if (file) void openFile(file);
-    else notify("O arquivo vinculado não existe em um Local disponível.");
+    else notify("The linked file does not exist in an available Location.");
   }, [notify, openFile]);
 
   const updateTab = useCallback((paneId: string, tabId: string, updater: (tab: DocumentTab) => DocumentTab) => {
@@ -288,7 +290,7 @@ export default function App() {
     const pane = panes[paneId];
     const tab = pane?.tabs.find((item) => item.id === (tabId || pane.activeTabId));
     if (!tab || !tab.dirty || tab.deleted) return false;
-    if (tab.conflict && !window.confirm("O arquivo foi alterado externamente. Salvar substituirá a versão externa. Continuar?")) return false;
+    if (tab.conflict && !window.confirm("This file changed outside the app. Saving will overwrite the external version. Continue?")) return false;
     try {
       await api.writeMarkdownFile(tab.path, normalizeForSave(tab.content, tab.lineEnding));
       const [verified, git] = await Promise.all([api.readMarkdownFile(tab.path), api.getGitInfo(tab.path)]);
@@ -328,7 +330,7 @@ export default function App() {
     const pane = panes[paneId];
     if (!pane) return;
     const target = ids.find((id) => id !== paneId)!;
-    if (pane.tabs.some((tab) => tab.dirty) && !window.confirm("Este Painel possui alterações não salvas. Fechar moverá as abas para o outro Painel. Continuar?")) return;
+    if (pane.tabs.some((tab) => tab.dirty) && !window.confirm("This pane has unsaved changes. Closing it will move its tabs to the other pane. Continue?")) return;
     setPanes((current) => {
       const { [paneId]: removed, ...rest } = current;
       return { ...rest, [target]: { ...rest[target], tabs: [...rest[target].tabs, ...removed.tabs], activeTabId: rest[target].activeTabId || removed.activeTabId } };
@@ -338,9 +340,9 @@ export default function App() {
   }, [layout, panes]);
 
   const addLocation = useCallback(async () => {
-    const selected = await open({ directory: true, multiple: false, title: "Adicionar pasta para monitorar" });
+    const selected = await open({ directory: true, multiple: false, title: "Add folder to watch" });
     if (typeof selected !== "string") return;
-    if (locationsRef.current.some((location) => location.path === selected)) return notify("Esta pasta já foi adicionada.");
+    if (locationsRef.current.some((location) => location.path === selected)) return notify("This folder has already been added.");
     const location: LocationRecord = { id: crypto.randomUUID(), path: selected, name: basename(selected), available: true };
     const next = [...locationsRef.current, location];
     setLocations(next);
@@ -351,7 +353,7 @@ export default function App() {
 
   const removeLocation = useCallback(async (locationId: string) => {
     const location = locationsRef.current.find((item) => item.id === locationId);
-    if (!location || !window.confirm(`Remover “${location.name}” do Agent Context? Os arquivos não serão apagados.`)) return;
+    if (!location || !window.confirm(`Remove “${location.name}” from Agent Context? Its files will not be deleted.`)) return;
     const next = locationsRef.current.filter((item) => item.id !== locationId);
     setLocations(next);
     setSelectedLocationId((current) => current === locationId ? next[0]?.id || null : current);
@@ -374,6 +376,7 @@ export default function App() {
         setSelectedLocationId(saved.selectedLocationId || restoredLocations[0]?.id || null);
         setSidebarWidth(saved.sidebarWidth || 295);
         setCollapsedSections(saved.collapsedSections || {});
+        setTheme(saved.theme || "dark");
         setLayout(restoredLayout);
         setActivePaneId(saved.activePaneId || "main");
         await configureLocations(restoredLocations);
@@ -409,11 +412,11 @@ export default function App() {
     if (!ready) return;
     const handle = window.setTimeout(() => {
       const savedPanes: SavedPane[] = Object.values(panes).map((pane) => ({ ...pane, tabs: pane.tabs.map(({ id, path, locationId, title, relativePath, mode }) => ({ id, path, locationId, title, relativePath, mode })) }));
-      const state: SavedWorkspace = { locations, history, fingerprints, panes: savedPanes, layout, activePaneId, selectedLocationId, sidebarWidth, collapsedSections };
+      const state: SavedWorkspace = { locations, history, fingerprints, panes: savedPanes, layout, activePaneId, selectedLocationId, sidebarWidth, collapsedSections, theme };
       void api.saveState(state).catch(() => undefined);
     }, 450);
     return () => window.clearTimeout(handle);
-  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, selectedLocationId, sidebarWidth]);
+  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, selectedLocationId, sidebarWidth, theme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -457,21 +460,21 @@ export default function App() {
         <div className="tabs-scroll">{pane.tabs.map((item) => <div key={item.id} draggable className={`tab ${item.id === pane.activeTabId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-tab", JSON.stringify({ paneId: pane.id, tabId: item.id }))} onClick={() => setPane(pane.id, (current) => ({ ...current, activeTabId: item.id }))} title={item.relativePath}>
           <span className={item.dirty ? "dirty-dot" : "file-tab-icon"}>{item.dirty ? "●" : "#"}</span><span>{item.title}</span><button aria-label={`Fechar ${item.title}`} onClick={(event) => { event.stopPropagation(); closeTab(pane.id, item.id); }}>×</button>
         </div>)}</div>
-        <button className="icon-button" title="Dividir verticalmente" onClick={() => { setActivePaneId(pane.id); splitPane("horizontal"); }}>◫</button>
-        <button className="icon-button" title="Dividir horizontalmente" onClick={() => { setActivePaneId(pane.id); splitPane("vertical"); }}>▤</button>
-        {getPaneIds(layout).length > 1 && <button className="icon-button" title="Fechar painel" onClick={() => closePane(pane.id)}>⊠</button>}
+        <button className="icon-button" title="Split vertically" onClick={() => { setActivePaneId(pane.id); splitPane("horizontal"); }}><Columns2 size={14} /></button>
+        <button className="icon-button" title="Split horizontally" onClick={() => { setActivePaneId(pane.id); splitPane("vertical"); }}><Rows3 size={14} /></button>
+        {getPaneIds(layout).length > 1 && <button className="icon-button" title="Close pane" onClick={() => closePane(pane.id)}><X size={14} /></button>}
       </div>
-      {!tab ? <div className="empty-pane"><h2>Abra um contexto</h2><p>Escolha um arquivo na lateral ou use <kbd>⌘P</kbd>.</p></div> : <>
+      {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p></div> : <>
         <div className="document-toolbar">
           <span className="document-path" title={tab.path}>{tab.relativePath}</span>
           <div className="mode-switch">
             {(["preview", "source", "diff"] as TabMode[]).map((mode) => <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode }))}>{mode === "preview" ? "Preview" : mode === "source" ? "Source" : "Diff"}</button>)}
           </div>
-          <button className="toolbar-button" disabled={!tab.dirty || tab.deleted} onClick={() => void saveTab(pane.id, tab.id)}>Salvar</button>
-          <button className="icon-button" title="Revelar no Finder" onClick={() => void api.revealInFileManager(tab.path)}>⌘</button>
+          <button className="toolbar-button" disabled={!tab.dirty || tab.deleted} onClick={() => void saveTab(pane.id, tab.id)}>Save</button>
+          <button className="icon-button" title="Reveal in Finder" onClick={() => void api.revealInFileManager(tab.path)}><Folder size={14} /></button>
         </div>
-        {tab.conflict && <div className="conflict-banner"><span>Este arquivo mudou fora do aplicativo.</span><button onClick={() => void reloadExternal()}>Recarregar versão externa</button><button onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, conflict: false }))}>Manter minhas alterações</button></div>}
-        {tab.deleted && <div className="conflict-banner danger"><span>O arquivo foi removido fora do aplicativo.</span><button onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, deleted: false }))}>Salvar novamente neste caminho</button></div>}
+        {tab.conflict && <div className="conflict-banner"><span>This file changed outside the app.</span><button onClick={() => void reloadExternal()}>Reload external version</button><button onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, conflict: false }))}>Keep my changes</button></div>}
+        {tab.deleted && <div className="conflict-banner danger"><span>This file was removed outside the app.</span><button onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, deleted: false }))}>Save again to this path</button></div>}
         <div className="document-content">
           {tab.mode === "source" && <CodeEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onSave={() => void saveTab(pane.id, tab.id)} />}
           {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} onOpenInternal={openPath} />}
@@ -481,38 +484,38 @@ export default function App() {
     </section>;
   };
 
-  if (!ready) return <main className="startup"><div className="startup-mark">✦</div><p>Preparando seu workspace…</p></main>;
+  if (!ready) return <main className="startup"><div className="startup-mark">✦</div><p>Preparing your workspace…</p></main>;
 
-  return <main className="app-shell" style={{ gridTemplateColumns: `${sidebarWidth}px 5px minmax(0, 1fr)` }}>
+  return <main className="app-shell" data-theme={theme} style={{ gridTemplateColumns: `${sidebarWidth}px 5px minmax(0, 1fr)` }}>
     <aside className="sidebar">
       <section className="sidebar-section locations-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? "›" : "⌄"}</button><span>LOCAIS</span><button className="add-button" onClick={() => void addLocation()} title="Adicionar pasta">+</button></div>
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
         {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/agent-context-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
-          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remover local">×</button>
-        </div>) : <div className="empty-sidebar">Adicione as pastas dos seus projetos para começar.</div>}</div>}
+          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
+        </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? "›" : "⌄"}</button><span>ARQUIVOS</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}</div>
-        {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Selecione um Local.</div>)}
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}</div>
+        {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>)}
       </section>
       <section className="sidebar-section history-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, history: !current.history }))}>{collapsedSections.history ? "›" : "⌄"}</button><span>HISTÓRICO</span><select aria-label="Filtrar histórico" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value as HistoryKind | "all")}><option value="all">Todos</option><option value="created">Novos</option><option value="modified">Alterados</option><option value="renamed">Renomeados</option><option value="removed">Removidos</option></select><button className="clear-history" title="Limpar histórico" onClick={() => { if (window.confirm("Limpar todo o histórico local? Isso não altera nenhum arquivo.")) setHistory([]); }}>×</button></div>
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, history: !current.history }))}>{collapsedSections.history ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><History size={13} /><span>HISTORY</span><select aria-label="Filter history" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value as HistoryKind | "all")}><option value="all">All</option><option value="created">New</option><option value="modified">Changed</option><option value="renamed">Renamed</option><option value="removed">Removed</option></select><button className="clear-history" title="Clear history" onClick={() => { if (window.confirm("Clear all local history? This will not alter any files.")) setHistory([]); }}><X size={13} /></button></div>
         {!collapsedSections.history && <div className="history-list">{visibleHistory.length ? visibleHistory.map((event) => <button key={event.id} className="history-row" onClick={() => event.available ? openPath(event.path) : notify("Este arquivo não está mais disponível.")} title={event.previousPath ? `${event.previousPath} → ${event.path}` : event.path}>
           <span className={`history-kind ${event.kind}`}>{statusLabel(event.kind)}</span><span className="history-file">{basename(event.path)}</span><time>{formatWhen(event.observedAt)}</time>
-        </button>) : <div className="empty-sidebar">As mudanças dos seus agentes aparecerão aqui.</div>}</div>}
+        </button>) : <div className="empty-sidebar">Changes from your agents will appear here.</div>}</div>}
       </section>
     </aside>
     <div className="sidebar-resizer" onPointerDown={resizeSidebar} />
     <section className="workspace"><SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView></section>
-    {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input autoFocus placeholder="Abrir arquivo…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); if (event.key === "Enter" && fileResults[0]) { openFile(fileResults[0]); setQuickOpen(false); } }} />
-      <div className="quick-results">{fileResults.map((file) => <button key={file.path} onClick={() => { openFile(file); setQuickOpen(false); }}><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>Nenhum arquivo encontrado.</p>}</div></div></div>}
+    {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input autoFocus placeholder="Open file…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); if (event.key === "Enter" && fileResults[0]) { openFile(fileResults[0]); setQuickOpen(false); } }} />
+      <div className="quick-results">{fileResults.map((file) => <button key={file.path} onClick={() => { openFile(file); setQuickOpen(false); }}><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
     {fileContext && <div className="context-backdrop" onMouseDown={() => setFileContext(null)}><div className="context-menu" style={{ left: fileContext.x, top: fileContext.y }} onMouseDown={(event) => event.stopPropagation()}>
-      <button onClick={() => { openFile(fileContext.file); setFileContext(null); }}>Abrir</button>
-      <button onClick={() => { openFile(fileContext.file, true); setFileContext(null); }}>Abrir à direita</button>
-      <button onClick={() => { void navigator.clipboard.writeText(fileContext.file.path); setFileContext(null); notify("Caminho copiado."); }}>Copiar caminho</button>
-      <button onClick={() => { void api.revealInFileManager(fileContext.file.path); setFileContext(null); }}>Revelar no Finder</button>
+      <button onClick={() => { openFile(fileContext.file); setFileContext(null); }}>Open</button>
+      <button onClick={() => { openFile(fileContext.file, true); setFileContext(null); }}>Open to the right</button>
+      <button onClick={() => { void navigator.clipboard.writeText(fileContext.file.path); setFileContext(null); notify("Path copied."); }}><Clipboard size={13} /> Copy path</button>
+      <button onClick={() => { void api.revealInFileManager(fileContext.file.path); setFileContext(null); }}>Reveal in Finder</button>
     </div></div>}
-    {pendingClose && <div className="modal-backdrop"><div className="confirm-modal"><h2>Salvar alterações?</h2><p>Há alterações não salvas neste arquivo.</p><div><button onClick={() => setPendingClose(null)}>Cancelar</button><button className="danger-button" onClick={() => { discardTab(pendingClose.paneId, pendingClose.tabId); setPendingClose(null); }}>Não salvar</button><button className="primary-button" onClick={() => { const request = pendingClose; setPendingClose(null); void saveTab(request.paneId, request.tabId).then((saved) => { if (saved) discardTab(request.paneId, request.tabId); }); }}>Salvar</button></div></div></div>}
+    {pendingClose && <div className="modal-backdrop"><div className="confirm-modal"><h2>Save changes?</h2><p>This file has unsaved changes.</p><div><button onClick={() => setPendingClose(null)}>Cancel</button><button className="danger-button" onClick={() => { discardTab(pendingClose.paneId, pendingClose.tabId); setPendingClose(null); }}>Don’t save</button><button className="primary-button" onClick={() => { const request = pendingClose; setPendingClose(null); void saveTab(request.paneId, request.tabId).then((saved) => { if (saved) discardTab(request.paneId, request.tabId); }); }}>Save</button></div></div></div>}
     {notice && <div className="toast">{notice}</div>}
   </main>;
 }
@@ -525,6 +528,6 @@ function DiffView({ tab }: { tab: DocumentTab }) {
     setLoading(true);
     void api.getGitDiff(tab.path, tab.dirty ? tab.content : undefined).then((result) => { setDiff(result.diff); setMessage(result.message); }).catch((error) => setMessage(String(error))).finally(() => setLoading(false));
   }, [tab.content, tab.dirty, tab.path]);
-  if (loading) return <div className="diff-view empty-pane">Gerando diff…</div>;
-  return <div className="diff-view">{message && <p className="diff-message">{message}</p>}{diff ? <pre>{diff.split("\n").map((line, index) => <span key={index} className={line.startsWith("+") ? "addition" : line.startsWith("-") ? "removal" : line.startsWith("@@") ? "hunk" : ""}>{line}{"\n"}</span>)}</pre> : <div className="empty-pane"><p>Não há diferenças em relação ao HEAD.</p></div>}</div>;
+  if (loading) return <div className="diff-view empty-pane">Generating diff…</div>;
+  return <div className="diff-view">{message && <p className="diff-message">{message}</p>}{diff ? <pre>{diff.split("\n").map((line, index) => <span key={index} className={line.startsWith("+") ? "addition" : line.startsWith("-") ? "removal" : line.startsWith("@@") ? "hunk" : ""}>{line}{"\n"}</span>)}</pre> : <div className="empty-pane"><p>No differences from HEAD.</p></div>}</div>;
 }

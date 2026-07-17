@@ -18,6 +18,19 @@
   font-family: var(--font-sans);
 }
 
+[data-theme="light"] {
+  --bg: #f8f8fb;
+  --surface: #ffffff;
+  --surface-raised: #f0f0f5;
+  --surface-hover: #e7e7ef;
+  --border: #d7d7e2;
+  --border-strong: #bcbccc;
+  --text: #20202a;
+  --muted: #666674;
+  --accent: #5759c9;
+  --accent-soft: rgba(87, 89, 201, .13);
+}
+
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-width: 0; min-height: 0; width: 100%; height: 100%; overflow: hidden; }
 button, input, select { font: inherit; }
@@ -40,6 +53,9 @@ button { color: inherit; }
 .section-subtitle { margin-left: auto; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; letter-spacing: normal; }
 .section-title select { margin-left: auto; max-width: 65px; background: transparent; border: 0; color: var(--muted); font-size: 10px; outline: 0; }
 .section-title .clear-history { border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
+.section-title > button:first-child, .section-title .theme-button { display: grid; place-items: center; }
+.section-title .theme-button { margin-left: auto; width: 24px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.section-title .theme-button:hover { background: var(--surface-hover); color: var(--text); }
 .location-list, .history-list { padding: 5px; }
 .location-row { height: 30px; border-radius: 5px; display: flex; align-items: center; gap: 7px; padding: 0 7px; font-size: 12px; cursor: pointer; color: #d1d1d6; }
 .location-row:hover, .location-row.selected { background: var(--surface-hover); }
@@ -76,4 +92,19 @@ button { color: inherit; }
 .toast { position: fixed; z-index: 12; bottom: 18px; left: 50%; transform: translateX(-50%); max-width: min(640px, calc(100vw - 40px)); padding: 9px 13px; border: 1px solid var(--border-strong); border-radius: 6px; background: #2d2d34; color: white; box-shadow: 0 8px 30px rgba(0,0,0,.3); font-size: 12px; }
 .context-backdrop { position: fixed; inset: 0; z-index: 20; }.context-menu { position: fixed; min-width: 170px; padding: 4px; border: 1px solid var(--border-strong); border-radius: 6px; background: #29292f; box-shadow: 0 12px 40px rgba(0,0,0,.42); }.context-menu button { display: block; width: 100%; padding: 7px 9px; border: 0; border-radius: 4px; background: transparent; text-align: left; color: var(--text); font-size: 12px; cursor: pointer; }.context-menu button:hover { background: var(--surface-hover); }
 .modal-backdrop { position: fixed; inset: 0; z-index: 21; display: grid; place-items: center; background: rgba(0,0,0,.48); }.confirm-modal { width: min(390px, calc(100vw - 40px)); padding: 20px; border: 1px solid var(--border-strong); border-radius: 9px; background: #26262c; box-shadow: 0 20px 70px rgba(0,0,0,.5); }.confirm-modal h2 { margin: 0 0 7px; font-size: 17px; }.confirm-modal p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }.confirm-modal > div { display: flex; justify-content: flex-end; gap: 8px; }.confirm-modal button { border: 1px solid var(--border-strong); border-radius: 5px; padding: 6px 10px; background: var(--surface-raised); color: var(--text); font-size: 12px; cursor: pointer; }.confirm-modal .danger-button { color: #ffc1c7; }.confirm-modal .primary-button { border-color: #696be0; background: #5154c7; color: white; }
+
+/* Polished icon alignment, readable code, and light-mode overrides. */
+.section-title svg, .icon-button svg, .file-row svg, .folder-row svg, .context-menu svg { flex: 0 0 auto; vertical-align: middle; }
+.icon-button { display: grid; place-items: center; }
+.context-menu button { display: flex; align-items: center; gap: 7px; }
+.markdown-preview { color: var(--text); }
+.markdown-preview h1, .markdown-preview h2, .markdown-preview h3 { color: var(--text); }
+.markdown-preview code { background: var(--surface-hover); }
+.markdown-preview pre { background: #15151b; }
+.markdown-preview pre code { color: #e8e8ed; }
+.markdown-preview a { color: var(--accent); }
+[data-theme="light"] .sidebar { background: #f2f2f7; }
+[data-theme="light"] .tab-bar { background: #eeeeF4; }
+[data-theme="light"] .markdown-preview pre { background: #1d1d23; }
+[data-theme="light"] .toast { background: #282832; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

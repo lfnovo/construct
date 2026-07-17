@@ -90,6 +90,7 @@ export type SavedWorkspace = {
   selectedLocationId: string | null;
   sidebarWidth: number;
   collapsedSections: Record<string, boolean>;
+  theme: "dark" | "light";
 };
 
 export type FileSystemChange = { paths: string[]; kind: string };
