@@ -1,0 +1,32 @@
+src/main.tsx
+  s_954343fc536a43::t_ef7e397aef34b7 5
+package.json
+  s_954343fc536a43::t_921fd93d0117dd 24,31-32
+src/App.tsx
+  s_954343fc536a43::t_52d100cf561dee 4,81,86-87,92-93,95,98,145,271,293,333,343,345,356,379,415,419,463-465,467,473-474,476-477,487,489
+  s_954343fc536a43::t_6a29c97f45488f 492,494-495,498-499,502,505,510-511,513-516,518
+  s_954343fc536a43::t_3c03a08b51bb04 282
+  s_954343fc536a43::t_ef7e397aef34b7 59,531-532
+src/styles.css
+  s_954343fc536a43::t_e2ee50dcc6d379 21-33,56-58,95-109
+src/types.ts
+  s_954343fc536a43::t_52d100cf561dee 93
+package-lock.json
+  s_954343fc536a43::t_3160c9a7960462 20,3411-3419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "9970586c0fe66e2dd6a57f53a5525650a8ef82e8",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
