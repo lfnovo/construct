@@ -117,4 +117,20 @@ button { color: inherit; }
 [data-theme="light"] .mode-switch button { color: #555565; }
 [data-theme="light"] .mode-switch button.selected { background: #ffffff; color: #222231; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 [data-theme="light"] .toolbar-button { background: #fff; color: #30303d; }
+[data-theme="light"] .history-row { color: #30303c; }
+[data-theme="light"] .history-file { color: #30303c; }
+[data-theme="light"] .history-row time { color: #686879; }
+[data-theme="light"] .context-menu { background: #ffffff; border-color: #c7c7d4; box-shadow: 0 12px 40px rgba(25,25,40,.2); }
+[data-theme="light"] .context-menu button { color: #262633; }
+[data-theme="light"] .context-menu button:hover { background: #ececf3; }
+
+/* Keep the reading scrollbar flush to the pane edge and visible in both themes. */
+.markdown-preview { width: 100%; max-width: none; scrollbar-color: #777783 transparent; scrollbar-width: thin; }
+.markdown-preview::-webkit-scrollbar { width: 12px; }
+.markdown-preview::-webkit-scrollbar-track { background: transparent; }
+.markdown-preview::-webkit-scrollbar-thumb { background: #777783; border: 3px solid transparent; background-clip: padding-box; border-radius: 99px; }
+.markdown-preview::-webkit-scrollbar-thumb:hover { background-color: #9797a5; }
+[data-theme="light"] .markdown-preview { scrollbar-color: #858596 transparent; }
+[data-theme="light"] .markdown-preview::-webkit-scrollbar-thumb { background-color: #858596; }
+[data-theme="light"] .markdown-preview::-webkit-scrollbar-thumb:hover { background-color: #646475; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

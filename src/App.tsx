@@ -49,7 +49,7 @@ function normalizeForSave(content: string, ending: "LF" | "CRLF") {
 
 function formatWhen(timestamp: number) {
   const delta = Math.max(0, Date.now() - timestamp);
-  if (delta < 60_000) return "agora";
+  if (delta < 60_000) return "now";
   if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m`;
   if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h`;
   return `${Math.floor(delta / 86_400_000)}d`;
