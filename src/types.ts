@@ -89,6 +89,7 @@ export type SavedWorkspace = {
   activePaneId: string;
   selectedLocationId: string | null;
   sidebarWidth: number;
+  sidebarHidden?: boolean;
   collapsedSections: Record<string, boolean>;
   theme: "dark" | "light";
 };

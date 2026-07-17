@@ -34,7 +34,8 @@
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-width: 0; min-height: 0; width: 100%; height: 100%; overflow: hidden; }
 button, input, select { font: inherit; }
-button { color: inherit; }
+button { color: inherit; outline: 0; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .startup { width: 100%; height: 100%; display: grid; place-content: center; gap: 10px; text-align: center; color: var(--muted); background: radial-gradient(circle at center, #272731, var(--bg) 55%); }
 .startup-mark { color: var(--accent); font-size: 31px; }
@@ -49,6 +50,7 @@ button { color: inherit; }
 .section-title { height: 35px; display: flex; align-items: center; gap: 7px; padding: 0 8px; color: var(--muted); font-size: 10px; letter-spacing: .08em; font-weight: 700; border-bottom: 1px solid rgba(58,58,66,.55); user-select: none; }
 .section-title > button:first-child { width: 17px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 17px; line-height: 1; }
 .section-title .add-button { margin-left: auto; width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-raised); color: var(--text); font-size: 17px; line-height: 1; }
+.section-title .add-button { display: grid; place-items: center; padding: 0; }
 .section-title .add-button:hover { border-color: var(--accent); background: var(--accent-soft); }
 .section-subtitle { margin-left: auto; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; letter-spacing: normal; }
 .section-title select { margin-left: auto; max-width: 65px; background: transparent; border: 0; color: var(--muted); font-size: 10px; outline: 0; }
@@ -56,6 +58,10 @@ button { color: inherit; }
 .section-title > button:first-child, .section-title .theme-button { display: grid; place-items: center; }
 .section-title .theme-button { margin-left: auto; width: 24px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
 .section-title .theme-button:hover { background: var(--surface-hover); color: var(--text); }
+.section-title .sidebar-toggle { width: 24px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.section-title .sidebar-toggle:hover, .sidebar-rail .sidebar-toggle:hover { background: var(--surface-hover); color: var(--text); }
+.sidebar-rail { display: flex; justify-content: center; padding-top: 7px; background: #18181c; border-right: 1px solid var(--border); }
+.sidebar-rail .sidebar-toggle { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
 .location-list, .history-list { padding: 5px; }
 .location-row { height: 30px; border-radius: 5px; display: flex; align-items: center; gap: 7px; padding: 0 7px; font-size: 12px; cursor: pointer; color: #d1d1d6; }
 .location-row:hover, .location-row.selected { background: var(--surface-hover); }
@@ -104,6 +110,7 @@ button { color: inherit; }
 .markdown-preview pre code { color: #e8e8ed; }
 .markdown-preview a { color: var(--accent); }
 [data-theme="light"] .sidebar { background: #f2f2f7; }
+[data-theme="light"] .sidebar-rail { background: #f2f2f7; }
 [data-theme="light"] .tab-bar { background: #eeeeF4; }
 [data-theme="light"] .markdown-preview pre { background: #1d1d23; }
 [data-theme="light"] .toast { background: #282832; }

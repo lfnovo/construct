@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, MapPin, Moon, PanelTop, Rows3, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, MapPin, Moon, PanelLeftClose, PanelLeftOpen, PanelTop, Rows3, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -141,6 +141,7 @@ export default function App() {
   const [activePaneId, setActivePaneId] = useState("main");
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(295);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [ready, setReady] = useState(false);
@@ -375,6 +376,7 @@ export default function App() {
         setFingerprints(saved.fingerprints || {});
         setSelectedLocationId(saved.selectedLocationId || restoredLocations[0]?.id || null);
         setSidebarWidth(saved.sidebarWidth || 295);
+        setSidebarHidden(saved.sidebarHidden || false);
         setCollapsedSections(saved.collapsedSections || {});
         setTheme(saved.theme || "dark");
         setLayout(restoredLayout);
@@ -412,11 +414,11 @@ export default function App() {
     if (!ready) return;
     const handle = window.setTimeout(() => {
       const savedPanes: SavedPane[] = Object.values(panes).map((pane) => ({ ...pane, tabs: pane.tabs.map(({ id, path, locationId, title, relativePath, mode }) => ({ id, path, locationId, title, relativePath, mode })) }));
-      const state: SavedWorkspace = { locations, history, fingerprints, panes: savedPanes, layout, activePaneId, selectedLocationId, sidebarWidth, collapsedSections, theme };
+      const state: SavedWorkspace = { locations, history, fingerprints, panes: savedPanes, layout, activePaneId, selectedLocationId, sidebarWidth, sidebarHidden, collapsedSections, theme };
       void api.saveState(state).catch(() => undefined);
     }, 450);
     return () => window.clearTimeout(handle);
-  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, selectedLocationId, sidebarWidth, theme]);
+  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, selectedLocationId, sidebarHidden, sidebarWidth, theme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -486,10 +488,10 @@ export default function App() {
 
   if (!ready) return <main className="startup"><div className="startup-mark">✦</div><p>Preparing your workspace…</p></main>;
 
-  return <main className="app-shell" data-theme={theme} style={{ gridTemplateColumns: `${sidebarWidth}px 5px minmax(0, 1fr)` }}>
-    <aside className="sidebar">
+  return <main className={`app-shell ${sidebarHidden ? "sidebar-hidden" : ""}`} data-theme={theme} style={{ gridTemplateColumns: sidebarHidden ? "38px minmax(0, 1fr)" : `${sidebarWidth}px 5px minmax(0, 1fr)` }}>
+    {sidebarHidden ? <aside className="sidebar-rail"><button className="sidebar-toggle" onClick={() => setSidebarHidden(false)} title="Show sidebar" aria-label="Show sidebar"><PanelLeftOpen size={16} /></button></aside> : <aside className="sidebar">
       <section className="sidebar-section locations-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button><button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
         {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/agent-context-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
           <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
@@ -504,8 +506,8 @@ export default function App() {
           <span className={`history-kind ${event.kind}`}>{statusLabel(event.kind)}</span><span className="history-file">{basename(event.path)}</span><time>{formatWhen(event.observedAt)}</time>
         </button>) : <div className="empty-sidebar">Changes from your agents will appear here.</div>}</div>}
       </section>
-    </aside>
-    <div className="sidebar-resizer" onPointerDown={resizeSidebar} />
+    </aside>}
+    {!sidebarHidden && <div className="sidebar-resizer" onPointerDown={resizeSidebar} />}
     <section className="workspace"><SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView></section>
     {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input autoFocus placeholder="Open file…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); if (event.key === "Enter" && fileResults[0]) { openFile(fileResults[0]); setQuickOpen(false); } }} />
       <div className="quick-results">{fileResults.map((file) => <button key={file.path} onClick={() => { openFile(file); setQuickOpen(false); }}><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
