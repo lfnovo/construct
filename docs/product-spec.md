@@ -443,6 +443,19 @@ Os atalhos abaixo usam a notação do macOS. A implementação futura deve mapea
 | Focar próximo Painel | A definir |
 | Reabrir aba fechada | Futuro |
 
+### 10.16 Open Knowledge Format (OKF)
+
+O aplicativo deve oferecer suporte de consumo não destrutivo ao [Open Knowledge Format v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), uma especificação aberta baseada em arquivos Markdown com frontmatter YAML.
+
+- **OKF-001:** Um Local pode ser explicitamente marcado pelo usuário como raiz de um bundle OKF; nenhuma pasta deve ser marcada automaticamente.
+- **OKF-002:** Em um Local marcado, o aplicativo deve reconhecer `index.md` como índice de diretório e `log.md` como histórico de atualizações, inclusive em subdiretórios.
+- **OKF-003:** Conceitos OKF devem expor, quando presentes, `type`, `title`, `description`, `resource`, `tags`, `timestamp` e `okf_version`.
+- **OKF-004:** O Preview deve resolver links internos iniciados com `/` em relação à raiz do bundle OKF. Links relativos mantêm o comportamento Markdown usual.
+- **OKF-005:** O aplicativo deve indicar de forma não bloqueante se um conceito não contém frontmatter, não possui o campo obrigatório `type` ou contém frontmatter incompleto.
+- **OKF-006:** Tipos desconhecidos, campos adicionais, links quebrados e ausência de arquivos de índice não devem impedir a abertura ou leitura do bundle.
+- **OKF-007:** A interface deve oferecer um inspector recolhível com os metadados e o status de conformidade do documento aberto.
+- **OKF-008:** O suporte inicial é apenas de leitura e validação; não deve criar, reescrever ou completar índices, logs ou metadados automaticamente.
+
 ## 11. Estados e tratamento de erros
 
 ### 11.1 Estado vazio inicial

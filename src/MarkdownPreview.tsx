@@ -6,22 +6,14 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import mermaid from "mermaid";
 import { api } from "./api";
+import { resolveOkfLink } from "./okf";
 
 type Props = {
   content: string;
   sourcePath: string;
+  bundleRoot?: string;
   onOpenInternal: (path: string) => void;
 };
-
-function resolveRelativePath(sourcePath: string, target: string) {
-  const clean = target.split("#")[0];
-  if (!clean) return sourcePath;
-  try {
-    return decodeURIComponent(new URL(clean, `file://${sourcePath}`).pathname);
-  } catch {
-    return clean;
-  }
-}
 
 function MermaidDiagram({ code }: { code: string }) {
   const id = useId().replace(/:/g, "-");
@@ -41,19 +33,19 @@ function MermaidDiagram({ code }: { code: string }) {
   return <div className="mermaid" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-function LocalImage({ src = "", alt = "", sourcePath }: { src?: string; alt?: string; sourcePath: string }) {
+function LocalImage({ src = "", alt = "", sourcePath, bundleRoot }: { src?: string; alt?: string; sourcePath: string; bundleRoot?: string }) {
   const [resolved, setResolved] = useState<string | null>(null);
   useEffect(() => {
     if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:")) {
       setResolved(src);
       return;
     }
-    void api.readImageDataUrl(resolveRelativePath(sourcePath, src)).then(setResolved).catch(() => setResolved(null));
-  }, [sourcePath, src]);
+    void api.readImageDataUrl(resolveOkfLink(sourcePath, bundleRoot, src)).then(setResolved).catch(() => setResolved(null));
+  }, [bundleRoot, sourcePath, src]);
   return resolved ? <img src={resolved} alt={alt} /> : <span className="missing-image">Imagem indisponível: {alt || src}</span>;
 }
 
-export function MarkdownPreview({ content, sourcePath, onOpenInternal }: Props) {
+export function MarkdownPreview({ content, sourcePath, bundleRoot, onOpenInternal }: Props) {
   const plugins = useMemo(() => [remarkGfm], []);
   return (
     <article className="markdown-preview">
@@ -77,7 +69,7 @@ export function MarkdownPreview({ content, sourcePath, onOpenInternal }: Props) 
                   if (href.startsWith("http://") || href.startsWith("https://")) {
                     void api.openExternalUrl(href);
                   } else if (!href.startsWith("#")) {
-                    onOpenInternal(resolveRelativePath(sourcePath, href));
+                    onOpenInternal(resolveOkfLink(sourcePath, bundleRoot, href));
                   } else {
                     const anchor = href.slice(1);
                     document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth" });
@@ -86,7 +78,7 @@ export function MarkdownPreview({ content, sourcePath, onOpenInternal }: Props) 
               >{children}</a>
             );
           },
-          img({ src, alt }) { return <LocalImage src={src} alt={alt || ""} sourcePath={sourcePath} />; },
+          img({ src, alt }) { return <LocalImage src={src} alt={alt || ""} sourcePath={sourcePath} bundleRoot={bundleRoot} />; },
         }}
       >
         {content}

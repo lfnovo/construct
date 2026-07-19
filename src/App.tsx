@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, F
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
+import { inspectOkfDocument } from "./okf";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   LayoutNode, LocationRecord, Pane, SavedPane, SavedWorkspace, TabMode,
@@ -142,6 +143,7 @@ export default function App() {
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(295);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [showOkfInspector, setShowOkfInspector] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [ready, setReady] = useState(false);
@@ -444,6 +446,8 @@ export default function App() {
 
   const renderPane = (pane: Pane, active: boolean) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId) || null;
+    const tabLocation = tab ? locationsRef.current.find((location) => location.id === tab.locationId) : null;
+    const okf = tab && tabLocation?.okfBundle ? inspectOkfDocument(tab.content, tab.relativePath, tab.relativePath === "index.md") : null;
     const changeContent = (content: string) => tab && updateTab(pane.id, tab.id, (current) => ({ ...current, content, dirty: content !== current.baseContent }));
     const reloadExternal = () => tab && api.readMarkdownFile(tab.path).then((contents) => updateTab(pane.id, tab.id, (current) => ({ ...current, content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, dirty: false, conflict: false, deleted: false }))).catch((error) => notify(String(error)));
     return <section className={`editor-pane ${active ? "active" : ""}`}>
@@ -469,6 +473,7 @@ export default function App() {
       {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p></div> : <>
         <div className="document-toolbar">
           <span className="document-path" title={tab.path}>{tab.relativePath}</span>
+          {okf && <button className={`okf-status ${okf.isConformant ? "valid" : "invalid"}`} title="Open Knowledge Format details" onClick={() => setShowOkfInspector((current) => !current)}>OKF</button>}
           <div className="mode-switch">
             {(["preview", "source", "diff"] as TabMode[]).map((mode) => <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode }))}>{mode === "preview" ? "Preview" : mode === "source" ? "Source" : "Diff"}</button>)}
           </div>
@@ -477,9 +482,23 @@ export default function App() {
         </div>
         {tab.conflict && <div className="conflict-banner"><span>This file changed outside the app.</span><button onClick={() => void reloadExternal()}>Reload external version</button><button onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, conflict: false }))}>Keep my changes</button></div>}
         {tab.deleted && <div className="conflict-banner danger"><span>This file was removed outside the app.</span><button onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, deleted: false }))}>Save again to this path</button></div>}
+        {okf && showOkfInspector && <aside className="okf-inspector">
+          <div className="okf-inspector-heading"><strong>Open Knowledge Format</strong><span className={okf.isConformant ? "okf-valid" : "okf-invalid"}>{okf.isConformant ? "Conformant" : "Needs attention"}</span></div>
+          <div className="okf-kind">{okf.kind === "concept" ? "Concept document" : okf.kind === "index" ? "Directory index" : "Update log"}</div>
+          <dl className="okf-metadata">
+            {okf.metadata.type && <><dt>Type</dt><dd>{okf.metadata.type}</dd></>}
+            {okf.metadata.title && <><dt>Title</dt><dd>{okf.metadata.title}</dd></>}
+            {okf.metadata.description && <><dt>Description</dt><dd>{okf.metadata.description}</dd></>}
+            {okf.metadata.resource && <><dt>Resource</dt><dd><a href={okf.metadata.resource} onClick={(event) => { event.preventDefault(); void api.openExternalUrl(okf.metadata.resource!); }}>{okf.metadata.resource}</a></dd></>}
+            {okf.metadata.timestamp && <><dt>Timestamp</dt><dd>{okf.metadata.timestamp}</dd></>}
+            {okf.metadata.okfVersion && <><dt>OKF version</dt><dd>{okf.metadata.okfVersion}</dd></>}
+          </dl>
+          {!!okf.metadata.tags.length && <div className="okf-tags">{okf.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+          {!!okf.issues.length && <ul className="okf-issues">{okf.issues.map((issue) => <li key={issue.message} className={issue.level}>{issue.message}</li>)}</ul>}
+        </aside>}
         <div className="document-content">
           {tab.mode === "source" && <CodeEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onSave={() => void saveTab(pane.id, tab.id)} />}
-          {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} onOpenInternal={openPath} />}
+          {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} />}
           {tab.mode === "diff" && <DiffView tab={tab} />}
         </div>
       </>}
@@ -493,7 +512,7 @@ export default function App() {
       <section className="sidebar-section locations-section">
         <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button><button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
         {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/agent-context-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
-          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
+          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span><button className={`okf-toggle ${location.okfBundle ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); setLocations((current) => current.map((item) => item.id === location.id ? { ...item, okfBundle: !item.okfBundle } : item)); }} title={location.okfBundle ? "Remove OKF bundle marker" : "Mark as OKF bundle"}>OKF</button><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">
