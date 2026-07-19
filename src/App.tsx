@@ -203,11 +203,25 @@ export default function App() {
     });
   }, [addHistory]);
 
+  const detectOkfBundle = useCallback(async (location: LocationRecord, entries: FileEntry[]) => {
+    const rootIndex = entries.find((entry) => entry.relativePath === "index.md");
+    if (!rootIndex) return;
+    try {
+      const { content } = await api.readMarkdownFile(rootIndex.path);
+      const detected = Boolean(inspectOkfDocument(content, rootIndex.relativePath, true).metadata.okfVersion);
+      setLocations((current) => current.map((item) => {
+        if (item.id !== location.id || item.okfMode === "manual" || item.okfMode === "disabled") return item;
+        return detected ? { ...item, okfBundle: true, okfMode: "auto" } : { ...item, okfBundle: false, okfMode: "auto" };
+      }));
+    } catch { /* a failed probe must not affect the Location */ }
+  }, []);
+
   const refreshLocation = useCallback(async (location: LocationRecord, source: HistoryEvent["source"] = "external") => {
     try {
       const entries = await api.listMarkdownFiles(location.path);
       setFilesByLocation((current) => ({ ...current, [location.id]: entries }));
       reconcile(location, entries, source);
+      void detectOkfBundle(location, entries);
       const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
       const candidates = Object.values(panesRef.current).flatMap((pane) => pane.tabs.filter((tab) => tab.locationId === location.id).map((tab) => ({ paneId: pane.id, tab })));
       setPanes((current) => Object.fromEntries(Object.entries(current).map(([paneId, pane]) => [paneId, {
@@ -234,7 +248,7 @@ export default function App() {
       setLocations((current) => current.map((item) => item.id === location.id ? { ...item, available: false } : item));
       setFilesByLocation((current) => ({ ...current, [location.id]: [] }));
     }
-  }, [reconcile]);
+  }, [detectOkfBundle, reconcile]);
 
   const refreshAll = useCallback((source: HistoryEvent["source"] = "external") => Promise.all(locationsRef.current.map((location) => refreshLocation(location, source))), [refreshLocation]);
 
@@ -512,7 +526,7 @@ export default function App() {
       <section className="sidebar-section locations-section">
         <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button><button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
         {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/agent-context-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
-          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span><button className={`okf-toggle ${location.okfBundle ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); setLocations((current) => current.map((item) => item.id === location.id ? { ...item, okfBundle: !item.okfBundle } : item)); }} title={location.okfBundle ? "Remove OKF bundle marker" : "Mark as OKF bundle"}>OKF</button><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
+          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span><button className={`okf-toggle ${location.okfBundle ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); setLocations((current) => current.map((item) => item.id === location.id ? { ...item, okfBundle: !item.okfBundle, okfMode: !item.okfBundle ? "manual" : "disabled" } : item)); }} title={location.okfBundle ? (location.okfMode === "auto" ? "OKF bundle detected automatically — click to disable" : "Remove OKF bundle marker") : "Mark as OKF bundle"}>OKF</button><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">

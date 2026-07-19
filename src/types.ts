@@ -31,6 +31,7 @@ export type LocationRecord = {
   name: string;
   available: boolean;
   okfBundle?: boolean;
+  okfMode?: "auto" | "manual" | "disabled";
 };
 
 export type FileFingerprint = Pick<FileEntry, "path" | "relativePath" | "modifiedAtMs" | "size">;
