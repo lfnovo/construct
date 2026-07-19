@@ -6,7 +6,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import mermaid from "mermaid";
 import { api } from "./api";
-import { resolveOkfLink } from "./okf";
+import { resolveOkfLink, withoutFrontmatter } from "./okf";
 
 type Props = {
   content: string;
@@ -81,7 +81,7 @@ export function MarkdownPreview({ content, sourcePath, bundleRoot, onOpenInterna
           img({ src, alt }) { return <LocalImage src={src} alt={alt || ""} sourcePath={sourcePath} bundleRoot={bundleRoot} />; },
         }}
       >
-        {content}
+        {withoutFrontmatter(content)}
       </ReactMarkdown>
     </article>
   );

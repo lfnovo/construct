@@ -122,3 +122,7 @@ export function resolveOkfLink(sourcePath: string, bundleRoot: string | undefine
   if (bundleRoot && clean.startsWith("/")) return `${bundleRoot.replace(/[\\/]$/, "")}/${clean.slice(1)}`;
   try { return decodeURIComponent(new URL(clean, `file://${sourcePath}`).pathname); } catch { return clean; }
 }
+
+export function withoutFrontmatter(content: string) {
+  return content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*(?:\r?\n)?/, "");
+}
