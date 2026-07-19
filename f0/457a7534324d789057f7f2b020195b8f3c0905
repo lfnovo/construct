@@ -1,0 +1,23 @@
+src/MarkdownPreview.tsx
+  s_954343fc536a43::t_2b043972fdb9c1 9,84
+src/okf.ts
+  s_954343fc536a43::t_2b043972fdb9c1 125-128
+src/App.tsx
+  s_954343fc536a43::t_2b043972fdb9c1 529
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f0457a7534324d789057f7f2b020195b8f3c0905",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
