@@ -1,0 +1,37 @@
+src/MarkdownPreview.tsx
+  s_954343fc536a43::t_196eaf543d9650 9,14,36,43-44,48,72,81
+examples/okf-demo/playbooks/read-context.md
+  s_954343fc536a43::t_672ce9f806177e 1-16
+src/styles.css
+  s_954343fc536a43::t_287c8d6f0f1160 71-73,96-97,132-137
+examples/okf-demo/log.md
+  s_954343fc536a43::t_672ce9f806177e 1-5
+src/okf.ts
+  s_954343fc536a43::t_196eaf543d9650 1-124
+examples/okf-demo/systems/agent-context.md
+  s_954343fc536a43::t_672ce9f806177e 1-20
+src/types.ts
+  s_954343fc536a43::t_196eaf543d9650 33
+docs/product-spec.md
+  s_954343fc536a43::t_1a28a680ad4109 446-458
+examples/okf-demo/index.md
+  s_954343fc536a43::t_672ce9f806177e 1-13
+src/App.tsx
+  s_954343fc536a43::t_287c8d6f0f1160 8,146,449-450,476,485-498,501,515
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8696967ee4d3bd0b352aa18e4dedd7af520d9a7d",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
