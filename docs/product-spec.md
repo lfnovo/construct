@@ -287,6 +287,7 @@ coverage
 - **TAB-006:** `⌘W` fecha a aba ativa; se for a última aba, o Painel pode permanecer vazio.
 - **TAB-007:** O título da aba usa o nome do arquivo e oferece o caminho relativo em tooltip ou elemento equivalente.
 - **TAB-008:** O aplicativo deve indicar quando duas abas possuem nomes iguais e pertencem a caminhos diferentes.
+- **TAB-009:** O menu de contexto de uma aba deve oferecer ao menos Recarregar do disco, Copiar caminho e Revelar no Finder.
 
 ### 10.6 Painéis
 

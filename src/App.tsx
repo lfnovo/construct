@@ -152,6 +152,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [historyFilter, setHistoryFilter] = useState<HistoryKind | "all">("all");
   const [fileContext, setFileContext] = useState<{ file: FileEntry; x: number; y: number } | null>(null);
+  const [tabContext, setTabContext] = useState<{ tab: DocumentTab; paneId: string; x: number; y: number } | null>(null);
   const [pendingClose, setPendingClose] = useState<{ paneId: string; tabId: string } | null>(null);
   const locationsRef = useRef(locations);
   const filesRef = useRef(filesByLocation);
@@ -302,6 +303,16 @@ export default function App() {
   const updateTab = useCallback((paneId: string, tabId: string, updater: (tab: DocumentTab) => DocumentTab) => {
     setPane(paneId, (pane) => ({ ...pane, tabs: pane.tabs.map((tab) => tab.id === tabId ? updater(tab) : tab) }));
   }, [setPane]);
+
+  const reloadTab = useCallback(async (paneId: string, tabId: string) => {
+    const tab = panes[paneId]?.tabs.find((item) => item.id === tabId);
+    if (!tab) return;
+    if (tab.dirty && !window.confirm("Discard unsaved changes and reload this file from disk?")) return;
+    try {
+      const [contents, git] = await Promise.all([api.readMarkdownFile(tab.path), api.getGitInfo(tab.path)]);
+      updateTab(paneId, tab.id, (current) => ({ ...current, content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, dirty: false, conflict: false, deleted: false, git }));
+    } catch (error) { notify(error instanceof Error ? error.message : String(error)); }
+  }, [notify, panes, updateTab]);
 
   const saveTab = useCallback(async (paneId = activePaneId, tabId?: string) => {
     const pane = panes[paneId];
@@ -468,7 +479,7 @@ export default function App() {
     const tabLocation = tab ? locationsRef.current.find((location) => location.id === tab.locationId) : null;
     const okf = tab && tabLocation?.okfBundle ? inspectOkfDocument(tab.content, tab.relativePath, tab.relativePath === "index.md") : null;
     const changeContent = (content: string) => tab && updateTab(pane.id, tab.id, (current) => ({ ...current, content, dirty: content !== current.baseContent }));
-    const reloadExternal = () => tab && api.readMarkdownFile(tab.path).then((contents) => updateTab(pane.id, tab.id, (current) => ({ ...current, content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, dirty: false, conflict: false, deleted: false }))).catch((error) => notify(String(error)));
+    const reloadExternal = () => { if (tab) void reloadTab(pane.id, tab.id); };
     return <section className={`editor-pane ${active ? "active" : ""}`}>
       <div className="tab-bar" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
         const payload = event.dataTransfer.getData("application/agent-context-tab");
@@ -482,7 +493,7 @@ export default function App() {
           return { ...current, [paneId]: { ...source, tabs: source.tabs.filter((item) => item.id !== tabId), activeTabId: source.activeTabId === tabId ? source.tabs.find((item) => item.id !== tabId)?.id || null : source.activeTabId }, [pane.id]: { ...target, tabs: [...target.tabs, moving], activeTabId: moving.id } };
         });
       }}>
-        <div className="tabs-scroll">{pane.tabs.map((item) => <div key={item.id} draggable className={`tab ${item.id === pane.activeTabId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-tab", JSON.stringify({ paneId: pane.id, tabId: item.id }))} onClick={() => setPane(pane.id, (current) => ({ ...current, activeTabId: item.id }))} title={item.relativePath}>
+        <div className="tabs-scroll">{pane.tabs.map((item) => <div key={item.id} draggable className={`tab ${item.id === pane.activeTabId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-tab", JSON.stringify({ paneId: pane.id, tabId: item.id }))} onClick={() => setPane(pane.id, (current) => ({ ...current, activeTabId: item.id }))} onContextMenu={(event) => { event.preventDefault(); setTabContext({ tab: item, paneId: pane.id, x: event.clientX, y: event.clientY }); }} title={item.relativePath}>
           <span className={item.dirty ? "dirty-dot" : "file-tab-icon"}>{item.dirty ? "●" : "#"}</span><span>{item.title}</span><button aria-label={`Fechar ${item.title}`} onClick={(event) => { event.stopPropagation(); closeTab(pane.id, item.id); }}>×</button>
         </div>)}</div>
         <button className="icon-button" title="Split vertically" onClick={() => { setActivePaneId(pane.id); splitPane("horizontal"); }}><Columns2 size={14} /></button>
@@ -554,6 +565,11 @@ export default function App() {
       <button onClick={() => { openFile(fileContext.file, true); setFileContext(null); }}>Open to the right</button>
       <button onClick={() => { void navigator.clipboard.writeText(fileContext.file.path); setFileContext(null); notify("Path copied."); }}><Clipboard size={13} /> Copy path</button>
       <button onClick={() => { void api.revealInFileManager(fileContext.file.path); setFileContext(null); }}>Reveal in Finder</button>
+    </div></div>}
+    {tabContext && <div className="context-backdrop" onMouseDown={() => setTabContext(null)}><div className="context-menu" style={{ left: tabContext.x, top: tabContext.y }} onMouseDown={(event) => event.stopPropagation()}>
+      <button onClick={() => { void reloadTab(tabContext.paneId, tabContext.tab.id); setTabContext(null); }}>Reload from disk</button>
+      <button onClick={() => { void navigator.clipboard.writeText(tabContext.tab.path); setTabContext(null); notify("Path copied."); }}><Clipboard size={13} /> Copy path</button>
+      <button onClick={() => { void api.revealInFileManager(tabContext.tab.path); setTabContext(null); }}>Reveal in Finder</button>
     </div></div>}
     {pendingClose && <div className="modal-backdrop"><div className="confirm-modal"><h2>Save changes?</h2><p>This file has unsaved changes.</p><div><button onClick={() => setPendingClose(null)}>Cancel</button><button className="danger-button" onClick={() => { discardTab(pendingClose.paneId, pendingClose.tabId); setPendingClose(null); }}>Don’t save</button><button className="primary-button" onClick={() => { const request = pendingClose; setPendingClose(null); void saveTab(request.paneId, request.tabId).then((saved) => { if (saved) discardTab(request.paneId, request.tabId); }); }}>Save</button></div></div></div>}
     {notice && <div className="toast">{notice}</div>}
