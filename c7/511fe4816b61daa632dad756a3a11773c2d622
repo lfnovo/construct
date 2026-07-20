@@ -1,0 +1,22 @@
+docs/product-spec.md
+  s_954343fc536a43::t_0a60867eafd237 290
+src/App.tsx
+  s_954343fc536a43::t_2f37d7cb869198 155,307-316,482,496,569-572
+  s_954343fc536a43::t_318b18e8bad52e 573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c7511fe4816b61daa632dad756a3a11773c2d622",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
