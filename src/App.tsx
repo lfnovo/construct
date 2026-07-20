@@ -441,7 +441,12 @@ export default function App() {
       if (!event.metaKey) return;
       if (event.key.toLowerCase() === "p") { event.preventDefault(); setQuickOpen(true); }
       if (event.key.toLowerCase() === "s") { event.preventDefault(); void saveTab(); }
-      if (event.key.toLowerCase() === "w") { const tab = findTab(); if (tab) { event.preventDefault(); closeTab(activePaneId, tab.id); } }
+      if (event.key.toLowerCase() === "w") {
+        event.preventDefault();
+        event.stopPropagation();
+        const tab = findTab();
+        if (tab) closeTab(activePaneId, tab.id);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
