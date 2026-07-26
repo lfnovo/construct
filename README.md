@@ -66,6 +66,7 @@ src-tauri/target/release/bundle/macos/Construct.app
 
 ## Project documentation
 
+- [Documentation index](docs/README.md)
 - [Product specification](docs/product-spec.md)
 - [Architecture](docs/architecture.md)
 - [Contributing](CONTRIBUTING.md)
