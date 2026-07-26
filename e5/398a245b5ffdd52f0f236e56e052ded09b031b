@@ -1,0 +1,19 @@
+src/App.tsx
+  s_954343fc536a43::t_a1a7f3f9eba90f 260,631
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e5398a245b5ffdd52f0f236e56e052ded09b031b",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
