@@ -473,11 +473,11 @@ Os atalhos abaixo usam a notação do macOS. A implementação futura deve mapea
 
 ### 10.16 Open Knowledge Format (OKF)
 
-O aplicativo deve oferecer suporte de consumo não destrutivo ao [Open Knowledge Format v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), uma especificação aberta baseada em arquivos Markdown com frontmatter YAML.
+O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledge Format v0.1 e v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), uma especificação aberta baseada em arquivos Markdown com frontmatter YAML. Versões futuras permanecem legíveis em modo de compatibilidade.
 
-- **OKF-001:** Um Local cujo `index.md` da raiz declare `okf_version` deve ser reconhecido automaticamente como bundle OKF. Bundles sem essa declaração opcional podem ser marcados explicitamente pelo usuário.
+- **OKF-001:** Um Local cujo `index.md` da raiz declare `okf_version`, ou que combine um `index.md` na raiz com conceitos contendo `type`, deve ser reconhecido automaticamente como bundle OKF. Conceitos de exemplo aninhados, sem esse sinal estrutural, não bastam para classificar o Local inteiro. A marcação explícita do usuário tem precedência sobre a detecção.
 - **OKF-002:** Em um Local marcado, o aplicativo deve reconhecer `index.md` como índice de diretório e `log.md` como histórico de atualizações, inclusive em subdiretórios.
-- **OKF-003:** Conceitos OKF devem expor, quando presentes, `type`, `title`, `description`, `resource`, `tags`, `timestamp` e `okf_version`.
+- **OKF-003:** Conceitos OKF devem expor, quando presentes, `type`, `title`, `description`, `resource`, `tags`, `timestamp`, `okf_version`, `sources`, `generated`, `verified`, `status` e `stale_after`.
 - **OKF-004:** O Preview deve resolver links internos iniciados com `/` em relação à raiz do bundle OKF. Links relativos mantêm o comportamento Markdown usual.
 - **OKF-005:** O aplicativo deve indicar de forma não bloqueante se um conceito não contém frontmatter, não possui o campo obrigatório `type` ou contém frontmatter incompleto.
 - **OKF-006:** Tipos desconhecidos, campos adicionais, links quebrados e ausência de arquivos de índice não devem impedir a abertura ou leitura do bundle.
@@ -493,6 +493,12 @@ O aplicativo deve oferecer suporte de consumo não destrutivo ao [Open Knowledge
 - **OKF-016:** Em bundles grandes, Graph pode limitar a renderização aos conceitos mais conectados, desde que informe claramente quantos conceitos foram omitidos e preserve o índice completo nas demais visões.
 - **OKF-017:** O filtro por `type` deve aceitar seleção múltipla. Cada clique liga ou desliga apenas o `type` correspondente; os conceitos visíveis pertencem a qualquer um dos types selecionados e continuam sujeitos ao filtro de tag quando ele estiver ativo.
 - **OKF-018:** Cada `type` presente em um bundle deve receber uma cor visual distinta e estável enquanto o bundle estiver aberto. A mesma cor deve identificar o `type` nos filtros, na lista, nos nós e na legenda do Graph, sem atribuir significado taxonômico à paleta.
+- **OKF-019:** Uma única implementação nativa deve produzir a inspeção consumida pelo inspector, pela detecção do bundle, por Explore e por Graph. O frontend não deve manter um segundo parser de YAML.
+- **OKF-020:** O parser deve preservar valores YAML desconhecidos como valores tipados — null, booleano, número, string, sequência ou mapa — sem convertê-los silenciosamente em texto.
+- **OKF-021:** Em OKF v0.2, `generated.at` é a data preferida para apresentação e ordenação; `timestamp` permanece como fallback compatível, e ambos os valores originais são preservados.
+- **OKF-022:** Diagnósticos devem ter códigos estáveis, severidade, mensagem em inglês, identidade relativa do documento e range de origem quando disponível. Erros de conformidade não podem impedir que o Markdown legível seja aberto ou editado.
+- **OKF-023:** Links Markdown inline e de referência e campos OKF com contrato de path conhecido devem compartilhar resolução segura. Links quebrados geram findings; links que escapam da raiz registrada nunca entram no grafo.
+- **OKF-024:** A inspeção deve impor limites locais de tamanho e profundidade, excluir o bloco `construct-review:v1` de links e nunca reserializar ou salvar um documento.
 
 ## 11. Estados e tratamento de erros
 
@@ -833,6 +839,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Adotar edição visual local com Milkdown/Crepe, mantendo Source como escape hatch e frontmatter YAML byte a byte. |
 | 2026-07-26 | Compartilhar um único buffer entre Preview, Edit e Source, preservar salvamento explícito e não oferecer upload de imagens no primeiro corte. |
 | 2026-07-26 | Armazenar comentários de Review no próprio Markdown em um bloco invisível `construct-review:v1`, com remoção exata e prompt copiável para novas sessões de agente. |
+| 2026-07-26 | Consumir OKF v0.1/v0.2 e versões futuras de forma tolerante por um parser Rust compartilhado, preservando YAML aberto e usando findings estáveis. |
 
 ## 24. Histórico do documento
 
@@ -842,3 +849,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.2 | 2026-07-25 | Estado do preview, identidade Construct, suporte OKF e decisões técnicas consolidados. |
 | 0.3 | 2026-07-26 | Edição visual Markdown, contrato de preservação de frontmatter e critérios de segurança do buffer. |
 | 0.4 | 2026-07-26 | Review persistente no documento, ciclo de comentários e handoff copiável para agentes. |
+| 0.5 | 2026-07-26 | Compatibilidade OKF v0.1/v0.2, parser nativo compartilhado, metadados tipados e contrato de findings. |

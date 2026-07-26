@@ -5,7 +5,6 @@ import {
   setReviewComments,
   splitReviewDocument,
 } from "../src/review.ts";
-import { extractOkfLinks } from "../src/okf.ts";
 
 const comment = {
   id: "review-1",
@@ -61,13 +60,4 @@ test("builds a standalone agent prompt while escaping XML-like content", () => {
   assert.match(prompt, /<comment id="review-&quot;1&quot;">/);
   assert.match(prompt, /x &lt; y &amp; y &gt; z/);
   assert.match(prompt, /construct-review:v1/);
-});
-
-test("does not turn Markdown links inside review feedback into OKF graph edges", () => {
-  const reviewed = setReviewComments("# Title", [{
-    ...comment,
-    comment: "Compare this with [another concept](/references/other.md).",
-  }]).content;
-
-  assert.deepEqual(extractOkfLinks(reviewed, "/bundle/current.md", "/bundle"), []);
 });
