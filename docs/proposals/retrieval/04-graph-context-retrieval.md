@@ -202,7 +202,7 @@ Review payloads must not become ordinary content or graph edges:
 - their provenance identifies them as user feedback, not document content.
 
 Detailed behavior belongs to
-[RFC 06](06-review-integration.md).
+[RFC 07](07-review-integration.md).
 
 ## Non-goals
 
@@ -253,7 +253,7 @@ context, and answer sufficiency in agent trials.
 - The existing graph renderer may display bounded projections, but native graph
   completeness and context assembly never depend on that renderer.
 - Cross-Location links are not resolved in the first implementation.
-- Review comments remain excluded until RFC 06 adds an explicit separate field.
+- Review comments remain excluded until RFC 07 adds an explicit separate field.
 
 ## Deferred decisions
 

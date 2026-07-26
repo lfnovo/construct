@@ -473,7 +473,7 @@ flowchart LR
 - **CONTEXT-004:** A primeira implementação usa um orçamento selecionável de caracteres, limitado pelo servidor, e nunca excede esse teto.
 - **CONTEXT-005:** Documentos truncados ou omitidos por orçamento, indisponibilidade ou limite de quantidade devem ser reportados explicitamente.
 - **CONTEXT-006:** A mesma seleção, corpus salvo, orçamento e versão do indexador devem produzir ordenação estável.
-- **CONTEXT-007:** O context pack não gera resposta por LLM, não salva arquivos e não inclui comentários de Review até a entrega explícita da RFC 06.
+- **CONTEXT-007:** O context pack não gera resposta por LLM, não salva arquivos e não inclui comentários de Review até a entrega explícita da RFC 07.
 - **CONTEXT-008:** O orçamento deve primeiro reservar um trecho útil para o maior número possível de documentos selecionados e depois distribuir o saldo proporcionalmente ao conteúdo restante; um documento grande não pode monopolizar o pacote quando outros documentos ainda puderem contribuir.
 
 ### 10.14 Persistência do workspace
