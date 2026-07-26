@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelTop, Rows3, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
-import { toggleFilterValue, type ExploreFilters } from "./explore";
+import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./explore";
 import { deduplicateHistory } from "./history";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -127,12 +127,13 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }
   }
   const concepts = index.concepts.filter((concept) => (!filters.types.length || filters.types.includes(concept.type)) && (!filters.tag || concept.tags.includes(filters.tag)));
   const types = [...typeCounts.entries()].sort(([left], [right]) => left.localeCompare(right));
+  const typeColors = buildTypeColorMap(types.map(([type]) => type));
   const tags = [...tagCounts.entries()].sort(([leftName, leftCount], [rightName, rightCount]) => rightCount - leftCount || leftName.localeCompare(rightName));
   return <section className="bundle-explorer">
     <header><div><h1>{location.name}</h1><p>OKF bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
-    <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}>{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
+    <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list types">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} style={{ "--type-color": typeColors[type] } as CSSProperties} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}><i className="type-color-dot" />{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
     <div className="explore-results-heading"><h2>{filters.types.length || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.types.length || filters.tag) && <button onClick={() => onFilters({ types: [] })}>Clear filters</button>}</div>
-    {view === "graph" ? <KnowledgeGraph concepts={concepts} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
+    {view === "graph" ? <KnowledgeGraph concepts={concepts} typeColors={typeColors} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span className="concept-type" style={{ "--type-color": typeColors[concept.type] } as CSSProperties}>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
   </section>;
 }
 

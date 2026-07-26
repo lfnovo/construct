@@ -4,18 +4,12 @@ import type { OkfConcept } from "./okf";
 const GRAPH_WIDTH = 1200;
 const GRAPH_HEIGHT = 700;
 const MAX_NODES = 300;
-const TYPE_COLORS = ["#8b8cf8", "#45bfa9", "#e4a85e", "#db6f91", "#63a9ee", "#a67de0", "#71b96b", "#dd7a62", "#5fc0db", "#c99b45"];
+const FALLBACK_TYPE_COLOR = "#8b8cf8";
 
 type GraphNode = OkfConcept & { x: number; y: number; radius: number; degree: number; color: string };
 type GraphEdge = { source: GraphNode; target: GraphNode };
 
-function colorForType(type: string) {
-  let hash = 0;
-  for (const character of type) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
-  return TYPE_COLORS[Math.abs(hash) % TYPE_COLORS.length];
-}
-
-function layoutConcepts(concepts: OkfConcept[]) {
+function layoutConcepts(concepts: OkfConcept[], typeColors: Record<string, string>) {
   const known = new Set(concepts.map((concept) => concept.path));
   const degrees = new Map(concepts.map((concept) => [
     concept.path,
@@ -45,7 +39,7 @@ function layoutConcepts(concepts: OkfConcept[]) {
       y: clusterY + Math.sin(localAngle) * localRadius,
       radius: Math.min(12, 5.5 + Math.sqrt(degree) * 1.8),
       degree,
-      color: colorForType(concept.type),
+      color: typeColors[concept.type] || FALLBACK_TYPE_COLOR,
     };
   });
   const nodesByPath = new Map(nodes.map((node) => [node.path, node]));
@@ -116,8 +110,12 @@ function layoutConcepts(concepts: OkfConcept[]) {
   return { nodes, edges, types, labeled, truncated: concepts.length - nodes.length };
 }
 
-export function KnowledgeGraph({ concepts, onOpen }: { concepts: OkfConcept[]; onOpen: (path: string) => void }) {
-  const graph = useMemo(() => layoutConcepts(concepts), [concepts]);
+export function KnowledgeGraph({ concepts, typeColors, onOpen }: {
+  concepts: OkfConcept[];
+  typeColors: Record<string, string>;
+  onOpen: (path: string) => void;
+}) {
+  const graph = useMemo(() => layoutConcepts(concepts, typeColors), [concepts, typeColors]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
   const drag = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
@@ -195,7 +193,7 @@ export function KnowledgeGraph({ concepts, onOpen }: { concepts: OkfConcept[]; o
           </g>
         </g>
       </svg>
-      <div className="graph-legend">{graph.types.map((type) => <span key={type}><i style={{ background: colorForType(type) }} />{type}</span>)}</div>
+      <div className="graph-legend">{graph.types.map((type) => <span key={type}><i style={{ background: typeColors[type] || FALLBACK_TYPE_COLOR }} />{type}</span>)}</div>
       {selected && <aside className="graph-selection">
         <button className="graph-selection-close" aria-label="Close concept details" onClick={() => setSelectedPath(null)}>×</button>
         <span className="graph-selection-type" style={{ color: selected.color }}>{selected.type}</span>
