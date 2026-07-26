@@ -248,7 +248,15 @@ export default function App() {
     if (!rootIndex) return false;
     try {
       const { content } = await api.readMarkdownFile(rootIndex.path);
-      const detected = Boolean(inspectOkfDocument(content, rootIndex.relativePath, true).metadata.okfVersion);
+      const declaredVersion = Boolean(inspectOkfDocument(content, rootIndex.relativePath, true).metadata.okfVersion);
+      const candidates = entries.filter((entry) => !/(^|[\\/])(index|log)\.md$/i.test(entry.relativePath)).slice(0, 32);
+      const typedConcepts = (await mapInBatches(candidates, async (entry) => {
+        try {
+          const concept = inspectOkfDocument((await api.readMarkdownFile(entry.path)).content, entry.relativePath);
+          return concept.kind === "concept" && Boolean(concept.metadata.type?.trim());
+        } catch { return false; }
+      })).filter(Boolean).length;
+      const detected = declaredVersion || typedConcepts > 0;
       setLocations((current) => current.map((item) => {
         if (item.id !== location.id || item.okfMode === "manual" || item.okfMode === "disabled") return item;
         return detected ? { ...item, okfBundle: true, okfMode: "auto" } : { ...item, okfBundle: false, okfMode: "auto" };
@@ -578,7 +586,7 @@ export default function App() {
         <button className="icon-button" title="Split horizontally" onClick={() => { setActivePaneId(pane.id); splitPane("vertical"); }}><Rows3 size={14} /></button>
         {getPaneIds(layout).length > 1 && <button className="icon-button" title="Close pane" onClick={() => closePane(pane.id)}><X size={14} /></button>}
       </div>
-      {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p></div> : <>
+      {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p>{activeLocation?.okfBundle && <button className="toolbar-button" onClick={() => { setExploreFilters({}); setExploreLocationId(activeLocation.id); }}>Explore this OKF bundle</button>}</div> : <>
         <div className="document-toolbar">
           <span className="document-path" title={tab.path}>{tab.relativePath}</span>
           {okf && <button className={`okf-status ${okf.isConformant ? "valid" : "invalid"}`} title="Open Knowledge Format details" onClick={() => setShowOkfInspector((current) => !current)}>OKF</button>}
