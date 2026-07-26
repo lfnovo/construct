@@ -1,11 +1,11 @@
 # Local retrieval and agent access
 
-**Status:** In progress — RFC 01 implemented; RFCs 02–06 proposed
+**Status:** In progress — RFCs 01–04 first deliveries implemented
 
 **Date:** 2026-07-26
 
-**Scope:** Product and architecture reasoning only. This proposal does not
-authorize implementation.
+**Scope:** Product and architecture record. Individual RFC status controls
+whether implementation is authorized.
 
 ## Purpose
 
@@ -46,9 +46,9 @@ evidence and low-risk experiments behind these RFCs.
 | RFC | Status | Question it owns | Depends on |
 | --- | --- | --- | --- |
 | [01 — OKF compatibility](01-okf-compatibility.md) | Implemented | How should Construct consume OKF v0.1, v0.2, and future metadata safely? | Current Markdown boundary rules |
-| [02 — Local Markdown index](02-local-markdown-index.md) | Proposed | How should all registered Markdown become incrementally searchable? | RFC 01 for OKF enrichment |
-| [03 — Knowledge search experience](03-knowledge-search-experience.md) | Proposed | How should people search content without weakening quick file navigation? | RFC 02 |
-| [04 — Graph and context retrieval](04-graph-context-retrieval.md) | Proposed | How should links improve discovery and produce bounded context packs? | RFCs 01–03 |
+| [02 — Local Markdown index](02-local-markdown-index.md) | Implemented; validation continues | How should all registered Markdown become incrementally searchable? | RFC 01 for OKF enrichment |
+| [03 — Knowledge search experience](03-knowledge-search-experience.md) | Implemented | How should people search content without weakening quick file navigation? | RFC 02 |
+| [04 — Graph and context retrieval](04-graph-context-retrieval.md) | First delivery implemented; advanced expansion deferred | How should links improve discovery and produce bounded context packs? | RFCs 01–03 |
 | [05 — Local agent access](05-local-agent-access.md) | Proposed | How should agents use the same retrieval core through CLI and MCP? | RFCs 02 and 04 |
 | [06 — Review integration](06-review-integration.md) | Proposed | How should persisted review comments participate without polluting knowledge? | RFCs 02, 04, and 05 |
 
@@ -77,12 +77,13 @@ Every RFC in this set must preserve these rules:
 - Build synthetic OKF v0.1/v0.2 fixtures.
 - Measure current scans on representative 1,000- and 10,000-file locations.
 - Define a small relevance question set from real workflows.
-- Decide native YAML, Markdown, and SQLite libraries.
+- Decide native YAML, Markdown, and embedded database libraries.
 
 ### Phase 1 — Local index and search
 
 - Add tolerant native Markdown and OKF parsing.
-- Maintain an incremental SQLite/FTS5 index outside user repositories.
+- Maintain one incremental embedded SurrealDB/SurrealKV index per Location
+  outside user repositories.
 - Ship content search and index status in the desktop app.
 
 ### Phase 1.5 — Minimal agent pilot
@@ -109,11 +110,12 @@ lexical and graph retrieval. Lexical-only operation remains first-class.
 
 ## Cross-cutting decisions
 
-These decisions apply to several RFCs and should be resolved before Phase 1:
+These decisions apply across the accepted RFCs:
 
 1. **Index scope:** all registered Markdown, with OKF as enrichment.
-2. **Physical storage:** one application-owned database with bundle/location
-   isolation, unless measurement shows per-location databases are safer.
+2. **Physical storage:** one application-owned embedded SurrealDB database per
+   Location, using SurrealKV initially. Cross-Location retrieval fans out and
+   fuses results without mixing physical indexes.
 3. **Saved state:** the shared index represents saved files only.
 4. **Agent timing:** a minimal agent surface follows lexical search rather than
    waiting for every graph and context feature.
@@ -123,9 +125,9 @@ These decisions apply to several RFCs and should be resolved before Phase 1:
 
 ## How to use these RFCs
 
-Each RFC should be discussed and accepted independently. Acceptance means its
-decisions can be incorporated into the current product specification and
-architecture; it does not automatically authorize every later phase.
+Each RFC is discussed and accepted independently. Acceptance authorizes the
+scoped first delivery recorded in that RFC; later or explicitly deferred
+phases still require their own decision.
 
 Before implementation, the selected RFC needs:
 

@@ -1,6 +1,6 @@
 # RFC 04 — Graph and context retrieval
 
-**Status:** Proposed
+**Status:** First delivery implemented — advanced expansion deferred
 
 **Decision owner:** Retrieval architecture and product
 
@@ -165,6 +165,25 @@ Proposed server maxima:
 
 Defaults are benchmark inputs, not permanent product promises.
 
+## Accepted first delivery
+
+The first vertical slice is intentionally deterministic and does not require an
+LLM:
+
+- persist internal Markdown links in each Location's existing SurrealDB index;
+- expose direct outgoing links and backlinks with English explanations;
+- keep graph retrieval independent of visual-graph rendering limits;
+- let people manually add Search results or related documents to an ephemeral
+  context selection;
+- assemble and copy a context pack from saved indexed bodies;
+- enforce a caller-selected character budget in the native core;
+- report included, truncated, and omitted documents explicitly.
+
+The first slice uses one-hop relationships only. A second hop remains an
+explicit later operation. Cross-Location links are not resolved: Location
+isolation is preserved, while cross-Location search continues to federate
+independent indexes.
+
 ## Review behavior
 
 Review payloads must not become ordinary content or graph edges:
@@ -213,14 +232,49 @@ context, and answer sufficiency in agent trials.
 - The same saved corpus and inputs produce stable ordering.
 - Review comments are included only when explicitly requested.
 
-## Open decisions
+## Accepted decisions
 
-- Initial fusion algorithm and weights.
-- Section extraction rules and anchor stability.
-- Character-only budget versus bundled local tokenizer.
-- Whether people can manually pin documents into a context pack.
-- How graph projections are laid out without blocking the UI thread.
-- Whether cross-location links are ever resolved.
+- Direct outgoing links and backlinks are the first and strongest structural
+  signals. Shared tags remain weak metadata, not graph edges.
+- Reciprocal rank fusion remains the deterministic combination strategy when
+  lexical and structural rankings are combined.
+- Character budgets ship first. Token estimates require a named local tokenizer
+  and are deferred.
+- People can manually pin documents into an ephemeral context pack. Construct
+  never adds ranked results to that selection without an explicit action.
+- The existing graph renderer may display bounded projections, but native graph
+  completeness and context assembly never depend on that renderer.
+- Cross-Location links are not resolved in the first implementation.
+- Review comments remain excluded until RFC 06 adds an explicit separate field.
+
+## Deferred decisions
+
+- Stable section extraction and anchor behavior for section-level context.
+- A local tokenizer and token-budget safety margins.
+- Two-hop expansion and lexical-plus-graph automatic seed fusion.
+- An off-main-thread layout for larger visual projections.
+- Whether a future explicit relation syntax may resolve links across Locations.
+
+## First implementation checkpoint
+
+The first native and desktop slice on 2026-07-26 established:
+
+- a versioned `document_link` record set inside every per-Location SurrealDB;
+- transactional replacement of links when their source document changes;
+- post-reconciliation resolution against the active saved corpus;
+- bounded one-hop outgoing and backlink queries with deterministic ordering and
+  English explanations;
+- a Search result pivot that exposes related documents and lets people add them
+  to the existing ephemeral selection;
+- native context-pack assembly from that selection with 10k, 30k, 60k, and
+  100k character choices in the desktop UI;
+- clipboard output with document boundaries, relative provenance, inclusion
+  reasons, truncation, and omission summaries;
+- regression coverage proving that Review-only links stay outside the graph and
+  that a context pack never exceeds its character budget.
+
+Automatic lexical-plus-graph fusion, two-hop expansion, section extraction,
+Review inclusion, and agent transports remain deferred.
 
 ## Dependencies and handoff
 

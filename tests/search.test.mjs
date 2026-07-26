@@ -49,7 +49,7 @@ test("serializes relative references without local filesystem paths", () => {
     locationId: "loc-1",
     relativePath: "people/luis.md",
     title: "Luis",
-    matchReason: "Title match",
+    reason: "Title match",
   }], [{
     id: "loc-1",
     path: "/Users/private/knowledge",

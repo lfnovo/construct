@@ -30,7 +30,7 @@ The frontend lives in `src/`.
 | `CodeEditor.tsx` | CodeMirror lifecycle and Markdown editing |
 | `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
 | `ReviewEditor.tsx` | Rendered text selection, review composer, comment list, and clipboard handoff |
-| `SearchWorkspace.tsx` | Dedicated local knowledge search, visible scope and filters, result selection, recent-query controls, and pane navigation |
+| `SearchWorkspace.tsx` | Dedicated local knowledge search, visible scope and filters, result selection, direct-link pivots, context-pack clipboard actions, recent-query controls, and pane navigation |
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
 | `markdownDocument.ts` | Lossless frontmatter/body boundaries and visual-editor serialization |
 | `review.ts` | Pure parsing, lossless review-block updates, and agent prompt serialization |
@@ -80,7 +80,11 @@ behind this module so they can be replaced without changing the Tauri contract.
   full-text search projection;
 - weighted field-specific full-text indexes and exact metadata filters;
 - local rank explanations and cross-Location reciprocal rank fusion;
-- typed status, rebuild, facets, knowledge search, get, and delete operations.
+- persisted internal Markdown link records and direct outgoing/backlink queries;
+- deterministic context-pack assembly over explicitly selected saved documents,
+  with character budgets and visible provenance;
+- typed status, rebuild, facets, knowledge search, related, context, get, and
+  delete operations.
 
 `IndexService` is transport-neutral and is the only component allowed to open
 the embedded databases. React calls it through typed Tauri commands. Future CLI
@@ -103,6 +107,17 @@ and can be deleted or rebuilt without changing source files. Workspace state
 and retrieval indexes have separate schemas and lifecycles.
 
 Changing the Tauri identifier or persisted schema requires a migration. Construct currently imports the former `com.luisnovo.agent-context` workspace on first launch.
+
+## Startup and progressive reconciliation
+
+Startup restores persisted UI state and saved tab contents before running full
+Location reconciliation. Once watchers and tabs are restored, the workspace is
+shown immediately. Markdown discovery, OKF inspection, and per-Location index
+sync continue in the background and update their existing progress states.
+
+This ordering keeps retrieval work out of the critical path. A slow, unavailable,
+or rebuilding Location cannot hold the entire application on the startup screen.
+Search and Files become progressively available as their Location data arrives.
 
 ## File change flow
 
@@ -152,9 +167,12 @@ OKF support is derived and non-destructive:
 - bundle detection, the inspector, Explore, and Graph consume the same native
   interpretation;
 - Explore and Graph still consume the in-memory bundle snapshot while the new
-  persistent index is introduced behind typed native commands;
+  visual graph consumes the in-memory bundle snapshot;
 - all registered Markdown is now maintained in a per-Location persistent
   derived index, with OKF enrichment when applicable;
+- direct internal links are also persisted in that Location index so backlinks,
+  related-document navigation, and context assembly do not depend on visual
+  graph limits;
 - Construct never completes or rewrites OKF metadata automatically.
 
 ## Security boundaries

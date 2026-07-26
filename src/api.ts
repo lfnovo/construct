@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { OkfBundleSnapshot, OkfInspection } from "./okf";
 import type {
-  FileContent, FileEntry, FileSystemChange, GitDiff, GitInfo, IndexedDocument,
+  ContextDocumentRef, ContextPackResponse, FileContent, FileEntry, FileSystemChange,
+  GitDiff, GitInfo, IndexedDocument,
   IndexSearchResult, IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResponse,
-  SavedWorkspace, SearchFacets,
+  RelatedDocumentsResponse, SavedWorkspace, SearchFacets,
 } from "./types";
 
 export const api = {
@@ -26,6 +27,16 @@ export const api = {
     invoke<SearchFacets>("get_search_facets", { request: { locationIds } }),
   getIndexedDocument: (locationId: string, relativePath: string) =>
     invoke<IndexedDocument | null>("get_indexed_document", { locationId, relativePath }),
+  getRelatedDocuments: (locationId: string, relativePath: string, limit = 20) =>
+    invoke<RelatedDocumentsResponse>("get_related_documents", {
+      request: { locationId, relativePath, limit },
+    }),
+  buildContextPack: (request: {
+    query: string;
+    documents: ContextDocumentRef[];
+    maxCharacters: number;
+    maxDocuments?: number;
+  }) => invoke<ContextPackResponse>("build_context_pack", { request }),
   deleteLocationIndex: (locationId: string) => invoke<void>("delete_location_index", { locationId }),
   readImageDataUrl: (path: string) => invoke<string>("read_image_data_url", { path }),
   writeMarkdownFile: (path: string, content: string) => invoke<void>("write_markdown_file", { request: { path, content } }),

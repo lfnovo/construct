@@ -5,6 +5,7 @@ import {
   Clipboard,
   FileText,
   Search,
+  Share2,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import {
   resultIdentity,
   serializeSearchReferences,
   toggleSearchFilter,
+  type SearchSelection,
 } from "./search";
 import type {
   FacetCount,
@@ -30,6 +32,7 @@ import type {
   KnowledgeSearchResult,
   LocationRecord,
   RecentKnowledgeSearch,
+  RelatedDocumentsResponse,
   SearchFacets,
 } from "./types";
 
@@ -147,7 +150,7 @@ export function SearchWorkspace({
   onRememberSearch: (query: string, locationIds: string[], filters: KnowledgeSearchFilters) => void;
   onRecentSearches: (searches: RecentKnowledgeSearch[]) => void;
   onRememberRecentSearches: (remember: boolean) => void;
-  onOpen: (result: KnowledgeSearchResult, newPane?: boolean) => void;
+  onOpen: (result: Pick<KnowledgeSearchResult, "locationId" | "relativePath">, newPane?: boolean) => void;
   onClose: () => void;
   onNotify: (message: string) => void;
 }) {
@@ -165,7 +168,14 @@ export function SearchWorkspace({
   const [unavailable, setUnavailable] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Map<string, KnowledgeSearchResult>>(new Map());
+  const [selected, setSelected] = useState<Map<string, SearchSelection>>(new Map());
+  const [contextBudget, setContextBudget] = useState(30_000);
+  const [expandedRelated, setExpandedRelated] = useState<string | null>(null);
+  const [related, setRelated] = useState<Record<string, {
+    loading: boolean;
+    response?: RelatedDocumentsResponse;
+    error?: string;
+  }>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -252,6 +262,57 @@ export function SearchWorkspace({
   const copyReferences = async () => {
     await navigator.clipboard.writeText(serializeSearchReferences(selectedResults, locations));
     onNotify(`${selectedResults.length} reference${selectedResults.length === 1 ? "" : "s"} copied.`);
+  };
+  const copyContext = async () => {
+    try {
+      const response = await api.buildContextPack({
+        query: query.trim(),
+        documents: selectedResults.map(({ locationId, relativePath, reason }) => ({
+          locationId,
+          relativePath,
+          reason,
+        })),
+        maxCharacters: contextBudget,
+      });
+      await navigator.clipboard.writeText(response.markdown);
+      const omissions = response.omitted.length
+        ? ` ${response.omitted.length} omitted by limits.`
+        : "";
+      onNotify(`Context copied: ${response.items.length} document${response.items.length === 1 ? "" : "s"}, ${response.totalCharacters.toLocaleString()} characters.${omissions}`);
+    } catch (caught) {
+      onNotify(caught instanceof Error ? caught.message : String(caught));
+    }
+  };
+  const toggleRelated = (result: KnowledgeSearchResult) => {
+    const identity = resultIdentity(result);
+    if (expandedRelated === identity) {
+      setExpandedRelated(null);
+      return;
+    }
+    setExpandedRelated(identity);
+    if (related[identity]) return;
+    setRelated((current) => ({ ...current, [identity]: { loading: true } }));
+    void api.getRelatedDocuments(result.locationId, result.relativePath)
+      .then((response) => setRelated((current) => ({
+        ...current,
+        [identity]: { loading: false, response },
+      })))
+      .catch((caught) => setRelated((current) => ({
+        ...current,
+        [identity]: {
+          loading: false,
+          error: caught instanceof Error ? caught.message : String(caught),
+        },
+      })));
+  };
+  const toggleSelection = (selection: SearchSelection) => {
+    const identity = resultIdentity(selection);
+    setSelected((current) => {
+      const next = new Map(current);
+      if (next.has(identity)) next.delete(identity);
+      else next.set(identity, selection);
+      return next;
+    });
   };
   const readyCount = locationIds.filter((id) => ["ready", "degraded"].includes(indexStatuses[id]?.state)).length;
   const filterCount = activeFilterCount(filters);
@@ -340,7 +401,18 @@ export function SearchWorkspace({
     </div> : <div className="search-results-region">
       <div className="search-results-heading">
         <div><h2>{loading ? "Searching…" : `${results.length} result${results.length === 1 ? "" : "s"}`}</h2>{unavailable.length > 0 && <p><AlertTriangle size={12} /> {unavailable.length} Location index{unavailable.length === 1 ? " is" : "es are"} unavailable.</p>}</div>
-        {selectedResults.length > 0 && <div className="search-selection-actions"><span>{selectedResults.length} selected</span><button onClick={() => void copyReferences()}><Clipboard size={13} /> Copy references</button><button aria-label="Clear selection" onClick={() => setSelected(new Map())}><X size={13} /></button></div>}
+        {selectedResults.length > 0 && <div className="search-selection-actions">
+          <span>{selectedResults.length} selected</span>
+          <label>Budget<select value={contextBudget} onChange={(event) => setContextBudget(Number(event.target.value))}>
+            <option value={10_000}>10k</option>
+            <option value={30_000}>30k</option>
+            <option value={60_000}>60k</option>
+            <option value={100_000}>100k</option>
+          </select></label>
+          <button onClick={() => void copyReferences()}><Clipboard size={13} /> References</button>
+          <button onClick={() => void copyContext()}><Clipboard size={13} /> Copy context</button>
+          <button aria-label="Clear selection" onClick={() => setSelected(new Map())}><X size={13} /></button>
+        </div>}
       </div>
       {error ? <div className="search-message error"><AlertTriangle size={17} /><div><strong>Search failed</strong><p>{error}</p></div></div>
         : !loading && !results.length ? <div className="search-message"><Search size={17} /><div><strong>No knowledge found</strong><p>Try fewer filters or a different phrase.</p></div></div>
@@ -348,19 +420,51 @@ export function SearchWorkspace({
             const identity = resultIdentity(result);
             const location = locations.find((item) => item.id === result.locationId);
             const isSelected = selected.has(identity);
+            const relatedState = related[identity];
             return <article key={identity} className={isSelected ? "selected" : ""}>
-              <button className="result-selector" aria-label={`${isSelected ? "Remove" : "Add"} ${result.title} ${isSelected ? "from" : "to"} selection`} aria-pressed={isSelected} onClick={() => setSelected((current) => {
-                const next = new Map(current);
-                if (next.has(identity)) next.delete(identity);
-                else next.set(identity, result);
-                return next;
+              <button className="result-selector" aria-label={`${isSelected ? "Remove" : "Add"} ${result.title} ${isSelected ? "from" : "to"} selection`} aria-pressed={isSelected} onClick={() => toggleSelection({
+                locationId: result.locationId,
+                relativePath: result.relativePath,
+                title: result.title,
+                reason: result.matchReason,
               })}>{isSelected && <Check size={12} />}</button>
               <button className="result-main" onClick={() => onOpen(result)}>
                 <div className="result-title-line"><FileText size={14} /><strong>{result.title}</strong>{result.type && <span>{result.type}</span>}</div>
                 {result.snippet && <p><HighlightedSnippet value={result.snippet} query={query} /></p>}
                 <footer><span>{location?.name || result.locationId} · {result.relativePath}</span><span>{result.matchReason}</span>{result.findingCount > 0 && <span className="result-warning">{result.findingCount} finding{result.findingCount === 1 ? "" : "s"}</span>}</footer>
               </button>
-              <button className="result-open-right" onClick={() => onOpen(result, true)}>Open right</button>
+              <div className="result-actions">
+                <button onClick={() => toggleRelated(result)}><Share2 size={11} /> Related</button>
+                <button onClick={() => onOpen(result, true)}>Open right</button>
+              </div>
+              {expandedRelated === identity && <div className="related-results">
+                {relatedState?.loading ? <p>Loading direct links…</p>
+                  : relatedState?.error ? <p className="error">{relatedState.error}</p>
+                    : relatedState?.response?.documents.length ? <>
+                      <header><strong>Directly related</strong><span>{relatedState.response.outgoingCount} outgoing · {relatedState.response.incomingCount} incoming</span></header>
+                      {relatedState.response.documents.map((document) => {
+                        const relatedIdentity = resultIdentity(document);
+                        const relatedSelected = selected.has(relatedIdentity);
+                        return <div key={relatedIdentity}>
+                          <button className="related-main" onClick={() => onOpen(document)}>
+                            <strong>{document.title}</strong>
+                            <small>{document.relativePath} · {document.reason}</small>
+                          </button>
+                          <button
+                            className={relatedSelected ? "selected" : ""}
+                            aria-pressed={relatedSelected}
+                            onClick={() => toggleSelection({
+                              locationId: document.locationId,
+                              relativePath: document.relativePath,
+                              title: document.title,
+                              reason: document.reason,
+                            })}
+                          >{relatedSelected ? "Added" : "Add"}</button>
+                        </div>;
+                      })}
+                      {relatedState.response.omittedCount > 0 && <p>{relatedState.response.omittedCount} more direct relation{relatedState.response.omittedCount === 1 ? "" : "s"} omitted.</p>}
+                    </> : <p>No resolved direct links or backlinks.</p>}
+              </div>}
             </article>;
           })}</div>}
     </div>}
