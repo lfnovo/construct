@@ -1,0 +1,28 @@
+.github/dependabot.yml
+  s_954343fc536a43::t_fea8668912daaf 8-19,25-36,42-53
+.github/workflows/ci.yml
+  s_954343fc536a43::t_fea8668912daaf 25,28,47
+package.json
+  s_954343fc536a43::t_5efe0808831970 39,44
+  s_954343fc536a43::t_9f7074fce476d9 43
+package-lock.json
+  s_954343fc536a43::t_a73761a587e39e 19,23-24,1867-1869,5536-5538,5545-5547,5553
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_b8a060c8980776 2636,2638,2658,2660,2667,2669,2673,2689,2691,2959-2969,3191,3193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "816803ecbdf7ea61f16ccf70807e8e8d7deaa93f",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
