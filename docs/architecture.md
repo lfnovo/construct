@@ -10,6 +10,8 @@ flowchart LR
     R --> P[Lossless Markdown editor boundary]
     R --> T[Tauri command boundary]
     T --> O[Native OKF parser]
+    T --> I[IndexService]
+    I --> D[(One SurrealDB per Location)]
     T --> F[Filesystem and watcher]
     T --> G[Read-only Git commands]
     T --> S[Local workspace state]
@@ -66,11 +68,31 @@ bundle snapshots or an in-memory tab buffer for the inspector and never
 serializes YAML back into a document. YAML and CommonMark dependencies stay
 behind this module so they can be replaced without changing the Tauri contract.
 
+`src-tauri/src/index.rs` owns the first persistent retrieval boundary:
+
+- one embedded SurrealDB/SurrealKV directory per stable Location ID;
+- one serialized writer and connection owner per Location;
+- a disposable schema and active-generation record;
+- incremental fingerprint comparison and transactional document updates;
+- complete visible Markdown bodies, typed frontmatter, headings, and a clean
+  full-text search projection;
+- typed status, rebuild, search, get, and delete operations.
+
+`IndexService` is transport-neutral and is the only component allowed to open
+the embedded databases. React calls it through typed Tauri commands. Future CLI
+and MCP adapters must reuse the service instead of opening SurrealKV directly.
+
 The frontend can operate only on files under registered locations. Path validation happens again in Rust; frontend checks are not a security boundary.
 
 ## Persistence
 
 Workspace state is stored as `workspace.json` in the platform application data directory. It contains locations, UI layout, tabs, history metadata, and file fingerprints, but never document contents.
+
+Saved Markdown is also represented in disposable per-Location indexes under
+the application data `indexes/` directory. Those indexes contain document
+bodies and metadata for local retrieval, are never placed inside a repository,
+and can be deleted or rebuilt without changing source files. Workspace state
+and retrieval indexes have separate schemas and lifecycles.
 
 Changing the Tauri identifier or persisted schema requires a migration. Construct currently imports the former `com.luisnovo.agent-context` workspace on first launch.
 
@@ -80,8 +102,10 @@ Changing the Tauri identifier or persisted schema requires a migration. Construc
 2. A filesystem event is emitted to the webview.
 3. React debounces the event and rescans the affected workspace.
 4. Fingerprints produce created, changed, renamed, or removed history entries.
-5. Clean open tabs reload automatically.
-6. Dirty tabs enter an explicit conflict state.
+5. `IndexService` reconciles the saved corpus and updates only changed or
+   removed records in the active Location generation.
+6. Clean open tabs reload automatically.
+7. Dirty tabs enter an explicit conflict state.
 
 The persisted history retains the most recent event for each file identity and does not store snapshots.
 
@@ -119,8 +143,10 @@ OKF support is derived and non-destructive:
   compatibility behavior, broken links, and unsafe paths;
 - bundle detection, the inspector, Explore, and Graph consume the same native
   interpretation;
-- indexes and graphs are still rebuilt from local Markdown; persistent indexing
-  belongs to the next retrieval RFC;
+- Explore and Graph still consume the in-memory bundle snapshot while the new
+  persistent index is introduced behind typed native commands;
+- all registered Markdown is now maintained in a per-Location persistent
+  derived index, with OKF enrichment when applicable;
 - Construct never completes or rewrites OKF metadata automatically.
 
 ## Security boundaries

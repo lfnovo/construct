@@ -71,6 +71,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .location-row .okf-toggle { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; min-width: 27px; height: 17px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .04em; }
 .location-row .okf-toggle:hover, .location-row .okf-toggle.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .location-row .okf-toggle + button { margin-left: 1px; }
+.location-row .index-status { display: grid; place-items: center; flex: 0 0 auto; width: 18px; height: 18px; margin-left: auto; padding: 0; border-radius: 4px; }
+.location-row .okf-toggle + .index-status, .location-row .index-status + button { margin-left: 0; }
+.location-row .index-status:hover { background: var(--surface-raised); }
+.location-row .index-status span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.location-row .index-status.ready span { background: var(--success); }
+.location-row .index-status.indexing span { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.location-row .index-status.degraded span { background: #d9a441; }
+.location-row .index-status.failed span { background: var(--danger); }
 .location-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .availability { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: 0 0 auto; }
 .availability.offline { background: var(--danger); }

@@ -97,3 +97,44 @@ export type SavedWorkspace = {
 };
 
 export type FileSystemChange = { paths: string[]; kind: string };
+
+export type IndexState = "notIndexed" | "indexing" | "ready" | "degraded" | "failed";
+
+export type IndexStatus = {
+  locationId: string;
+  state: IndexState;
+  activeGeneration: number | null;
+  buildingGeneration: number | null;
+  discoveredDocuments: number;
+  indexedDocuments: number;
+  failedDocuments: number;
+  changedDocuments: number;
+  removedDocuments: number;
+  complete: boolean;
+  lastReconciledAt: string | null;
+  storageBytes: number;
+  error: string | null;
+};
+
+export type IndexSearchResult = {
+  relativePath: string;
+  title: string;
+  description: string | null;
+  type: string | null;
+  tags: string[];
+  score: number;
+  snippet: string;
+  generation: number;
+};
+
+export type IndexedDocument = {
+  relativePath: string;
+  title: string;
+  description: string | null;
+  type: string | null;
+  tags: string[];
+  headings: Array<{ level: number; text: string }>;
+  frontmatter: unknown | null;
+  body: string;
+  generation: number;
+};
