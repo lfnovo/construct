@@ -48,7 +48,7 @@ O produto deve transmitir a sensação de uma mesa de leitura dedicada: projetos
 - Descobrir recursivamente arquivos Markdown dentro dessas pastas.
 - Mostrar arquivos ocultos relevantes ao trabalho com agentes.
 - Atualizar a interface conforme arquivos forem criados, alterados, renomeados ou removidos externamente.
-- Oferecer leitura em Source e Preview.
+- Oferecer leitura em Preview e edição em Edit ou Source.
 - Permitir edição e salvamento explícito dos arquivos.
 - Permitir vários documentos em abas e vários painéis lado a lado.
 - Manter um histórico persistente das mudanças observadas.
@@ -101,6 +101,7 @@ Os indicadores abaixo orientam validação qualitativa e telemetria futura; não
 | Painel | Área de leitura ou edição que contém uma ou mais abas. Também chamado de pane. |
 | Workspace | Conjunto de Locais, abas, painéis, seleções e preferências restauráveis. |
 | Preview | Markdown renderizado. |
+| Edit | Edição visual do corpo Markdown, com comandos e formatação contextual. |
 | Source | Conteúdo Markdown bruto e editável. |
 | Mudança externa | Alteração no sistema de arquivos feita fora do aplicativo. |
 | Histórico | Linha do tempo local de eventos observados pelo aplicativo. |
@@ -129,7 +130,7 @@ Desenvolvedores que:
 
 #### Editar uma especificação
 
-1. O usuário abre um arquivo em Source.
+1. O usuário abre um arquivo em Edit ou Source.
 2. Faz alterações; a aba passa a indicar estado não salvo.
 3. Pressiona `⌘S`.
 4. O arquivo é salvo no disco e o indicador desaparece.
@@ -140,7 +141,7 @@ Desenvolvedores que:
 1. O usuário abre dois arquivos em abas.
 2. Divide a área de trabalho vertical ou horizontalmente.
 3. Move ou abre um dos arquivos no segundo painel.
-4. Mantém um documento em Source e outro em Preview.
+4. Mantém um documento em Edit ou Source e outro em Preview.
 
 #### Revisar mudanças recentes
 
@@ -159,7 +160,7 @@ A janela principal possui duas regiões:
 │  Projeto A           │ plano.md | notas.md          │ AGENTS.md    │
 │  Projeto B           ├──────────────────────────────┼──────────────┤
 ├──────────────────────┤                              │              │
-│ ARQUIVOS             │ Source ou Preview            │ Preview      │
+│ ARQUIVOS             │ Preview, Edit ou Source      │ Preview      │
 │  docs/               │                              │              │
 │    plano.md          │                              │              │
 │  AGENTS.md           │                              │              │
@@ -187,7 +188,7 @@ A área principal contém um ou mais Painéis. Cada Painel possui:
 - barra de abas;
 - indicação de arquivo ativo;
 - indicação de edição não salva;
-- seletor ou ação para alternar entre Source e Preview;
+- seletor ou ação para alternar entre Preview, Edit e Source;
 - conteúdo do arquivo;
 - estados de carregamento, erro, conflito e arquivo indisponível.
 
@@ -273,7 +274,7 @@ coverage
 - **NAV-002:** Se o arquivo já estiver aberto nesse Painel, sua aba deve receber foco.
 - **NAV-003:** Se o arquivo estiver aberto em outro Painel, o comportamento padrão é focar a instância existente.
 - **NAV-004:** Deve existir uma ação explícita para abrir outra visualização do mesmo arquivo em outro Painel.
-- **NAV-005:** O aplicativo deve preservar a posição de rolagem separadamente para Source e Preview enquanto a aba estiver aberta.
+- **NAV-005:** O aplicativo deve preservar a posição de rolagem separadamente para Preview, Edit e Source enquanto a aba estiver aberta.
 - **NAV-006:** Ao selecionar um evento no Histórico, o Local correspondente é selecionado, o arquivo é revelado na árvore e sua aba recebe foco.
 - **NAV-007:** O caminho relativo completo deve estar disponível na interface, mesmo que não permaneça visível o tempo todo.
 
@@ -295,13 +296,13 @@ coverage
 - **PANE-002:** A divisão cria um novo Painel ao lado do atual.
 - **PANE-003:** Os Painéis são redimensionáveis.
 - **PANE-004:** Cada Painel mantém suas próprias abas e aba ativa.
-- **PANE-005:** Cada aba mantém seu próprio modo Source ou Preview.
+- **PANE-005:** Cada aba mantém seu próprio modo Preview, Edit, Source ou Diff.
 - **PANE-006:** O usuário pode fechar um Painel; suas abas devem ser movidas ou fechadas de maneira segura.
 - **PANE-007:** Não há limite funcional rígido de Painéis, embora a interface possa impedir divisões que resultem em áreas inutilizáveis.
 - **PANE-008:** Arrastar uma aba para uma borda pode criar uma divisão como aprimoramento, mas ações explícitas devem existir desde o MVP.
 - **PANE-009:** O layout dos Painéis deve ser restaurado entre execuções.
 
-### 10.7 Source e edição
+### 10.7 Edição visual e Source
 
 - **EDIT-001:** Source exibe o conteúdo Markdown bruto em um editor de texto monoespaçado.
 - **EDIT-002:** O editor deve oferecer numeração de linhas e destaque de sintaxe Markdown.
@@ -316,6 +317,15 @@ coverage
 - **EDIT-011:** O aplicativo deve fornecer operações básicas de seleção, copiar, recortar, colar e localizar dentro do arquivo aberto.
 - **EDIT-012:** A alternância para Preview não salva automaticamente o arquivo.
 - **EDIT-013:** O Preview de uma aba modificada deve renderizar o buffer local, não a versão antiga do disco.
+- **EDIT-014:** Edit oferece edição visual do corpo do documento com títulos, parágrafos, listas, checklists, citações, links, tabelas e blocos de código.
+- **EDIT-015:** Preview, Edit e Source compartilham o mesmo buffer local e o mesmo estado de salvamento explícito.
+- **EDIT-016:** Abrir Edit ou alternar entre modos sem fazer alterações não pode marcar a aba como modificada nem normalizar o arquivo no disco.
+- **EDIT-017:** Ao desfazer todas as alterações visuais, o buffer deve voltar ao conteúdo fonte exato que existia antes da edição, incluindo quebras de linha e serialização Markdown.
+- **EDIT-018:** Frontmatter YAML deve ser preservado byte a byte por Edit. A edição de metadados continua disponível em Source.
+- **EDIT-019:** Frontmatter não fechado ou estruturalmente inválido impede Edit de iniciar e oferece uma ação para abrir Source, sem ocultar ou alterar o conteúdo.
+- **EDIT-020:** Edit não deve oferecer upload ou colagem persistente de imagens enquanto não existir uma estratégia local que produza referências de arquivo estáveis.
+- **EDIT-021:** Diagramas Mermaid permanecem editáveis como blocos de código em Edit e são renderizados em Preview.
+- **EDIT-022:** A primeira edição visual real pode serializar o corpo segundo a forma canônica do editor; o frontmatter permanece intacto e o Diff Git torna essa alteração explícita.
 
 ### 10.8 Preview Markdown
 
@@ -339,7 +349,7 @@ flowchart LR
     A[Coding agent] --> B[Cria ou atualiza Markdown]
     B --> C[Watcher local]
     C --> D[Construct]
-    D --> E[Preview, Source ou Diff Git]
+    D --> E[Preview, Edit, Source ou Diff Git]
 ```
 
 ### 10.9 Links
@@ -422,7 +432,7 @@ flowchart LR
 - **STATE-003:** Deve persistir o layout e as dimensões da janela principal.
 - **STATE-004:** Deve persistir dimensões e recolhimento das seções da sidebar.
 - **STATE-005:** Deve persistir o layout dos Painéis.
-- **STATE-006:** Deve persistir abas abertas, sua ordem, Painel e modo Source ou Preview.
+- **STATE-006:** Deve persistir abas abertas, sua ordem, Painel e modo Preview, Edit, Source ou Diff.
 - **STATE-007:** Deve persistir a aba ativa de cada Painel.
 - **STATE-008:** Deve restaurar apenas referências a arquivos; conteúdo não salvo não precisa sobreviver ao encerramento normal no MVP.
 - **STATE-009:** Ao encerrar com alterações não salvas, o aplicativo deve pedir que o usuário salve, descarte ou cancele.
@@ -439,7 +449,7 @@ Os atalhos abaixo usam a notação do macOS. A implementação futura deve mapea
 | Salvar arquivo | `⌘S` |
 | Fechar aba | `⌘W` |
 | Localizar dentro do arquivo | `⌘F` |
-| Alternar Source/Preview | A definir |
+| Alternar Preview/Edit/Source | A definir |
 | Dividir verticalmente | A definir |
 | Dividir horizontalmente | A definir |
 | Focar próximo Painel | A definir |
@@ -521,7 +531,7 @@ Este modelo orienta o comportamento e não determina banco de dados ou tecnologi
 
 - Local e caminho relativo;
 - Painel e posição da aba;
-- modo Source ou Preview;
+- modo Preview, Edit, Source ou Diff;
 - buffer local;
 - estado limpo, modificado, em conflito ou removido;
 - assinatura conhecida da versão no disco;
@@ -637,6 +647,7 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 - busca por nome e caminho;
 - abas;
 - divisões verticais e horizontais;
+- Edit visual com comandos contextuais e salvamento explícito;
 - Source editável com salvamento explícito;
 - Preview com GFM, highlighting e Mermaid;
 - links internos;
@@ -656,7 +667,6 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 - diff e snapshots fora do Git;
 - histórico de versões;
 - autosave;
-- edição visual/WYSIWYG;
 - terminal integrado;
 - integração direta com agentes;
 - sincronização e colaboração;
@@ -677,14 +687,18 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 ### 19.2 Acompanhar mudanças de um agente
 
 - Criar um `.md` externamente faz o arquivo aparecer na árvore e no Histórico.
-- Alterar um arquivo aberto e limpo atualiza Source e Preview.
+- Alterar um arquivo aberto e limpo atualiza Preview, Edit e Source.
 - Renomear ou remover o arquivo atualiza a navegação sem travar.
 - Cada arquivo aparece uma única vez no Histórico, com o tipo e o horário da alteração mais recente.
 - Renomear um arquivo preserva uma única entrada para sua identidade atual.
 
 ### 19.3 Editar com segurança
 
-- Digitar em Source marca a aba como modificada.
+- Digitar em Edit ou Source marca a aba como modificada.
+- Apenas abrir Edit e retornar a Preview ou Source não modifica o buffer.
+- Desfazer uma edição visual até o estado inicial restaura o conteúdo fonte exato e limpa o indicador de modificação.
+- Frontmatter YAML permanece idêntico após editar apenas o corpo em Edit.
+- Um frontmatter não fechado mantém o conteúdo acessível em Source e não inicia Edit.
 - `⌘S` grava o conteúdo e limpa o indicador.
 - Fechar uma aba modificada pede confirmação.
 - Uma falha de escrita mantém o conteúdo no editor.
@@ -754,16 +768,18 @@ Possíveis etapas após o MVP, sem ordem definitiva:
 8. Criação, renomeação e exclusão de arquivos.
 9. Múltiplas janelas e workspaces nomeados.
 10. Integrações opcionais com agentes e multiplexadores.
-11. Temas e customização avançada do Preview.
-12. Ações contextuais, como copiar Markdown renderizado ou caminho para o terminal.
+11. Temas e customização avançada do Preview e Edit.
+12. Imagens locais em Edit, com inserção e cópia para uma pasta estável do projeto.
+13. Ações contextuais, como copiar Markdown renderizado ou caminho para o terminal.
 
 ## 22. Decisões ainda abertas
 
 Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de uma distribuição pública estável:
 
 - mecanismo multiplataforma de watcher;
-- atalhos para Source/Preview e divisões;
+- atalhos para Preview/Edit/Source e divisões;
 - política exata para carregamento de imagens remotas;
+- estratégia local para inserir, copiar e resolver imagens dentro de Edit;
 - limite e degradação controlada para arquivos muito grandes;
 - comportamento de sobreposição entre Locais;
 - política de assinatura, atualizações automáticas e distribuição no macOS.
@@ -793,6 +809,8 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-25 | Tratar bundles OKF como espaços navegáveis por tipos, tags, links, backlinks, lista e grafo. |
 | 2026-07-25 | Manter uma única entrada por arquivo no Histórico, atualizada pelo evento mais recente. |
 | 2026-07-25 | Preparar o projeto para colaboração pública com validação automatizada e CI no macOS. |
+| 2026-07-26 | Adotar edição visual local com Milkdown/Crepe, mantendo Source como escape hatch e frontmatter YAML byte a byte. |
+| 2026-07-26 | Compartilhar um único buffer entre Preview, Edit e Source, preservar salvamento explícito e não oferecer upload de imagens no primeiro corte. |
 
 ## 24. Histórico do documento
 
@@ -800,3 +818,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | --- | --- | --- |
 | 0.1 | 2026-07-17 | Primeira especificação consolidada do MVP. |
 | 0.2 | 2026-07-25 | Estado do preview, identidade Construct, suporte OKF e decisões técnicas consolidados. |
+| 0.3 | 2026-07-26 | Edição visual Markdown, contrato de preservação de frontmatter e critérios de segurança do buffer. |

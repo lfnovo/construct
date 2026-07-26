@@ -1,3 +1,5 @@
+import { splitMarkdownDocument } from "./markdownDocument.ts";
+
 export type OkfMetadata = {
   type?: string;
   title?: string;
@@ -144,7 +146,8 @@ export function resolveOkfLink(sourcePath: string, bundleRoot: string | undefine
 }
 
 export function withoutFrontmatter(content: string) {
-  return content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*(?:\r?\n)?/, "");
+  const parts = splitMarkdownDocument(content);
+  return parts.error ? content : parts.body;
 }
 
 export function extractOkfLinks(content: string, sourcePath: string, bundleRoot: string) {

@@ -50,7 +50,7 @@ export type HistoryEvent = {
   available: boolean;
 };
 
-export type TabMode = "source" | "preview" | "diff";
+export type TabMode = "source" | "preview" | "edit" | "diff";
 
 export type DocumentTab = {
   id: string;

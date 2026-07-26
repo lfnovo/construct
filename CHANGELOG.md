@@ -10,6 +10,7 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 - Local-first macOS workspace for recursively discovered Markdown files.
 - Tabs, split panes, editable source, rendered preview, Mermaid, and local images.
+- Rich Markdown editing with contextual formatting and lossless YAML frontmatter preservation.
 - Filesystem monitoring with deduplicated recent history.
 - Read-only Git status and diff.
 - Open Knowledge Format detection, metadata inspection, navigation, filtering, and graph exploration.
