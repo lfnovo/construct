@@ -557,6 +557,19 @@ no MVP.
 - **INDEX-012:** Nenhum conteúdo, caminho, query ou métrica do índice pode ser enviado a serviços remotos.
 - **INDEX-013:** O índice de cada Local deve manter seus próprios links derivados; nenhuma tabela ou consulta pode misturar relações de Locais diferentes.
 
+### 10.18 Acesso local para agentes
+
+- **AGENT-001:** O desktop e adaptadores de agentes devem usar um único serviço local como proprietário exclusivo das conexões embedded por Local.
+- **AGENT-002:** O mesmo executável pode operar nos modos desktop, serviço local e MCP stdio; o serviço deve continuar disponível quando a janela desktop estiver fechada.
+- **AGENT-003:** O MCP inicial é somente leitura para arquivos fonte e não expõe create, edit, save, delete, move, rename, shell, Git, SQL, banco bruto ou leitura arbitrária do filesystem.
+- **AGENT-004:** Cada execução MCP exige allowlist explícita de IDs de Locais registrados. Respostas normais usam ID do Local e caminho relativo, nunca caminho absoluto.
+- **AGENT-005:** O transporte entre adapters e serviço usa IPC local autenticado e protegido pelas permissões do usuário. Nenhum listener de rede deve ser aberto e nenhum conteúdo deve ser enviado a serviços remotos.
+- **AGENT-006:** O primeiro contrato MCP expõe listagem de Locais, overview, activity, busca, leitura de documento, documentos relacionados, context pack e status do índice.
+- **AGENT-007:** Cada Local mantém um cache derivado diário de 15 dias com contadores separados para mudanças reais, leituras servidas e inclusão em context packs. Hits de busca e rebuilds não contam como atividade.
+- **AGENT-008:** O overview deve combinar contagens por type, tag e role, saúde de links, findings, atividade recente e entradas recentes dos `log.md` reservados pelo OKF, inclusive em scopes aninhados.
+- **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 06 e nunca são misturados silenciosamente ao conteúdo fonte.
+- **AGENT-010:** A interface deve permitir copiar uma configuração MCP pronta para o Local selecionado e explicar que o cliente externo controla o destino do conteúdo recuperado.
+
 ## 11. Estados e tratamento de erros
 
 ### 11.1 Estado vazio inicial

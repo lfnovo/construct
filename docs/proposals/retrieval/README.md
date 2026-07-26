@@ -1,6 +1,6 @@
 # Local retrieval and agent access
 
-**Status:** In progress — RFCs 01–04 first deliveries implemented
+**Status:** In progress — RFCs 01–05 first deliveries implemented
 
 **Date:** 2026-07-26
 
@@ -49,7 +49,7 @@ evidence and low-risk experiments behind these RFCs.
 | [02 — Local Markdown index](02-local-markdown-index.md) | Implemented; validation continues | How should all registered Markdown become incrementally searchable? | RFC 01 for OKF enrichment |
 | [03 — Knowledge search experience](03-knowledge-search-experience.md) | Implemented | How should people search content without weakening quick file navigation? | RFC 02 |
 | [04 — Graph and context retrieval](04-graph-context-retrieval.md) | First delivery implemented; advanced expansion deferred | How should links improve discovery and produce bounded context packs? | RFCs 01–03 |
-| [05 — Local agent access](05-local-agent-access.md) | Proposed | How should agents use the same retrieval core through CLI and MCP? | RFCs 02 and 04 |
+| [05 — Local agent access](05-local-agent-access.md) | First delivery implemented | How should agents use the same retrieval core through CLI and MCP? | RFCs 02 and 04 |
 | [06 — Review integration](06-review-integration.md) | Proposed | How should persisted review comments participate without polluting knowledge? | RFCs 02, 04, and 05 |
 
 ## Shared invariants
@@ -86,9 +86,10 @@ Every RFC in this set must preserve these rules:
   outside user repositories.
 - Ship content search and index status in the desktop app.
 
-### Phase 1.5 — Minimal agent pilot
+### Phase 1.5 — Local agent pilot
 
-- Expose local read-only `search`, `get`, and `related` operations.
+- Expose local read-only overview, activity, search, get, related, context, and
+  status operations.
 - Validate whether agents open fewer files and use less context.
 - Keep packaging experimental; do not promise a stable public MCP contract yet.
 
@@ -98,7 +99,7 @@ Every RFC in this set must preserve these rules:
 - Assemble context packs with stable ordering, provenance, and budgets.
 - Add `build_context` to the agent pilot.
 
-### Phase 3 — Supported CLI and MCP
+### Phase 3 — Stabilize CLI and MCP
 
 - Stabilize installation, permissions, concurrency, limits, and parity tests.
 - Document the trust boundary between Construct and external model clients.
