@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { OkfBundleSnapshot, OkfInspection } from "./okf";
-import type { FileContent, FileEntry, FileSystemChange, GitDiff, GitInfo, SavedWorkspace } from "./types";
+import type {
+  FileContent, FileEntry, FileSystemChange, GitDiff, GitInfo, IndexedDocument,
+  IndexSearchResult, IndexStatus, SavedWorkspace,
+} from "./types";
 
 export const api = {
   loadState: () => invoke<Partial<SavedWorkspace>>("load_app_state"),
@@ -11,6 +14,14 @@ export const api = {
   inspectOkfDocument: (request: { content: string; relativePath: string; sourcePath: string; bundleRoot: string; isBundleRoot?: boolean }) =>
     invoke<OkfInspection>("inspect_okf_document", { request }),
   inspectOkfBundle: (path: string) => invoke<OkfBundleSnapshot>("inspect_okf_bundle", { path }),
+  syncLocationIndex: (request: { locationId: string; rootPath: string; displayName: string; okfBundle: boolean; rebuild?: boolean }) =>
+    invoke<IndexStatus>("sync_location_index", { request }),
+  getLocationIndexStatus: (locationId: string) => invoke<IndexStatus>("get_location_index_status", { locationId }),
+  searchLocationIndex: (request: { locationId: string; query: string; limit?: number }) =>
+    invoke<IndexSearchResult[]>("search_location_index", { request }),
+  getIndexedDocument: (locationId: string, relativePath: string) =>
+    invoke<IndexedDocument | null>("get_indexed_document", { locationId, relativePath }),
+  deleteLocationIndex: (locationId: string) => invoke<void>("delete_location_index", { locationId }),
   readImageDataUrl: (path: string) => invoke<string>("read_image_data_url", { path }),
   writeMarkdownFile: (path: string, content: string) => invoke<void>("write_markdown_file", { request: { path, content } }),
   getGitInfo: (path: string) => invoke<GitInfo>("get_git_info", { path }),

@@ -1,6 +1,6 @@
 # RFC 02 — Local Markdown index
 
-**Status:** Proposed
+**Status:** Accepted — implementation in progress
 
 **Decision owner:** Native architecture
 
@@ -11,8 +11,10 @@ searchable while preserving local-first behavior and explicit saves?
 
 ## Proposed decision
 
-Construct maintains an application-owned SQLite/FTS5 index for all registered
-Markdown files. OKF documents receive additional structured metadata from
+Construct maintains one application-owned embedded SurrealDB index for each
+registered Location. SurrealKV is the initial storage engine; RocksDB remains a
+fallback if validation reveals a durability or packaging blocker. OKF documents
+receive additional structured metadata from
 [RFC 01](01-okf-compatibility.md), but basic indexing does not require OKF.
 
 The index is:
@@ -21,7 +23,10 @@ The index is:
 - stored outside user repositories;
 - disposable and rebuildable;
 - incrementally updated by the existing filesystem watcher;
-- shared by desktop retrieval and future local agent adapters.
+- physically isolated by Location;
+- owned exclusively by a transport-neutral native `IndexService`;
+- shared by desktop retrieval and future local agent adapters through typed
+  commands rather than direct database access.
 
 ## Why index all Markdown
 
@@ -52,23 +57,53 @@ A generic Markdown core with OKF enrichment gives one coherent product:
 
 ## Storage model
 
-The recommended starting point is one database per Construct profile with
-location isolation inside the schema. This enables cross-location search while
-keeping schema migrations and process concurrency in one place.
+Each Location has a stable Construct ID and a separate physical database
+directory under the platform application-data directory:
 
-The physical choice must still be benchmarked against a database per location.
-Whichever model is selected must support removing all cached data for one
-location without affecting its files.
+```text
+Construct/
+└── indexes/
+    └── <location-id>/
+        └── surrealdb/
+```
 
-The database should use:
+Names and filesystem paths are not storage identities. Moving a Location may
+retain its index when its Construct ID is preserved. Removing a Location deletes
+only its database directory and never changes source files.
 
-- transactional schema changes;
+Cross-location search is an explicit fan-out over allowed Location indexes
+followed by rank fusion. It is not implemented by mixing all records into one
+physical database.
+
+The initial embedded stack is:
+
+- SurrealDB as the document, full-text, graph, and future vector query engine;
+- SurrealKV as the pure-Rust local storage engine;
+- RocksDB as a documented fallback, not a second active implementation;
 - explicit schema and indexer versions;
-- parameterized SQL;
-- WAL mode when supported;
-- bounded busy timeouts;
+- transactional mutations and generation activation;
 - platform-appropriate user-only permissions;
-- integrity checks and rebuildable generations.
+- integrity probes and complete rebuild from source.
+
+The current Business Source License terms for the SurrealDB dependency must be
+recorded in distribution notices and confirmed for Construct's MIT desktop
+distribution before release. Construct never exposes raw database-service
+functionality to users or agents.
+
+## Index ownership
+
+`IndexService` is the only owner of embedded databases.
+
+- During RFC 02 it runs inside the Tauri native process.
+- React accesses it only through typed commands.
+- Parsing, schema, ingestion, and retrieval do not depend on React or Tauri.
+- One per-Location worker serializes writes and owns that database connection.
+- CLI and MCP never open SurrealKV directories directly.
+- RFC 05 may host the same service in a sidecar or daemon and add local IPC
+  without changing the index schema or retrieval rules.
+
+The first implementation does not require Construct to index while the desktop
+is closed. Independent background ownership belongs to RFC 05.
 
 ## Logical records
 
@@ -84,14 +119,23 @@ The database should use:
 
 ### Document
 
-- stable local identity;
+- canonical identity: Location ID plus normalized relative path;
+- disposable internal continuity UUID;
 - location ID and normalized relative path;
 - technical role;
 - title and description when derivable;
-- saved Markdown body or indexed text;
+- complete saved Markdown body;
 - normalized metadata plus complete typed frontmatter;
+- a clean search projection derived from metadata, headings, and body;
 - content hash, size, and filesystem modification time;
 - parse state and active generation.
+
+The canonical identity is deterministic and survives an index rebuild. When the
+watcher identifies a rename with high confidence, the internal continuity UUID
+may be preserved for tabs and history. If confidence is insufficient, correctness
+wins and the change is represented as delete plus create. Content hashes are
+evidence, not identity. Construct never inserts an identity field into user
+frontmatter.
 
 ### Derived records
 
@@ -99,7 +143,7 @@ The database should use:
 - tags with exact and normalized values;
 - links with raw target, resolution, fragment, origin, and source range;
 - findings with stable code and severity;
-- an FTS5 row for title, description, tags, headings, relative path, and body.
+- a SurrealDB full-text index over the clean search projection.
 
 Semantic chunks and embeddings, if ever added, live in separately versioned
 tables that can be deleted without affecting lexical retrieval.
@@ -108,13 +152,14 @@ tables that can be deleted without affecting lexical retrieval.
 
 The index includes:
 
-- visible Markdown body;
+- the complete visible Markdown body;
 - headings;
 - relative path;
-- supported frontmatter fields;
+- the complete typed frontmatter tree;
+- normalized and flattened frontmatter values in the search projection;
 - OKF metadata when the document belongs to a bundle.
 
-The index excludes:
+Normal full-text ranking excludes:
 
 - YAML delimiters and raw metadata serialization;
 - `construct-review:v1` payloads from normal body ranking;
@@ -123,6 +168,10 @@ The index excludes:
 - content reached through external URLs;
 - unsaved buffers;
 - files outside registered locations.
+
+The typed frontmatter and complete body remain retrievable even when a value is
+not included in the default weighted search projection. Exact source bytes are
+not a recovery source and are never written back from the index.
 
 Review state is handled separately by
 [RFC 06](06-review-integration.md).
@@ -146,15 +195,50 @@ recover from missed watcher events.
 
 ## Generations and recovery
 
-An initial or full rebuild is progressive:
+Initial scans, full rebuilds, and incompatible migrations create a new complete
+generation. Ordinary saved-file changes update the active generation in one
+transaction.
 
-- path identities become queryable first;
-- parsed metadata and lexical content appear as indexing proceeds;
-- results identify an incomplete generation;
-- the previous healthy generation remains usable until replacement is ready.
+During a rebuild:
+
+1. the last healthy active generation continues serving reads;
+2. the building generation is populated separately;
+3. watcher changes observed during the scan are accumulated;
+4. accumulated changes and a final reconciliation are applied;
+5. active generation changes atomically;
+6. obsolete generations are garbage-collected after activation.
+
+Partial results are exposed only when no healthy generation exists yet. Every
+query and status response declares its generation and completeness.
+
+The public state vocabulary is:
+
+- `notIndexed`;
+- `indexing`;
+- `ready`;
+- `degraded`;
+- `failed`.
 
 A corrupt or incompatible index is quarantined or replaced after an integrity
-check. Failure falls back to current file navigation.
+probe. Failure falls back to current file navigation. SurrealKV's optional
+temporal versioning is not a substitute for Construct generations; generation
+semantics remain storage-engine independent.
+
+## Retention and user controls
+
+- An active Location retains its index indefinitely.
+- A temporarily unavailable local or remote source retains its last healthy
+  generation and is marked unavailable or stale.
+- Removing a Location deletes its physical index by default.
+- Interrupted and obsolete generations are cleaned after recovery.
+- Semantic data, when introduced, can be deleted independently.
+- Low disk space pauses indexing before the last healthy generation is harmed.
+- No TTL or silent LRU eviction is used initially.
+
+Per-Location controls expose index size, document count, generation, freshness,
+`Rebuild index`, and `Delete index`. Global controls expose total storage,
+`Rebuild all`, and `Delete all indexes`. Deleting or rebuilding derived data is
+always described as a non-destructive operation.
 
 ## Privacy and security
 
@@ -202,15 +286,54 @@ size, and interrupted indexing.
 - Index failure does not prevent opening or editing files.
 - Removing a location deletes its cached records without deleting its files.
 - `construct-review:v1` text does not affect normal FTS rank or graph edges.
+- Two Locations never share a physical database or query scope implicitly.
+- Full body and typed frontmatter remain retrievable from the active generation.
+- Only `IndexService` opens embedded database directories.
 
-## Open decisions
+## Accepted decisions
 
-- SQLite crate and how FTS5 availability is guaranteed on each platform.
-- One profile database versus one database per location.
-- Whether full saved bodies or only FTS content are retained.
-- Cache retention and user-visible deletion controls.
-- Stable document identity across renames.
-- How partial index state is represented in Tauri commands.
+- SurrealDB embedded is the preferred engine; SQLite is no longer the planned
+  production implementation.
+- SurrealKV is the initial backend and RocksDB is the fallback.
+- Each Location owns one physical index.
+- Complete body and typed frontmatter are retained with a separate clean search
+  projection.
+- Canonical path identity and disposable continuity identity coexist.
+- Rebuilds use generations; normal updates use transactions.
+- Active and unavailable Locations retain indexes without TTL.
+- `IndexService` is the exclusive storage owner and runs in Tauri initially.
+
+## Implementation validation
+
+Before declaring RFC 02 implemented, the SurrealDB integration must measure:
+
+- release bundle-size and clean-build impact;
+- initial ingestion for 1,000 and 10,000 documents;
+- one-file create, change, rename, and delete;
+- lexical top-20 search and backlink latency;
+- physical storage size;
+- restart, interrupted rebuild, and corrupt-store recovery;
+- one isolated database per Location;
+- packaging on supported desktop targets;
+- the ownership boundary needed for the future RFC 05 sidecar.
+
+### First implementation checkpoint
+
+The initial native slice on 2026-07-26 established:
+
+- successful macOS release packaging with SurrealDB 3.2.3 and SurrealKV;
+- a clean release build time of approximately 2 minutes 36 seconds on the
+  development machine;
+- a 71 MB unsigned macOS `.app` bundle before release-profile size tuning;
+- passing isolation tests for two physical Location stores;
+- passing incremental one-document update and same-process close/reopen tests;
+- passing exclusion of `construct-review:v1` payloads from normal full-text
+  results;
+- passing retrieval of the complete visible body and typed frontmatter.
+
+These numbers are a baseline, not an optimization target or proof of the
+10,000-document acceptance threshold. Capacity, interrupted rebuild, corruption,
+rename/delete, and cross-platform packaging remain open validation work.
 
 ## Dependencies and handoff
 

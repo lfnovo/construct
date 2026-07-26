@@ -13,7 +13,7 @@ import { ReviewEditor } from "./ReviewEditor";
 import { splitReviewDocument } from "./review";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
-  LayoutNode, LocationRecord, Pane, SavedPane, SavedWorkspace, TabMode,
+  IndexStatus, LayoutNode, LocationRecord, Pane, SavedPane, SavedWorkspace, TabMode,
 } from "./types";
 
 const VisualEditor = lazy(() => import("./VisualEditor").then(({ VisualEditor: Component }) => ({ default: Component })));
@@ -72,6 +72,18 @@ function formatWhen(timestamp: number) {
 
 function statusLabel(kind: HistoryKind) {
   return { created: "New", modified: "Changed", renamed: "Renamed", removed: "Removed" }[kind];
+}
+
+function indexStatusTitle(status: IndexStatus | undefined) {
+  if (!status || status.state === "notIndexed") return "Local index has not been built yet.";
+  const size = status.storageBytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(status.storageBytes / 1024))} KB`
+    : `${(status.storageBytes / 1024 / 1024).toFixed(1)} MB`;
+  const label = status.state === "indexing" ? "Indexing"
+    : status.state === "ready" ? "Index ready"
+      : status.state === "degraded" ? "Index ready with warnings"
+        : "Index failed";
+  return `${label} · ${status.indexedDocuments} documents · ${size}. Click to rebuild.`;
 }
 
 type TreeNode = { children: Map<string, TreeNode>; entry?: FileEntry };
@@ -188,6 +200,7 @@ export default function App() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [showOkfInspector, setShowOkfInspector] = useState(false);
   const [okfIndexes, setOkfIndexes] = useState<Record<string, OkfBundleIndex>>({});
+  const [indexStatuses, setIndexStatuses] = useState<Record<string, IndexStatus>>({});
   const [okfInspections, setOkfInspections] = useState<Record<string, { content: string; inspection: OkfInspection }>>({});
   const [exploreLocationId, setExploreLocationId] = useState<string | null>(null);
   const [exploreFilters, setExploreFilters] = useState<ExploreFilters>({ types: [] });
@@ -294,7 +307,20 @@ export default function App() {
       const entries = await api.listMarkdownFiles(location.path);
       setFilesByLocation((current) => ({ ...current, [location.id]: entries }));
       reconcile(location, entries, source);
-      await refreshOkfIndex(location, entries);
+      const okfBundle = await refreshOkfIndex(location, entries);
+      try {
+        const indexStatus = await api.syncLocationIndex({
+          locationId: location.id,
+          rootPath: location.path,
+          displayName: location.name,
+          okfBundle,
+        });
+        setIndexStatuses((current) => ({ ...current, [location.id]: indexStatus }));
+      } catch {
+        void api.getLocationIndexStatus(location.id)
+          .then((indexStatus) => setIndexStatuses((current) => ({ ...current, [location.id]: indexStatus })))
+          .catch(() => undefined);
+      }
       const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
       const candidates = Object.values(panesRef.current).flatMap((pane) => pane.tabs.filter((tab) => tab.locationId === location.id).map((tab) => ({ paneId: pane.id, tab })));
       setPanes((current) => Object.fromEntries(Object.entries(current).map(([paneId, pane]) => [paneId, {
@@ -320,6 +346,9 @@ export default function App() {
     } catch {
       setLocations((current) => current.map((item) => item.id === location.id ? { ...item, available: false } : item));
       setFilesByLocation((current) => ({ ...current, [location.id]: [] }));
+      void api.getLocationIndexStatus(location.id)
+        .then((indexStatus) => setIndexStatuses((current) => ({ ...current, [location.id]: indexStatus })))
+        .catch(() => undefined);
     }
   }, [reconcile, refreshOkfIndex]);
 
@@ -333,6 +362,46 @@ export default function App() {
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error));
       return [];
+    }
+  }, [notify]);
+
+  const rebuildLocationIndex = useCallback(async (location: LocationRecord) => {
+    if (!location.available) return notify("This Location is not available.");
+    if (!window.confirm(`Rebuild the local index for “${location.name}”? No project files will be changed.`)) return;
+    setIndexStatuses((current) => ({
+      ...current,
+      [location.id]: {
+        ...(current[location.id] || {
+          locationId: location.id,
+          activeGeneration: null,
+          discoveredDocuments: 0,
+          indexedDocuments: 0,
+          failedDocuments: 0,
+          changedDocuments: 0,
+          removedDocuments: 0,
+          complete: false,
+          lastReconciledAt: null,
+          storageBytes: 0,
+          error: null,
+        }),
+        state: "indexing",
+        buildingGeneration: (current[location.id]?.activeGeneration || 0) + 1,
+      },
+    }));
+    try {
+      const status = await api.syncLocationIndex({
+        locationId: location.id,
+        rootPath: location.path,
+        displayName: location.name,
+        okfBundle: Boolean(location.okfBundle),
+        rebuild: true,
+      });
+      setIndexStatuses((current) => ({ ...current, [location.id]: status }));
+      notify(`Rebuilt the local index for “${location.name}”.`);
+    } catch (error) {
+      const status = await api.getLocationIndexStatus(location.id).catch(() => null);
+      if (status) setIndexStatuses((current) => ({ ...current, [location.id]: status }));
+      notify(error instanceof Error ? error.message : String(error));
     }
   }, [notify]);
 
@@ -460,13 +529,20 @@ export default function App() {
 
   const removeLocation = useCallback(async (locationId: string) => {
     const location = locationsRef.current.find((item) => item.id === locationId);
-    if (!location || !window.confirm(`Remove “${location.name}” from Construct? Its files will not be deleted.`)) return;
+    if (!location || !window.confirm(`Remove “${location.name}” from Construct? Its files will not be deleted, and its derived local index will be removed.`)) return;
+    try {
+      await api.deleteLocationIndex(locationId);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error));
+      return;
+    }
     const next = locationsRef.current.filter((item) => item.id !== locationId);
     setLocations(next);
     setSelectedLocationId((current) => current === locationId ? next[0]?.id || null : current);
     setFilesByLocation((current) => { const nextFiles = { ...current }; delete nextFiles[locationId]; return nextFiles; });
+    setIndexStatuses((current) => { const nextStatuses = { ...current }; delete nextStatuses[locationId]; return nextStatuses; });
     await configureLocations(next);
-  }, [configureLocations]);
+  }, [configureLocations, notify]);
 
   useEffect(() => {
     let mounted = true;
@@ -692,7 +768,7 @@ export default function App() {
       <section className="sidebar-section locations-section">
         <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button><button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
         {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
-          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span>{location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}<button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
+          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span>{location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}<button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">

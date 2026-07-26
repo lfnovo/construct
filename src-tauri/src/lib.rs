@@ -13,6 +13,7 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, State};
 use walkdir::{DirEntry, WalkDir};
 
+mod index;
 mod okf;
 
 const IGNORED_DIRECTORIES: &[&str] = &[
@@ -110,6 +111,14 @@ fn app_data_file(app: &AppHandle) -> Result<PathBuf, String> {
     fs::create_dir_all(&data_dir)
         .map_err(|error| format!("Could not create the application data directory: {error}"))?;
     Ok(data_dir.join("workspace.json"))
+}
+
+fn app_index_directory(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not locate the application data directory: {error}"))?;
+    Ok(data_dir.join("indexes"))
 }
 
 fn legacy_app_data_file(app: &AppHandle) -> Option<PathBuf> {
@@ -423,6 +432,57 @@ async fn inspect_okf_bundle(
 }
 
 #[tauri::command]
+async fn sync_location_index(
+    request: index::SyncLocationRequest,
+    watch_state: State<'_, WatchState>,
+    index_service: State<'_, index::IndexService>,
+) -> Result<index::IndexStatus, String> {
+    let root = normalize_path(&request.root_path)?;
+    if !root.is_dir() {
+        return Err("The Location is not available.".to_string());
+    }
+    if !is_allowed(&root, &watch_state) {
+        return Err("This folder is not inside a registered Location.".to_string());
+    }
+    index_service.sync(request, root).await
+}
+
+#[tauri::command]
+async fn get_location_index_status(
+    location_id: String,
+    index_service: State<'_, index::IndexService>,
+) -> Result<index::IndexStatus, String> {
+    index_service.status(&location_id).await
+}
+
+#[tauri::command]
+async fn search_location_index(
+    request: index::SearchIndexRequest,
+    index_service: State<'_, index::IndexService>,
+) -> Result<Vec<index::SearchResult>, String> {
+    index_service.search(request).await
+}
+
+#[tauri::command]
+async fn get_indexed_document(
+    location_id: String,
+    relative_path: String,
+    index_service: State<'_, index::IndexService>,
+) -> Result<Option<index::IndexedDocumentView>, String> {
+    index_service
+        .get_document(&location_id, &relative_path)
+        .await
+}
+
+#[tauri::command]
+async fn delete_location_index(
+    location_id: String,
+    index_service: State<'_, index::IndexService>,
+) -> Result<(), String> {
+    index_service.delete(&location_id).await
+}
+
+#[tauri::command]
 fn write_markdown_file(request: WriteFileRequest, state: State<WatchState>) -> Result<(), String> {
     let path = require_allowed(&request.path, &state)?;
     if !is_markdown(&path) {
@@ -605,6 +665,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(WatchState::default())
+        .setup(|app| {
+            let index_directory =
+                app_index_directory(app.handle()).map_err(std::io::Error::other)?;
+            let index_service =
+                index::IndexService::new(index_directory).map_err(std::io::Error::other)?;
+            app.manage(index_service);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             load_app_state,
             save_app_state,
@@ -613,6 +681,11 @@ pub fn run() {
             read_markdown_file,
             inspect_okf_document,
             inspect_okf_bundle,
+            sync_location_index,
+            get_location_index_status,
+            search_location_index,
+            get_indexed_document,
+            delete_location_index,
             read_image_data_url,
             write_markdown_file,
             get_git_info,

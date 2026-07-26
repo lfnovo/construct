@@ -61,6 +61,35 @@ Native requests and responses are transport-neutral. Thin adapters provide:
 
 Adapters do not implement independent ranking rules or read arbitrary paths.
 
+All adapters call the shared `IndexService`. They never open a Location's
+SurrealDB or SurrealKV directory directly.
+
+## Service ownership and process model
+
+RFC 02 introduces `IndexService` inside the Tauri native process as the sole
+owner of all per-Location index connections. RFC 05 extracts or hosts the same
+service in a local sidecar or daemon when independent agent access is delivered.
+
+The resulting topology is:
+
+```mermaid
+flowchart LR
+    D["Desktop UI"] --> I["Local IPC"]
+    C["Construct CLI"] --> I
+    M["MCP stdio adapter"] --> I
+    I --> S["IndexService"]
+    S --> A["Location A index"]
+    S --> B["Location B index"]
+```
+
+This preserves one writer per database, one migration implementation, and one
+ranking contract. A desktop, CLI, or MCP process must never fall back to opening
+the embedded storage directly.
+
+During RFC 02 the service stops with the desktop. RFC 05 owns background
+lifecycle, IPC authentication, helper discovery, startup, shutdown, and recovery
+when the desktop is closed.
+
 ## CLI shape
 
 Illustrative commands:
@@ -78,8 +107,10 @@ construct mcp serve
 Human-readable output is the default for interactive CLI use. `--json` exposes
 the shared typed response without internal SQL or database row IDs.
 
-The final executable shape remains open: it may be one `construct` binary, an
-application sidecar, or a dedicated agent executable sharing a Rust library.
+The user-facing executable may remain one `construct` command, but independent
+access is backed by a dedicated local service process. Packaging may place the
+service in a helper executable or in a multi-mode binary; this does not change
+its exclusive ownership of the indexes.
 
 ## MCP transport
 
@@ -156,18 +187,17 @@ agent retrieval API.
 
 ## Concurrency
 
-The desktop and agent process may coexist.
+The desktop and agent process may coexist through the one local service.
 
 - Readers see a complete committed index generation.
-- Index writes are serialized or owned by one elected process.
+- Index writes are serialized by the per-Location `IndexService` worker.
 - A crashed writer cannot activate a partial generation.
 - Busy and unavailable states use bounded retries and actionable English
   errors.
 - The MCP process can read while the desktop edits an unsaved buffer because
   the shared index represents saved files only.
-
-Whether the agent process may refresh while the desktop is closed remains an
-explicit packaging decision.
+- Once RFC 05 ships the sidecar lifecycle, it may refresh allowed indexes while
+  the desktop is closed.
 
 ## Review workflow
 
@@ -206,9 +236,10 @@ reduces traversal cost or improves answer quality.
 
 ## Open decisions
 
-- One binary versus a dedicated sidecar.
+- Helper executable versus a multi-mode `construct` binary for hosting the
+  dedicated service.
+- Local IPC transport, authentication, and process discovery.
 - Installation and discovery on macOS, Windows, and Linux.
-- Whether an MCP process may refresh the index independently.
 - Default location allowlist and content limits.
 - Whether trusted local clients ever receive resolved absolute paths.
 - Stability promise for the Phase 1.5 pilot.

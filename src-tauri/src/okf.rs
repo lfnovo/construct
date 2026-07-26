@@ -311,6 +311,11 @@ fn without_review_block(body: &str) -> (&str, usize) {
     (&body[body_start..], body_start)
 }
 
+pub(crate) fn visible_markdown_body(content: &str) -> &str {
+    let frontmatter = split_frontmatter(content);
+    without_review_block(frontmatter.body).0
+}
+
 fn source_range(content: &str, start: usize, end: usize) -> SourceRange {
     fn position(content: &str, offset: usize) -> (usize, usize) {
         let prefix = &content[..offset.min(content.len())];
@@ -1004,6 +1009,22 @@ pub(crate) fn inspect_document(request: InspectDocumentRequest) -> OkfInspection
         Path::new(&request.source_path),
         Path::new(&request.bundle_root),
         request.is_bundle_root,
+    )
+}
+
+pub(crate) fn inspect_saved_document(
+    content: &str,
+    relative_path: &str,
+    source_path: &Path,
+    bundle_root: &Path,
+    is_bundle_root: bool,
+) -> OkfInspection {
+    inspect(
+        content,
+        relative_path,
+        source_path,
+        bundle_root,
+        is_bundle_root,
     )
 }
 

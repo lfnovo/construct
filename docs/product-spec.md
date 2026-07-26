@@ -500,6 +500,26 @@ O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledg
 - **OKF-023:** Links Markdown inline e de referência e campos OKF com contrato de path conhecido devem compartilhar resolução segura. Links quebrados geram findings; links que escapam da raiz registrada nunca entram no grafo.
 - **OKF-024:** A inspeção deve impor limites locais de tamanho e profundidade, excluir o bloco `construct-review:v1` de links e nunca reserializar ou salvar um documento.
 
+### 10.17 Índice local derivado
+
+O aplicativo mantém uma fundação local de retrieval para todo Markdown salvo,
+independentemente de o Local ser OKF. Este índice ainda não substitui o
+localizador por nome e caminho nem implica uma interface de busca de conteúdo
+no MVP.
+
+- **INDEX-001:** Cada Local deve possuir um banco embedded fisicamente separado, identificado pelo ID estável do Local e armazenado no diretório privado de dados do aplicativo.
+- **INDEX-002:** Arquivos Markdown continuam sendo a única fonte de verdade. O índice é descartável, reconstruível e nunca pode salvar, reserializar ou alterar um documento.
+- **INDEX-003:** O índice deve armazenar corpo Markdown visível completo, headings, frontmatter tipado completo, metadados normalizados e uma projeção limpa para busca.
+- **INDEX-004:** Blocos `construct-review:v1`, HTML de Preview, saída renderizada de Mermaid e buffers ainda não salvos não entram na projeção normal de busca.
+- **INDEX-005:** Criação, alteração e remoção de arquivos devem atualizar apenas os registros afetados durante a reconciliação comum. Rebuilds completos usam uma nova geração e só a ativam depois de concluídos.
+- **INDEX-006:** O último índice saudável deve permanecer utilizável quando um Local estiver temporariamente indisponível ou durante um rebuild.
+- **INDEX-007:** Estados públicos do índice são `notIndexed`, `indexing`, `ready`, `degraded` e `failed`; falhas do índice nunca podem impedir leitura ou edição direta dos arquivos.
+- **INDEX-008:** A sidebar deve comunicar o estado do índice por Local e permitir rebuild explícito, esclarecendo que nenhum arquivo do projeto será alterado.
+- **INDEX-009:** Remover um Local deve apagar seu índice derivado por padrão sem apagar seus arquivos.
+- **INDEX-010:** Um único `IndexService` nativo deve possuir todas as conexões embedded. React e futuros adaptadores CLI/MCP acessam contratos tipados e nunca abrem o banco diretamente.
+- **INDEX-011:** Consultas estruturadas normais identificam resultados por ID do Local e caminho relativo; caminhos absolutos permanecem no limite nativo.
+- **INDEX-012:** Nenhum conteúdo, caminho, query ou métrica do índice pode ser enviado a serviços remotos.
+
 ## 11. Estados e tratamento de erros
 
 ### 11.1 Estado vazio inicial
@@ -840,6 +860,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Compartilhar um único buffer entre Preview, Edit e Source, preservar salvamento explícito e não oferecer upload de imagens no primeiro corte. |
 | 2026-07-26 | Armazenar comentários de Review no próprio Markdown em um bloco invisível `construct-review:v1`, com remoção exata e prompt copiável para novas sessões de agente. |
 | 2026-07-26 | Consumir OKF v0.1/v0.2 e versões futuras de forma tolerante por um parser Rust compartilhado, preservando YAML aberto e usando findings estáveis. |
+| 2026-07-26 | Adotar um SurrealDB/SurrealKV embedded por Local, possuído por um `IndexService` nativo, com corpo e frontmatter completos, projeção limpa de busca e arquivos como fonte da verdade. |
 
 ## 24. Histórico do documento
 
@@ -850,3 +871,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.3 | 2026-07-26 | Edição visual Markdown, contrato de preservação de frontmatter e critérios de segurança do buffer. |
 | 0.4 | 2026-07-26 | Review persistente no documento, ciclo de comentários e handoff copiável para agentes. |
 | 0.5 | 2026-07-26 | Compatibilidade OKF v0.1/v0.2, parser nativo compartilhado, metadados tipados e contrato de findings. |
+| 0.6 | 2026-07-26 | Índice local persistente por Local, ownership nativo, gerações, retenção e controles de rebuild. |
