@@ -197,7 +197,7 @@ The desktop and agent process may coexist through the one local service.
 
 ## Review workflow
 
-Review comments remain excluded until RFC 06 defines their typed contract. They
+Review comments remain excluded until RFC 07 defines their typed contract. They
 are not mixed into source bodies, search, links, logs, or context packs.
 
 ## Pilot measurement
@@ -242,4 +242,4 @@ reduces traversal cost or improves answer quality.
 The pilot depends on the [local Markdown index](02-local-markdown-index.md).
 `build_context` additionally depends on
 [graph and context retrieval](04-graph-context-retrieval.md). Review fields
-follow [RFC 06](06-review-integration.md).
+follow [RFC 07](07-review-integration.md).

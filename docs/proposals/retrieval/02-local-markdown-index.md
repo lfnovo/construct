@@ -174,7 +174,7 @@ not included in the default weighted search projection. Exact source bytes are
 not a recovery source and are never written back from the index.
 
 Review state is handled separately by
-[RFC 06](06-review-integration.md).
+[RFC 07](07-review-integration.md).
 
 ## Incremental update flow
 

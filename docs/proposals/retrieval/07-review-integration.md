@@ -1,4 +1,4 @@
-# RFC 06 — Review integration
+# RFC 07 — Review integration
 
 **Status:** Proposed
 
