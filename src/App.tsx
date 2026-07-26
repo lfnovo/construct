@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelTop, Rows3, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
+import { toggleFilterValue, type ExploreFilters } from "./explore";
 import { deduplicateHistory } from "./history";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -110,8 +111,8 @@ async function mapInBatches<T, R>(items: T[], mapper: (item: T) => Promise<R>, b
 function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }: {
   location: LocationRecord;
   index: OkfBundleIndex | undefined;
-  filters: { type?: string; tag?: string };
-  onFilters: (filters: { type?: string; tag?: string }) => void;
+  filters: ExploreFilters;
+  onFilters: (filters: ExploreFilters) => void;
   onOpen: (path: string) => void;
   onClose: () => void;
 }) {
@@ -124,13 +125,13 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }
     typeCounts.set(concept.type, (typeCounts.get(concept.type) || 0) + 1);
     for (const tag of concept.tags) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
   }
-  const concepts = index.concepts.filter((concept) => (!filters.type || concept.type === filters.type) && (!filters.tag || concept.tags.includes(filters.tag)));
+  const concepts = index.concepts.filter((concept) => (!filters.types.length || filters.types.includes(concept.type)) && (!filters.tag || concept.tags.includes(filters.tag)));
   const types = [...typeCounts.entries()].sort(([left], [right]) => left.localeCompare(right));
   const tags = [...tagCounts.entries()].sort(([leftName, leftCount], [rightName, rightCount]) => rightCount - leftCount || leftName.localeCompare(rightName));
   return <section className="bundle-explorer">
     <header><div><h1>{location.name}</h1><p>OKF bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
-    <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list">{types.map(([type, count]) => <button key={type} className={filters.type === type ? "selected" : ""} onClick={() => onFilters({ ...filters, type: filters.type === type ? undefined : type })}>{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
-    <div className="explore-results-heading"><h2>{filters.type || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.type || filters.tag) && <button onClick={() => onFilters({})}>Clear filters</button>}</div>
+    <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}>{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
+    <div className="explore-results-heading"><h2>{filters.types.length || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.types.length || filters.tag) && <button onClick={() => onFilters({ types: [] })}>Clear filters</button>}</div>
     {view === "graph" ? <KnowledgeGraph concepts={concepts} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
   </section>;
 }
@@ -182,7 +183,7 @@ export default function App() {
   const [showOkfInspector, setShowOkfInspector] = useState(false);
   const [okfIndexes, setOkfIndexes] = useState<Record<string, OkfBundleIndex>>({});
   const [exploreLocationId, setExploreLocationId] = useState<string | null>(null);
-  const [exploreFilters, setExploreFilters] = useState<{ type?: string; tag?: string }>({});
+  const [exploreFilters, setExploreFilters] = useState<ExploreFilters>({ types: [] });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [ready, setReady] = useState(false);
@@ -588,7 +589,7 @@ export default function App() {
         <button className="icon-button" title="Split horizontally" onClick={() => { setActivePaneId(pane.id); splitPane("vertical"); }}><Rows3 size={14} /></button>
         {getPaneIds(layout).length > 1 && <button className="icon-button" title="Close pane" onClick={() => closePane(pane.id)}><X size={14} /></button>}
       </div>
-      {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p>{activeLocation?.okfBundle && <button className="toolbar-button" onClick={() => { setExploreFilters({}); setExploreLocationId(activeLocation.id); }}>Explore this OKF bundle</button>}</div> : <>
+      {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p>{activeLocation?.okfBundle && <button className="toolbar-button" onClick={() => { setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore this OKF bundle</button>}</div> : <>
         <div className="document-toolbar">
           <span className="document-path" title={tab.path}>{tab.relativePath}</span>
           {okf && <button className={`okf-status ${okf.isConformant ? "valid" : "invalid"}`} title="Open Knowledge Format details" onClick={() => setShowOkfInspector((current) => !current)}>OKF</button>}
@@ -604,14 +605,14 @@ export default function App() {
           <div className="okf-inspector-heading"><strong>Open Knowledge Format</strong><span className={okf.isConformant ? "okf-valid" : "okf-invalid"}>{okf.isConformant ? "Conformant" : "Needs attention"}</span></div>
           <div className="okf-kind">{okf.kind === "concept" ? "Concept document" : okf.kind === "index" ? "Directory index" : "Update log"}</div>
           <dl className="okf-metadata">
-            {okf.metadata.type && <><dt>Type</dt><dd><button className="okf-metadata-link" onClick={() => { if (tabLocation) { setExploreFilters({ type: okf.metadata.type }); setExploreLocationId(tabLocation.id); } }}>{okf.metadata.type}</button></dd></>}
+            {okf.metadata.type && <><dt>Type</dt><dd><button className="okf-metadata-link" onClick={() => { if (tabLocation) { setExploreFilters({ types: [okf.metadata.type!] }); setExploreLocationId(tabLocation.id); } }}>{okf.metadata.type}</button></dd></>}
             {okf.metadata.title && <><dt>Title</dt><dd>{okf.metadata.title}</dd></>}
             {okf.metadata.description && <><dt>Description</dt><dd>{okf.metadata.description}</dd></>}
             {okf.metadata.resource && <><dt>Resource</dt><dd><a href={okf.metadata.resource} onClick={(event) => { event.preventDefault(); void api.openExternalUrl(okf.metadata.resource!); }}>{okf.metadata.resource}</a></dd></>}
             {okf.metadata.timestamp && <><dt>Timestamp</dt><dd>{okf.metadata.timestamp}</dd></>}
             {okf.metadata.okfVersion && <><dt>OKF version</dt><dd>{okf.metadata.okfVersion}</dd></>}
           </dl>
-          {!!okf.metadata.tags.length && <div className="okf-tags">{okf.metadata.tags.map((tag) => <button key={tag} onClick={() => { if (tabLocation) { setExploreFilters({ tag }); setExploreLocationId(tabLocation.id); } }}>#{tag}</button>)}</div>}
+          {!!okf.metadata.tags.length && <div className="okf-tags">{okf.metadata.tags.map((tag) => <button key={tag} onClick={() => { if (tabLocation) { setExploreFilters({ types: [], tag }); setExploreLocationId(tabLocation.id); } }}>#{tag}</button>)}</div>}
           {concept && <div className="okf-relations"><div><h3>Links to</h3>{outgoingConcepts.length ? outgoingConcepts.map((item) => <button key={item.path} onClick={() => openPath(item.path)}>{item.title}</button>) : <p>No links to concepts in this bundle.</p>}</div><div><h3>Referenced by</h3>{incomingConcepts.length ? incomingConcepts.map((item) => <button key={item.path} onClick={() => openPath(item.path)}>{item.title}</button>) : <p>No concepts reference this document.</p>}</div></div>}
           {!!okf.issues.length && <ul className="okf-issues">{okf.issues.map((issue) => <li key={issue.message} className={issue.level}>{issue.message}</li>)}</ul>}
         </aside>}
@@ -635,7 +636,7 @@ export default function App() {
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setExploreFilters({}); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
         {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>)}
       </section>
       <section className="sidebar-section history-section">

@@ -465,6 +465,7 @@ O aplicativo deve oferecer suporte de consumo não destrutivo ao [Open Knowledge
 - **OKF-014:** Graph deve representar conceitos como nós e links Markdown internos conhecidos como arestas, usando `type` como agrupamento visual sem impor uma taxonomia fechada.
 - **OKF-015:** O usuário deve poder navegar, aplicar zoom, selecionar um nó para consultar seus metadados essenciais e abrir o documento correspondente.
 - **OKF-016:** Em bundles grandes, Graph pode limitar a renderização aos conceitos mais conectados, desde que informe claramente quantos conceitos foram omitidos e preserve o índice completo nas demais visões.
+- **OKF-017:** O filtro por `type` deve aceitar seleção múltipla. Cada clique liga ou desliga apenas o `type` correspondente; os conceitos visíveis pertencem a qualquer um dos types selecionados e continuam sujeitos ao filtro de tag quando ele estiver ativo.
 
 ## 11. Estados e tratamento de erros
 
