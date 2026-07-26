@@ -5,7 +5,6 @@ Construct is a local-first Tauri desktop application for reading, editing, and e
 ## Ground rules
 
 - Keep the application UI and user-facing errors in English.
-- Never send document contents, filenames, or local paths to remote services.
 - Keep Git integration read-only.
 - Preserve explicit saves; do not introduce autosave without a product decision.
 - Treat OKF metadata as open-ended. Do not impose a closed taxonomy or rewrite bundles automatically.
