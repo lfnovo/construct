@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, F
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
-import { inspectOkfDocument } from "./okf";
+import { extractOkfLinks, inspectOkfDocument, type OkfBundleIndex, type OkfConcept } from "./okf";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   LayoutNode, LocationRecord, Pane, SavedPane, SavedWorkspace, TabMode,
@@ -99,6 +99,39 @@ function FileTree({ entries, onOpen, onContext }: { entries: FileEntry[]; onOpen
   return <div className="file-tree">{entries.length ? render(tree, "") : <p className="empty-sidebar">No Markdown files found.</p>}</div>;
 }
 
+async function mapInBatches<T, R>(items: T[], mapper: (item: T) => Promise<R>, batchSize = 12) {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += batchSize) results.push(...await Promise.all(items.slice(index, index + batchSize).map(mapper)));
+  return results;
+}
+
+function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }: {
+  location: LocationRecord;
+  index: OkfBundleIndex | undefined;
+  filters: { type?: string; tag?: string };
+  onFilters: (filters: { type?: string; tag?: string }) => void;
+  onOpen: (path: string) => void;
+  onClose: () => void;
+}) {
+  if (!index || index.status === "scanning") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Building the local knowledge index…</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
+  if (index.status === "error") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Could not build the knowledge index.</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
+  const typeCounts = new Map<string, number>();
+  const tagCounts = new Map<string, number>();
+  for (const concept of index.concepts) {
+    typeCounts.set(concept.type, (typeCounts.get(concept.type) || 0) + 1);
+    for (const tag of concept.tags) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+  }
+  const concepts = index.concepts.filter((concept) => (!filters.type || concept.type === filters.type) && (!filters.tag || concept.tags.includes(filters.tag)));
+  const types = [...typeCounts.entries()].sort(([left], [right]) => left.localeCompare(right));
+  const tags = [...tagCounts.entries()].sort(([leftName, leftCount], [rightName, rightCount]) => rightCount - leftCount || leftName.localeCompare(rightName));
+  return <section className="bundle-explorer">
+    <header><div><h1>{location.name}</h1><p>OKF bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header>
+    <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list">{types.map(([type, count]) => <button key={type} className={filters.type === type ? "selected" : ""} onClick={() => onFilters({ ...filters, type: filters.type === type ? undefined : type })}>{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
+    <div className="explore-results-heading"><h2>{filters.type || filters.tag ? `${concepts.length} matching concepts` : "All concepts"}</h2>{(filters.type || filters.tag) && <button onClick={() => onFilters({})}>Clear filters</button>}</div>
+    <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>
+  </section>;
+}
+
 function SplitView({ node, panes, activePaneId, onActivate, onRatio, children }: {
   node: LayoutNode;
   panes: Record<string, Pane>;
@@ -144,6 +177,9 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useState(295);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [showOkfInspector, setShowOkfInspector] = useState(false);
+  const [okfIndexes, setOkfIndexes] = useState<Record<string, OkfBundleIndex>>({});
+  const [exploreLocationId, setExploreLocationId] = useState<string | null>(null);
+  const [exploreFilters, setExploreFilters] = useState<{ type?: string; tag?: string }>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [ready, setReady] = useState(false);
@@ -158,6 +194,7 @@ export default function App() {
   const filesRef = useRef(filesByLocation);
   const panesRef = useRef(panes);
   const refreshTimer = useRef<number | undefined>(undefined);
+  const okfIndexSignatures = useRef<Record<string, string>>({});
   locationsRef.current = locations;
   filesRef.current = filesByLocation;
   panesRef.current = panes;
@@ -205,8 +242,10 @@ export default function App() {
   }, [addHistory]);
 
   const detectOkfBundle = useCallback(async (location: LocationRecord, entries: FileEntry[]) => {
+    if (location.okfMode === "manual") return Boolean(location.okfBundle);
+    if (location.okfMode === "disabled") return false;
     const rootIndex = entries.find((entry) => entry.relativePath === "index.md");
-    if (!rootIndex) return;
+    if (!rootIndex) return false;
     try {
       const { content } = await api.readMarkdownFile(rootIndex.path);
       const detected = Boolean(inspectOkfDocument(content, rootIndex.relativePath, true).metadata.okfVersion);
@@ -214,7 +253,32 @@ export default function App() {
         if (item.id !== location.id || item.okfMode === "manual" || item.okfMode === "disabled") return item;
         return detected ? { ...item, okfBundle: true, okfMode: "auto" } : { ...item, okfBundle: false, okfMode: "auto" };
       }));
-    } catch { /* a failed probe must not affect the Location */ }
+      return detected;
+    } catch { return false; }
+  }, []);
+
+  const buildOkfIndex = useCallback(async (location: LocationRecord, entries: FileEntry[]) => {
+    const signature = entries.map((entry) => `${entry.path}:${entry.modifiedAtMs}:${entry.size}`).join("|");
+    if (okfIndexSignatures.current[location.id] === signature) return;
+    okfIndexSignatures.current[location.id] = signature;
+    setOkfIndexes((current) => ({ ...current, [location.id]: { status: "scanning", concepts: current[location.id]?.concepts || [], signature } }));
+    try {
+      const concepts = (await mapInBatches(entries, async (entry): Promise<OkfConcept | null> => {
+        try {
+          const { content } = await api.readMarkdownFile(entry.path);
+          const inspection = inspectOkfDocument(content, entry.relativePath, entry.relativePath === "index.md");
+          if (inspection.kind !== "concept") return null;
+          return { id: entry.relativePath.replace(/\.md$/i, ""), path: entry.path, relativePath: entry.relativePath, type: inspection.metadata.type || "Unclassified", title: inspection.metadata.title || basename(entry.relativePath).replace(/\.md$/i, ""), description: inspection.metadata.description, tags: inspection.metadata.tags, timestamp: inspection.metadata.timestamp, outgoingPaths: extractOkfLinks(content, entry.path, location.path), incomingPaths: [] };
+        } catch { return null; }
+      })).filter((concept): concept is OkfConcept => Boolean(concept));
+      const knownPaths = new Set(concepts.map((concept) => concept.path));
+      const incomingByPath = new Map<string, string[]>();
+      for (const concept of concepts) for (const target of concept.outgoingPaths) if (knownPaths.has(target)) incomingByPath.set(target, [...(incomingByPath.get(target) || []), concept.path]);
+      const connected = concepts.map((concept) => ({ ...concept, outgoingPaths: concept.outgoingPaths.filter((path) => knownPaths.has(path)), incomingPaths: incomingByPath.get(concept.path) || [] }));
+      setOkfIndexes((current) => ({ ...current, [location.id]: { status: "ready", concepts: connected, signature } }));
+    } catch (error) {
+      setOkfIndexes((current) => ({ ...current, [location.id]: { status: "error", concepts: [], signature, error: error instanceof Error ? error.message : String(error) } }));
+    }
   }, []);
 
   const refreshLocation = useCallback(async (location: LocationRecord, source: HistoryEvent["source"] = "external") => {
@@ -222,7 +286,9 @@ export default function App() {
       const entries = await api.listMarkdownFiles(location.path);
       setFilesByLocation((current) => ({ ...current, [location.id]: entries }));
       reconcile(location, entries, source);
-      void detectOkfBundle(location, entries);
+      const isOkfBundle = await detectOkfBundle(location, entries);
+      if (isOkfBundle) void buildOkfIndex(location, entries);
+      else setOkfIndexes((current) => { const { [location.id]: _, ...rest } = current; return rest; });
       const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
       const candidates = Object.values(panesRef.current).flatMap((pane) => pane.tabs.filter((tab) => tab.locationId === location.id).map((tab) => ({ paneId: pane.id, tab })));
       setPanes((current) => Object.fromEntries(Object.entries(current).map(([paneId, pane]) => [paneId, {
@@ -249,7 +315,7 @@ export default function App() {
       setLocations((current) => current.map((item) => item.id === location.id ? { ...item, available: false } : item));
       setFilesByLocation((current) => ({ ...current, [location.id]: [] }));
     }
-  }, [detectOkfBundle, reconcile]);
+  }, [buildOkfIndex, detectOkfBundle, reconcile]);
 
   const refreshAll = useCallback((source: HistoryEvent["source"] = "external") => Promise.all(locationsRef.current.map((location) => refreshLocation(location, source))), [refreshLocation]);
 
@@ -298,6 +364,13 @@ export default function App() {
     const file = Object.values(filesRef.current).flat().find((item) => item.path === path);
     if (file) void openFile(file);
     else notify("The linked file does not exist in an available Location.");
+  }, [notify, openFile]);
+
+  const openExploreConcept = useCallback((path: string) => {
+    const file = Object.values(filesRef.current).flat().find((item) => item.path === path);
+    if (!file) return notify("The selected concept is no longer available.");
+    setExploreLocationId(null);
+    void openFile(file);
   }, [notify, openFile]);
 
   const updateTab = useCallback((paneId: string, tabId: string, updater: (tab: DocumentTab) => DocumentTab) => {
@@ -464,6 +537,7 @@ export default function App() {
   }, [activePaneId, closeTab, findTab, saveTab]);
 
   const activeLocation = locations.find((location) => location.id === selectedLocationId) || null;
+  const exploreLocation = locations.find((location) => location.id === exploreLocationId) || null;
   const fileResults = useMemo(() => Object.entries(filesByLocation).flatMap(([locationId, files]) => files.map((file) => ({ ...file, locationId }))).filter((file) => `${file.name} ${file.relativePath}`.toLowerCase().includes(query.toLowerCase())).slice(0, 100), [filesByLocation, query]);
   const visibleHistory = history.filter((event) => historyFilter === "all" || event.kind === historyFilter);
 
@@ -478,6 +552,10 @@ export default function App() {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId) || null;
     const tabLocation = tab ? locationsRef.current.find((location) => location.id === tab.locationId) : null;
     const okf = tab && tabLocation?.okfBundle ? inspectOkfDocument(tab.content, tab.relativePath, tab.relativePath === "index.md") : null;
+    const bundleIndex = tabLocation ? okfIndexes[tabLocation.id] : undefined;
+    const concept = tab && bundleIndex?.status === "ready" ? bundleIndex.concepts.find((item) => item.path === tab.path) : undefined;
+    const outgoingConcepts = concept ? concept.outgoingPaths.map((path) => bundleIndex?.concepts.find((item) => item.path === path)).filter((item): item is OkfConcept => Boolean(item)) : [];
+    const incomingConcepts = concept ? concept.incomingPaths.map((path) => bundleIndex?.concepts.find((item) => item.path === path)).filter((item): item is OkfConcept => Boolean(item)) : [];
     const changeContent = (content: string) => tab && updateTab(pane.id, tab.id, (current) => ({ ...current, content, dirty: content !== current.baseContent }));
     const reloadExternal = () => { if (tab) void reloadTab(pane.id, tab.id); };
     return <section className={`editor-pane ${active ? "active" : ""}`}>
@@ -516,14 +594,15 @@ export default function App() {
           <div className="okf-inspector-heading"><strong>Open Knowledge Format</strong><span className={okf.isConformant ? "okf-valid" : "okf-invalid"}>{okf.isConformant ? "Conformant" : "Needs attention"}</span></div>
           <div className="okf-kind">{okf.kind === "concept" ? "Concept document" : okf.kind === "index" ? "Directory index" : "Update log"}</div>
           <dl className="okf-metadata">
-            {okf.metadata.type && <><dt>Type</dt><dd>{okf.metadata.type}</dd></>}
+            {okf.metadata.type && <><dt>Type</dt><dd><button className="okf-metadata-link" onClick={() => { if (tabLocation) { setExploreFilters({ type: okf.metadata.type }); setExploreLocationId(tabLocation.id); } }}>{okf.metadata.type}</button></dd></>}
             {okf.metadata.title && <><dt>Title</dt><dd>{okf.metadata.title}</dd></>}
             {okf.metadata.description && <><dt>Description</dt><dd>{okf.metadata.description}</dd></>}
             {okf.metadata.resource && <><dt>Resource</dt><dd><a href={okf.metadata.resource} onClick={(event) => { event.preventDefault(); void api.openExternalUrl(okf.metadata.resource!); }}>{okf.metadata.resource}</a></dd></>}
             {okf.metadata.timestamp && <><dt>Timestamp</dt><dd>{okf.metadata.timestamp}</dd></>}
             {okf.metadata.okfVersion && <><dt>OKF version</dt><dd>{okf.metadata.okfVersion}</dd></>}
           </dl>
-          {!!okf.metadata.tags.length && <div className="okf-tags">{okf.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+          {!!okf.metadata.tags.length && <div className="okf-tags">{okf.metadata.tags.map((tag) => <button key={tag} onClick={() => { if (tabLocation) { setExploreFilters({ tag }); setExploreLocationId(tabLocation.id); } }}>#{tag}</button>)}</div>}
+          {concept && <div className="okf-relations"><div><h3>Links to</h3>{outgoingConcepts.length ? outgoingConcepts.map((item) => <button key={item.path} onClick={() => openPath(item.path)}>{item.title}</button>) : <p>No links to concepts in this bundle.</p>}</div><div><h3>Referenced by</h3>{incomingConcepts.length ? incomingConcepts.map((item) => <button key={item.path} onClick={() => openPath(item.path)}>{item.title}</button>) : <p>No concepts reference this document.</p>}</div></div>}
           {!!okf.issues.length && <ul className="okf-issues">{okf.issues.map((issue) => <li key={issue.message} className={issue.level}>{issue.message}</li>)}</ul>}
         </aside>}
         <div className="document-content">
@@ -546,7 +625,7 @@ export default function App() {
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}</div>
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setExploreFilters({}); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
         {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>)}
       </section>
       <section className="sidebar-section history-section">
@@ -557,7 +636,7 @@ export default function App() {
       </section>
     </aside>}
     {!sidebarHidden && <div className="sidebar-resizer" onPointerDown={resizeSidebar} />}
-    <section className="workspace"><SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView></section>
+    <section className="workspace">{exploreLocation ? <BundleExplorer location={exploreLocation} index={okfIndexes[exploreLocation.id]} filters={exploreFilters} onFilters={setExploreFilters} onOpen={openExploreConcept} onClose={() => setExploreLocationId(null)} /> : <SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView>}</section>
     {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input autoFocus placeholder="Open file…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); if (event.key === "Enter" && fileResults[0]) { openFile(fileResults[0]); setQuickOpen(false); } }} />
       <div className="quick-results">{fileResults.map((file) => <button key={file.path} onClick={() => { openFile(file); setQuickOpen(false); }}><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
     {fileContext && <div className="context-backdrop" onMouseDown={() => setFileContext(null)}><div className="context-menu" style={{ left: fileContext.x, top: fileContext.y }} onMouseDown={(event) => event.stopPropagation()}>

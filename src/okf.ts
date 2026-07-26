@@ -16,6 +16,26 @@ export type OkfInspection = {
   isConformant: boolean;
 };
 
+export type OkfConcept = {
+  id: string;
+  path: string;
+  relativePath: string;
+  type: string;
+  title: string;
+  description?: string;
+  tags: string[];
+  timestamp?: string;
+  outgoingPaths: string[];
+  incomingPaths: string[];
+};
+
+export type OkfBundleIndex = {
+  status: "scanning" | "ready" | "error";
+  concepts: OkfConcept[];
+  signature: string;
+  error?: string;
+};
+
 type FrontmatterResult = { hasFrontmatter: boolean; data: Record<string, string | string[]>; error?: string };
 
 const emptyMetadata = (): OkfMetadata => ({ tags: [], extra: {} });
@@ -125,4 +145,16 @@ export function resolveOkfLink(sourcePath: string, bundleRoot: string | undefine
 
 export function withoutFrontmatter(content: string) {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*(?:\r?\n)?/, "");
+}
+
+export function extractOkfLinks(content: string, sourcePath: string, bundleRoot: string) {
+  const links = new Set<string>();
+  const body = withoutFrontmatter(content);
+  for (const match of body.matchAll(/(?<!!)\[[^\]]*\]\(([^\s)]+)(?:\s+[^)]*)?\)/g)) {
+    const target = match[1];
+    if (target.startsWith("#") || /^(https?:|mailto:|tel:|data:)/i.test(target)) continue;
+    const resolved = resolveOkfLink(sourcePath, bundleRoot, target);
+    if (/\.md$/i.test(resolved)) links.add(resolved);
+  }
+  return [...links];
 }

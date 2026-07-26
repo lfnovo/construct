@@ -456,6 +456,10 @@ O aplicativo deve oferecer suporte de consumo não destrutivo ao [Open Knowledge
 - **OKF-006:** Tipos desconhecidos, campos adicionais, links quebrados e ausência de arquivos de índice não devem impedir a abertura ou leitura do bundle.
 - **OKF-007:** A interface deve oferecer um inspector recolhível com os metadados e o status de conformidade do documento aberto.
 - **OKF-008:** O suporte inicial é apenas de leitura e validação; não deve criar, reescrever ou completar índices, logs ou metadados automaticamente.
+- **OKF-009:** Para cada bundle OKF aberto, o aplicativo deve construir localmente um índice derivado de conceitos, types, tags e links Markdown entre conceitos.
+- **OKF-010:** A ação Explore deve permitir navegar pelos types e tags presentes no bundle e abrir a coleção filtrada de conceitos correspondente.
+- **OKF-011:** O inspector de um conceito deve apresentar links de saída e referências de entrada conhecidos no bundle.
+- **OKF-012:** O índice semântico é um cache derivado, não uma fonte de verdade; deve ser atualizado quando arquivos do bundle forem alterados e nunca deve alterar conteúdo por conta própria.
 
 ## 11. Estados e tratamento de erros
 
