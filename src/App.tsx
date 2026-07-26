@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./explore";
@@ -11,9 +11,12 @@ import { MarkdownPreview } from "./MarkdownPreview";
 import { formatOkfValue, type OkfBundleIndex, type OkfConcept, type OkfInspection } from "./okf";
 import { ReviewEditor } from "./ReviewEditor";
 import { splitReviewDocument } from "./review";
+import { SearchWorkspace } from "./SearchWorkspace";
+import { rememberSearch } from "./search";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
-  IndexStatus, LayoutNode, LocationRecord, Pane, SavedPane, SavedWorkspace, TabMode,
+  IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationRecord,
+  Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, TabMode,
 } from "./types";
 
 const VisualEditor = lazy(() => import("./VisualEditor").then(({ VisualEditor: Component }) => ({ default: Component })));
@@ -204,6 +207,9 @@ export default function App() {
   const [okfInspections, setOkfInspections] = useState<Record<string, { content: string; inspection: OkfInspection }>>({});
   const [exploreLocationId, setExploreLocationId] = useState<string | null>(null);
   const [exploreFilters, setExploreFilters] = useState<ExploreFilters>({ types: [] });
+  const [searchSession, setSearchSession] = useState<{ initialLocationId: string | null; focusSignal: number } | null>(null);
+  const [recentSearches, setRecentSearches] = useState<RecentKnowledgeSearch[]>([]);
+  const [rememberRecentSearches, setRememberRecentSearches] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [ready, setReady] = useState(false);
@@ -415,6 +421,8 @@ export default function App() {
   }, [activePaneId, panes]);
 
   const openFile = useCallback(async (file: FileEntry, newPane = false) => {
+    setExploreLocationId(null);
+    setSearchSession(null);
     let targetId = activePaneId;
     if (newPane) {
       const nextId = crypto.randomUUID();
@@ -445,8 +453,35 @@ export default function App() {
     const file = Object.values(filesRef.current).flat().find((item) => item.path === path);
     if (!file) return notify("The selected concept is no longer available.");
     setExploreLocationId(null);
+    setSearchSession(null);
     void openFile(file);
   }, [notify, openFile]);
+
+  const openKnowledgeSearch = useCallback(() => {
+    setExploreLocationId(null);
+    setSearchSession((current) => current
+      ? { ...current, focusSignal: current.focusSignal + 1 }
+      : { initialLocationId: selectedLocationId, focusSignal: 1 });
+  }, [selectedLocationId]);
+
+  const openKnowledgeResult = useCallback((result: KnowledgeSearchResult, newPane = false) => {
+    const file = (filesRef.current[result.locationId] || [])
+      .find((entry) => entry.relativePath.replace(/\\/g, "/") === result.relativePath);
+    if (!file) return notify("The selected document is no longer available.");
+    void openFile(file, newPane);
+  }, [notify, openFile]);
+
+  const rememberKnowledgeSearch = useCallback((
+    searchQuery: string,
+    locationIds: string[],
+    filters: KnowledgeSearchFilters,
+  ) => {
+    setRecentSearches((current) => rememberSearch(current, {
+      query: searchQuery,
+      locationIds,
+      filters,
+    }));
+  }, []);
 
   const updateTab = useCallback((paneId: string, tabId: string, updater: (tab: DocumentTab) => DocumentTab) => {
     setPane(paneId, (pane) => ({ ...pane, tabs: pane.tabs.map((tab) => tab.id === tabId ? updater(tab) : tab) }));
@@ -561,6 +596,8 @@ export default function App() {
         setSidebarHidden(saved.sidebarHidden || false);
         setCollapsedSections(saved.collapsedSections || {});
         setTheme(saved.theme || "dark");
+        setRememberRecentSearches(saved.rememberRecentSearches !== false);
+        setRecentSearches((saved.recentSearches || []).slice(0, 20));
         setLayout(restoredLayout);
         setActivePaneId(saved.activePaneId || "main");
         await configureLocations(restoredLocations);
@@ -596,15 +633,30 @@ export default function App() {
     if (!ready) return;
     const handle = window.setTimeout(() => {
       const savedPanes: SavedPane[] = Object.values(panes).map((pane) => ({ ...pane, tabs: pane.tabs.map(({ id, path, locationId, title, relativePath, mode }) => ({ id, path, locationId, title, relativePath, mode })) }));
-      const state: SavedWorkspace = { locations, history, fingerprints, panes: savedPanes, layout, activePaneId, selectedLocationId, sidebarWidth, sidebarHidden, collapsedSections, theme };
+      const state: SavedWorkspace = {
+        locations,
+        history,
+        fingerprints,
+        panes: savedPanes,
+        layout,
+        activePaneId,
+        selectedLocationId,
+        sidebarWidth,
+        sidebarHidden,
+        collapsedSections,
+        theme,
+        rememberRecentSearches,
+        recentSearches: rememberRecentSearches ? recentSearches.slice(0, 20) : [],
+      };
       void api.saveState(state).catch(() => undefined);
     }, 450);
     return () => window.clearTimeout(handle);
-  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, selectedLocationId, sidebarHidden, sidebarWidth, theme]);
+  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, recentSearches, rememberRecentSearches, selectedLocationId, sidebarHidden, sidebarWidth, theme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.metaKey) return;
+      if (event.shiftKey && event.key.toLowerCase() === "f") { event.preventDefault(); openKnowledgeSearch(); }
       if (event.key.toLowerCase() === "p") { event.preventDefault(); setQuickOpen(true); }
       if (event.key.toLowerCase() === "s") { event.preventDefault(); void saveTab(); }
       if (event.key.toLowerCase() === "w") {
@@ -616,7 +668,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activePaneId, closeTab, findTab, saveTab]);
+  }, [activePaneId, closeTab, findTab, openKnowledgeSearch, saveTab]);
 
   const inspectableOkfTabs = useMemo(() => {
     const locationsById = new Map(locations.filter((location) => location.okfBundle).map((location) => [location.id, location]));
@@ -706,7 +758,7 @@ export default function App() {
         <button className="icon-button" title="Split horizontally" onClick={() => { setActivePaneId(pane.id); splitPane("vertical"); }}><Rows3 size={14} /></button>
         {getPaneIds(layout).length > 1 && <button className="icon-button" title="Close pane" onClick={() => closePane(pane.id)}><X size={14} /></button>}
       </div>
-      {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p>{activeLocation?.okfBundle && <button className="toolbar-button" onClick={() => { setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore this OKF bundle</button>}</div> : <>
+      {!tab ? <div className="empty-pane"><h2>Open a context file</h2><p>Choose a file from the sidebar or use <kbd>⌘P</kbd>.</p><button className="toolbar-button" onClick={openKnowledgeSearch}><SearchIcon size={13} /> Search knowledge</button>{activeLocation?.okfBundle && <button className="toolbar-button" onClick={() => { setSearchSession(null); setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore this OKF bundle</button>}</div> : <>
         <div className="document-toolbar">
           <span className="document-path" title={tab.path}>{tab.relativePath}</span>
           {okf && <button className={`okf-status ${okf.isConformant ? "valid" : "invalid"}`} title="Open Knowledge Format details" onClick={() => setShowOkfInspector((current) => !current)}>OKF</button>}
@@ -772,7 +824,7 @@ export default function App() {
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}<button className="search-button" onClick={openKnowledgeSearch}><SearchIcon size={11} /> Search</button>{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setSearchSession(null); setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
         {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>)}
       </section>
       <section className="sidebar-section history-section">
@@ -783,7 +835,20 @@ export default function App() {
       </section>
     </aside>}
     {!sidebarHidden && <div className="sidebar-resizer" onPointerDown={resizeSidebar} />}
-    <section className="workspace">{exploreLocation ? <BundleExplorer location={exploreLocation} index={okfIndexes[exploreLocation.id]} filters={exploreFilters} onFilters={setExploreFilters} onOpen={openExploreConcept} onClose={() => setExploreLocationId(null)} /> : <SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView>}</section>
+    <section className="workspace">{searchSession ? <SearchWorkspace
+      locations={locations}
+      initialLocationId={searchSession.initialLocationId}
+      indexStatuses={indexStatuses}
+      recentSearches={recentSearches}
+      rememberRecentSearches={rememberRecentSearches}
+      focusSignal={searchSession.focusSignal}
+      onRememberSearch={rememberKnowledgeSearch}
+      onRecentSearches={setRecentSearches}
+      onRememberRecentSearches={(remember) => { setRememberRecentSearches(remember); if (!remember) setRecentSearches([]); }}
+      onOpen={openKnowledgeResult}
+      onClose={() => setSearchSession(null)}
+      onNotify={notify}
+    /> : exploreLocation ? <BundleExplorer location={exploreLocation} index={okfIndexes[exploreLocation.id]} filters={exploreFilters} onFilters={setExploreFilters} onOpen={openExploreConcept} onClose={() => setExploreLocationId(null)} /> : <SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView>}</section>
     {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input autoFocus placeholder="Open file…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); if (event.key === "Enter" && fileResults[0]) { openFile(fileResults[0]); setQuickOpen(false); } }} />
       <div className="quick-results">{fileResults.map((file) => <button key={file.path} onClick={() => { openFile(file); setQuickOpen(false); }}><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
     {fileContext && <div className="context-backdrop" onMouseDown={() => setFileContext(null)}><div className="context-menu" style={{ left: fileContext.x, top: fileContext.y }} onMouseDown={(event) => event.stopPropagation()}>

@@ -30,6 +30,7 @@ The frontend lives in `src/`.
 | `CodeEditor.tsx` | CodeMirror lifecycle and Markdown editing |
 | `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
 | `ReviewEditor.tsx` | Rendered text selection, review composer, comment list, and clipboard handoff |
+| `SearchWorkspace.tsx` | Dedicated local knowledge search, visible scope and filters, result selection, recent-query controls, and pane navigation |
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
 | `markdownDocument.ts` | Lossless frontmatter/body boundaries and visual-editor serialization |
 | `review.ts` | Pure parsing, lossless review-block updates, and agent prompt serialization |
@@ -37,6 +38,7 @@ The frontend lives in `src/`.
 | `KnowledgeGraph.tsx` | Deterministic local graph layout and interactions |
 | `history.ts` | File identity across repeated changes and renames |
 | `explore.ts` | OKF filters and stable visual type assignment |
+| `search.ts` | Pure search-filter, recent-query, identity, and relative-reference serialization helpers |
 | `api.ts` | Typed Tauri command facade |
 | `types.ts` | Persisted and runtime domain types |
 
@@ -76,7 +78,9 @@ behind this module so they can be replaced without changing the Tauri contract.
 - incremental fingerprint comparison and transactional document updates;
 - complete visible Markdown bodies, typed frontmatter, headings, and a clean
   full-text search projection;
-- typed status, rebuild, search, get, and delete operations.
+- weighted field-specific full-text indexes and exact metadata filters;
+- local rank explanations and cross-Location reciprocal rank fusion;
+- typed status, rebuild, facets, knowledge search, get, and delete operations.
 
 `IndexService` is transport-neutral and is the only component allowed to open
 the embedded databases. React calls it through typed Tauri commands. Future CLI
@@ -87,6 +91,10 @@ The frontend can operate only on files under registered locations. Path validati
 ## Persistence
 
 Workspace state is stored as `workspace.json` in the platform application data directory. It contains locations, UI layout, tabs, history metadata, and file fingerprints, but never document contents.
+
+The workspace may also retain up to 20 explicitly submitted recent knowledge
+queries with Location IDs and filters. This retention is local, user-clearable,
+and optional. It never stores result snippets or document contents.
 
 Saved Markdown is also represented in disposable per-Location indexes under
 the application data `indexes/` directory. Those indexes contain document

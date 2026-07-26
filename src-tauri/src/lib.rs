@@ -464,6 +464,22 @@ async fn search_location_index(
 }
 
 #[tauri::command]
+async fn search_knowledge(
+    request: index::KnowledgeSearchRequest,
+    index_service: State<'_, index::IndexService>,
+) -> Result<index::KnowledgeSearchResponse, String> {
+    index_service.search_knowledge(request).await
+}
+
+#[tauri::command]
+async fn get_search_facets(
+    request: index::SearchFacetsRequest,
+    index_service: State<'_, index::IndexService>,
+) -> Result<index::SearchFacets, String> {
+    index_service.search_facets(request).await
+}
+
+#[tauri::command]
 async fn get_indexed_document(
     location_id: String,
     relative_path: String,
@@ -684,6 +700,8 @@ pub fn run() {
             sync_location_index,
             get_location_index_status,
             search_location_index,
+            search_knowledge,
+            get_search_facets,
             get_indexed_document,
             delete_location_index,
             read_image_data_url,

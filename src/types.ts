@@ -94,6 +94,8 @@ export type SavedWorkspace = {
   sidebarHidden?: boolean;
   collapsedSections: Record<string, boolean>;
   theme: "dark" | "light";
+  rememberRecentSearches?: boolean;
+  recentSearches?: RecentKnowledgeSearch[];
 };
 
 export type FileSystemChange = { paths: string[]; kind: string };
@@ -137,4 +139,64 @@ export type IndexedDocument = {
   frontmatter: unknown | null;
   body: string;
   generation: number;
+};
+
+export type KnowledgeSearchFilters = {
+  types: string[];
+  tags: string[];
+  roles: string[];
+  statuses: string[];
+  trust: string[];
+  freshness: string[];
+  pathPrefix: string;
+  findings: "any" | "with" | "without";
+};
+
+export type KnowledgeSearchResult = {
+  locationId: string;
+  relativePath: string;
+  title: string;
+  description: string | null;
+  type: string | null;
+  tags: string[];
+  role: string;
+  status: string | null;
+  trust: string | null;
+  freshness: "current" | "stale" | "unspecified";
+  staleAfter: string | null;
+  findingCount: number;
+  snippet: string;
+  matchedFields: string[];
+  matchReason: string;
+  score: number;
+  rankScore: number;
+  generation: number;
+};
+
+export type KnowledgeSearchResponse = {
+  results: KnowledgeSearchResult[];
+  unavailableLocationIds: string[];
+};
+
+export type FacetCount = {
+  value: string;
+  count: number;
+};
+
+export type SearchFacets = {
+  types: FacetCount[];
+  tags: FacetCount[];
+  roles: FacetCount[];
+  statuses: FacetCount[];
+  trust: FacetCount[];
+  freshness: FacetCount[];
+  unavailableLocationIds: string[];
+};
+
+export type RecentKnowledgeSearch = {
+  id: string;
+  query: string;
+  locationIds: string[];
+  filters: KnowledgeSearchFilters;
+  searchedAt: number;
 };
