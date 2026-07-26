@@ -1,0 +1,32 @@
+docs/architecture.md
+  s_954343fc536a43::t_e7e5ab66b96762 100-103
+src-tauri/src/mcp.rs
+  s_954343fc536a43::t_e7e5ab66b96762 17,185,235
+scripts/mcp-smoke.mjs
+  s_954343fc536a43::t_e7e5ab66b96762 91-97
+src-tauri/src/index.rs
+  s_954343fc536a43::t_0bffe84a32c8a7 890-899,914
+  s_954343fc536a43::t_e7e5ab66b96762 100-101,734-740,824-826,2014-2033,2975,3245-3287
+  s_954343fc536a43::t_7647e986484d04 889
+  s_954343fc536a43::t_ca078978876071 3207-3214
+  s_954343fc536a43::t_eec8c7f12433da 3288-3290
+  s_954343fc536a43::t_ade69d5198e04b 3291
+docs/product-spec.md
+  s_954343fc536a43::t_e7e5ab66b96762 560,575
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "56c0e2b4421985ebf73ad3ed257825e2fef02b24",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
