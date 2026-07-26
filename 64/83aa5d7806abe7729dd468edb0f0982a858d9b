@@ -1,0 +1,61 @@
+src-tauri/src/index.rs
+  s_954343fc536a43::t_ce0340825baaaa 1552-1553,1556,1565,1568-1594
+  s_954343fc536a43::t_223f0a37a9e2ca 2312,3166-3169,3177,3181
+  s_954343fc536a43::t_60d80d4e7562e7 1698,3137-3165,3170-3176,3178-3180,3182-3208
+  s_954343fc536a43::t_e2eeb6f9c8a54a 582,602-612,880-895,1174,1509-1551,1554-1555,1557-1564,1566-1567,1595-1697
+  s_954343fc536a43::t_1f7639ab902ef5 22,60,65-66,90,102,115,155,166,359,397,406
+  s_954343fc536a43::t_e3176d0274c8f7 461-547
+  s_954343fc536a43::t_6567e3b0c0bbb6 2234-2311,2313-2364
+  s_954343fc536a43::t_a7e13ddf620785 1699
+src-tauri/src/lib.rs
+  s_954343fc536a43::t_15c2a01b7e3ed5 17-18,432,441,447,449,455,457,463,465,471,473,480,490,492,498,500,506,508-516,704-706,726
+  s_954343fc536a43::t_223f0a37a9e2ca 482-483,703
+  s_954343fc536a43::t_4a299ccc01c3c4 738-745
+README.md
+  s_954343fc536a43::t_c38f837c967dfd 85-93
+scripts/mcp-smoke.mjs
+  s_954343fc536a43::t_e29cc8d6eeffda 1-145
+docs/architecture.md
+  s_954343fc536a43::t_c38f837c967dfd 90-105,121-123
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_1f7639ab902ef5 32
+  s_954343fc536a43::t_a631fcc86238e5 29
+src-tauri/src/main.rs
+  s_954343fc536a43::t_4a299ccc01c3c4 2-16
+docs/proposals/retrieval/05-local-agent-access.md
+  s_954343fc536a43::t_80eb162ec2a768 3,27-28,30-34,36-39,82-83,102-112,114-127,157-160,195-196,222-233
+docs/proposals/retrieval/README.md
+  s_954343fc536a43::t_c38f837c967dfd 3,52,89,91-92,102
+src-tauri/src/knowledge.rs
+  s_954343fc536a43::t_223f0a37a9e2ca 87-89,97,271,370-374,382-384,497
+  s_954343fc536a43::t_47705c0f3cd561 1-86,90-96,98-270,272-369,375-381,385-496,498-544
+src/App.tsx
+  s_954343fc536a43::t_aa7e3b426d6176 843
+package.json
+  s_954343fc536a43::t_e29cc8d6eeffda 29
+docs/product-spec.md
+  s_954343fc536a43::t_c38f837c967dfd 560-572
+src-tauri/src/mcp.rs
+  s_954343fc536a43::t_a631fcc86238e5 1-116,118-124,128-134,138-145,150-234,243-541,544-566
+  s_954343fc536a43::t_223f0a37a9e2ca 117,125-127,135-137,146-149,235-242,542-543
+src/api.ts
+  s_954343fc536a43::t_aa7e3b426d6176 41-42
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_347126387aad4f 818,5078-5087,6107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6483aa5d7806abe7729dd468edb0f0982a858d9b",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
