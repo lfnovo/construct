@@ -87,8 +87,22 @@ behind this module so they can be replaced without changing the Tauri contract.
   delete operations.
 
 `IndexService` is transport-neutral and is the only component allowed to open
-the embedded databases. React calls it through typed Tauri commands. Future CLI
-and MCP adapters must reuse the service instead of opening SurrealKV directly.
+the embedded databases. It runs behind a local authenticated Unix socket on
+macOS and Unix systems. The desktop's typed Tauri commands and the MCP stdio
+adapter call a `KnowledgeClient` over that socket; they never open SurrealKV
+directly. The same Construct executable has desktop, `service`, and `mcp serve`
+modes, so independent access keeps working when the desktop window is closed
+without introducing a second installation artifact.
+
+The service token and socket are created with user-only permissions in the
+application data directory. No network listener is opened. MCP startup requires
+an explicit Location allowlist, reconciles those saved files, and periodically
+checks them while the client session is active.
+
+The retrieval database also contains a disposable 15-day daily activity cache.
+Real saved-file changes, documents successfully served through MCP, and
+documents included in MCP context packs use separate counters. Search results
+do not count as reads, and rebuilds do not fabricate change activity.
 
 The frontend can operate only on files under registered locations. Path validation happens again in Rust; frontend checks are not a security boundary.
 
@@ -104,7 +118,9 @@ Saved Markdown is also represented in disposable per-Location indexes under
 the application data `indexes/` directory. Those indexes contain document
 bodies and metadata for local retrieval, are never placed inside a repository,
 and can be deleted or rebuilt without changing source files. Workspace state
-and retrieval indexes have separate schemas and lifecycles.
+and retrieval indexes have separate schemas and lifecycles. The local service
+token, Unix socket, and daily activity cache are application data, never
+repository data. Activity identities use relative paths only.
 
 Changing the Tauri identifier or persisted schema requires a migration. Construct currently imports the former `com.luisnovo.agent-context` workspace on first launch.
 

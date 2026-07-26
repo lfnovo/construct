@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 
-const INDEXER_VERSION: i64 = 3;
+const INDEXER_VERSION: i64 = 4;
 const MAX_DOCUMENT_BYTES: u64 = 8 * 1024 * 1024;
 const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
@@ -57,10 +57,13 @@ const SCHEMA: &str = r#"
 DEFINE TABLE IF NOT EXISTS index_meta SCHEMALESS;
 DEFINE TABLE IF NOT EXISTS document SCHEMALESS;
 DEFINE TABLE IF NOT EXISTS document_link SCHEMALESS;
+DEFINE TABLE IF NOT EXISTS document_activity_daily SCHEMALESS;
 DEFINE ANALYZER IF NOT EXISTS construct TOKENIZERS blank, class, punct FILTERS lowercase, ascii;
 DEFINE INDEX IF NOT EXISTS document_identity ON document FIELDS generation, relative_path UNIQUE;
 DEFINE INDEX IF NOT EXISTS document_link_source ON document_link FIELDS generation, source_relative_path;
 DEFINE INDEX IF NOT EXISTS document_link_target ON document_link FIELDS generation, target_relative_path;
+DEFINE INDEX IF NOT EXISTS document_activity_day ON document_activity_daily FIELDS day;
+DEFINE INDEX IF NOT EXISTS document_activity_path ON document_activity_daily FIELDS relative_path;
 DEFINE INDEX IF NOT EXISTS document_search ON document FIELDS search_text FULLTEXT ANALYZER construct BM25 HIGHLIGHTS;
 DEFINE INDEX IF NOT EXISTS document_title_search ON document FIELDS title FULLTEXT ANALYZER construct BM25;
 DEFINE INDEX IF NOT EXISTS document_description_search ON document FIELDS description_text FULLTEXT ANALYZER construct BM25;
@@ -84,7 +87,7 @@ struct LocationIndex {
     write_lock: Mutex<()>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SyncLocationRequest {
     pub(crate) location_id: String,
@@ -96,7 +99,7 @@ pub(crate) struct SyncLocationRequest {
     pub(crate) rebuild: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SearchIndexRequest {
     pub(crate) location_id: String,
@@ -109,7 +112,7 @@ fn default_search_limit() -> usize {
     20
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct KnowledgeSearchFilters {
     #[serde(default)]
@@ -149,7 +152,7 @@ impl Default for KnowledgeSearchFilters {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct KnowledgeSearchRequest {
     pub(crate) location_ids: Vec<String>,
@@ -160,7 +163,7 @@ pub(crate) struct KnowledgeSearchRequest {
     pub(crate) limit: usize,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SearchFacetsRequest {
     pub(crate) location_ids: Vec<String>,
@@ -353,7 +356,7 @@ pub(crate) struct IndexedDocumentView {
     pub(crate) generation: i64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RelatedDocumentsRequest {
     pub(crate) location_id: String,
@@ -391,7 +394,7 @@ pub(crate) struct RelatedDocumentsResponse {
     pub(crate) generation: i64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ContextDocumentRef {
     pub(crate) location_id: String,
@@ -400,7 +403,7 @@ pub(crate) struct ContextDocumentRef {
     pub(crate) reason: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BuildContextPackRequest {
     #[serde(default)]
@@ -455,6 +458,93 @@ pub(crate) struct ContextPackResponse {
     pub(crate) markdown: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocationActivityRequest {
+    pub(crate) location_id: String,
+    #[serde(default = "default_activity_days")]
+    pub(crate) days: usize,
+    #[serde(default = "default_activity_limit")]
+    pub(crate) limit: usize,
+    #[serde(default)]
+    pub(crate) path_prefix: String,
+}
+
+fn default_activity_days() -> usize {
+    15
+}
+
+fn default_activity_limit() -> usize {
+    20
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, SurrealValue)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DocumentActivity {
+    pub(crate) relative_path: String,
+    pub(crate) changed_count: usize,
+    pub(crate) served_count: usize,
+    pub(crate) context_count: usize,
+    pub(crate) created_count: usize,
+    pub(crate) removed_count: usize,
+    pub(crate) last_changed_at: Option<String>,
+    pub(crate) last_served_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocationActivityResponse {
+    pub(crate) location_id: String,
+    pub(crate) window_days: usize,
+    pub(crate) generated_at: String,
+    pub(crate) documents: Vec<DocumentActivity>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LogEntry {
+    pub(crate) relative_path: String,
+    pub(crate) scope: String,
+    pub(crate) date: Option<String>,
+    pub(crate) summary: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocationOverview {
+    pub(crate) location_id: String,
+    pub(crate) status: IndexStatus,
+    pub(crate) types: Vec<FacetCount>,
+    pub(crate) tags: Vec<FacetCount>,
+    pub(crate) roles: Vec<FacetCount>,
+    pub(crate) statuses: Vec<FacetCount>,
+    pub(crate) trust: Vec<FacetCount>,
+    pub(crate) resolved_links: usize,
+    pub(crate) unresolved_links: usize,
+    pub(crate) findings: usize,
+    pub(crate) recent_logs: Vec<LogEntry>,
+    pub(crate) activity: LocationActivityResponse,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ActivityKind {
+    Served,
+    Context,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
+struct ActivityDailyRow {
+    relative_path: String,
+    day: String,
+    changed_count: usize,
+    served_count: usize,
+    context_count: usize,
+    created_count: usize,
+    removed_count: usize,
+    last_changed_at: Option<String>,
+    last_served_at: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, SurrealValue)]
 struct LocalSearchRow {
     relative_path: String,
@@ -489,6 +579,7 @@ struct FacetRow {
     status: Option<String>,
     trust_tier: Option<String>,
     stale_after: Option<String>,
+    finding_count: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, SurrealValue)]
@@ -506,6 +597,17 @@ struct RelatedDocumentRow {
     tags: Vec<String>,
     kind: String,
     generation: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct LinkStatusRow {
+    status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct LogDocumentRow {
+    relative_path: String,
+    body: String,
 }
 
 impl IndexStatus {
@@ -775,6 +877,22 @@ impl IndexService {
         write_meta(&index.db, &meta).await?;
         if full_build {
             delete_other_generations(&index.db, generation).await?;
+        } else {
+            let now = Utc::now().to_rfc3339();
+            for document in &changed {
+                let created = !existing.contains_key(&document.relative_path);
+                record_daily_activity(
+                    &index.db,
+                    &document.relative_path,
+                    if created { "created" } else { "changed" },
+                    &now,
+                )
+                .await?;
+            }
+            for relative_path in &removed {
+                record_daily_activity(&index.db, relative_path, "removed", &now).await?;
+            }
+            cleanup_activity(&index.db).await?;
         }
         let mut status = IndexStatus::from_meta(meta, directory_size(&index.path));
         status.changed_documents = changed.len();
@@ -1053,7 +1171,7 @@ LIMIT $limit;
         let mut response = index
             .db
             .query(
-                "SELECT type, tags, kind, status, trust_tier, stale_after FROM document WHERE generation = $generation;",
+                "SELECT type, tags, kind, status, trust_tier, stale_after, finding_count FROM document WHERE generation = $generation;",
             )
             .bind(("generation", generation))
             .await
@@ -1385,6 +1503,197 @@ WHERE generation = $generation AND relative_path IN $relative_paths;
             truncated,
             estimator: "characters".to_string(),
             markdown,
+        })
+    }
+
+    pub(crate) async fn record_document_activity(
+        &self,
+        location_id: &str,
+        relative_path: &str,
+        kind: ActivityKind,
+    ) -> Result<(), String> {
+        validate_location_id(location_id)?;
+        let relative_path = normalize_relative_path(relative_path);
+        if relative_path.is_empty() {
+            return Err("The activity document path is invalid.".to_string());
+        }
+        let index = self.open(location_id).await?;
+        let _guard = index.write_lock.lock().await;
+        let now = Utc::now().to_rfc3339();
+        record_daily_activity(
+            &index.db,
+            &relative_path,
+            match kind {
+                ActivityKind::Served => "served",
+                ActivityKind::Context => "context",
+            },
+            &now,
+        )
+        .await?;
+        cleanup_activity(&index.db).await
+    }
+
+    pub(crate) async fn location_activity(
+        &self,
+        request: LocationActivityRequest,
+    ) -> Result<LocationActivityResponse, String> {
+        validate_location_id(&request.location_id)?;
+        let days = request.days.clamp(1, 15);
+        let limit = request.limit.clamp(1, 50);
+        let cutoff = (Utc::now().date_naive() - chrono::Duration::days((days - 1) as i64))
+            .format("%Y-%m-%d")
+            .to_string();
+        let prefix = normalize_relative_path(&request.path_prefix);
+        let index = self.open(&request.location_id).await?;
+        let mut response = index
+            .db
+            .query(
+                r#"
+SELECT relative_path, day, changed_count, served_count, context_count,
+       created_count, removed_count, last_changed_at, last_served_at
+FROM document_activity_daily
+WHERE day >= $cutoff
+  AND ($prefix = '' OR string::starts_with(relative_path, $prefix));
+"#,
+            )
+            .bind(("cutoff", cutoff))
+            .bind(("prefix", prefix))
+            .await
+            .map_err(|error| format!("Could not read Location activity: {error}"))?
+            .check()
+            .map_err(|error| format!("Could not read Location activity: {error}"))?;
+        let rows: Vec<ActivityDailyRow> = response
+            .take(0)
+            .map_err(|error| format!("Could not decode Location activity: {error}"))?;
+        let mut grouped: HashMap<String, DocumentActivity> = HashMap::new();
+        for row in rows {
+            let activity = grouped
+                .entry(row.relative_path.clone())
+                .or_insert(DocumentActivity {
+                    relative_path: row.relative_path,
+                    changed_count: 0,
+                    served_count: 0,
+                    context_count: 0,
+                    created_count: 0,
+                    removed_count: 0,
+                    last_changed_at: None,
+                    last_served_at: None,
+                });
+            activity.changed_count += row.changed_count;
+            activity.served_count += row.served_count;
+            activity.context_count += row.context_count;
+            activity.created_count += row.created_count;
+            activity.removed_count += row.removed_count;
+            if row.last_changed_at > activity.last_changed_at {
+                activity.last_changed_at = row.last_changed_at;
+            }
+            if row.last_served_at > activity.last_served_at {
+                activity.last_served_at = row.last_served_at;
+            }
+        }
+        let mut documents = grouped.into_values().collect::<Vec<_>>();
+        documents.sort_by(|left, right| {
+            let left_total = left.changed_count
+                + left.served_count
+                + left.context_count
+                + left.created_count
+                + left.removed_count;
+            let right_total = right.changed_count
+                + right.served_count
+                + right.context_count
+                + right.created_count
+                + right.removed_count;
+            right_total
+                .cmp(&left_total)
+                .then_with(|| left.relative_path.cmp(&right.relative_path))
+        });
+        documents.truncate(limit);
+        Ok(LocationActivityResponse {
+            location_id: request.location_id,
+            window_days: days,
+            generated_at: Utc::now().to_rfc3339(),
+            documents,
+        })
+    }
+
+    pub(crate) async fn location_overview(
+        &self,
+        location_id: &str,
+    ) -> Result<LocationOverview, String> {
+        validate_location_id(location_id)?;
+        let status = self.status(location_id).await?;
+        let facets = self
+            .search_facets(SearchFacetsRequest {
+                location_ids: vec![location_id.to_string()],
+            })
+            .await?;
+        let index = self.open(location_id).await?;
+        let generation = status
+            .active_generation
+            .ok_or_else(|| "This Location has no complete index generation yet.".to_string())?;
+        let rows = self.facet_rows(location_id).await?;
+        let findings = rows.iter().map(|row| row.finding_count).sum();
+        let mut link_response = index
+            .db
+            .query("SELECT status FROM document_link WHERE generation = $generation;")
+            .bind(("generation", generation))
+            .await
+            .map_err(|error| format!("Could not read Location links: {error}"))?
+            .check()
+            .map_err(|error| format!("Could not read Location links: {error}"))?;
+        let links: Vec<LinkStatusRow> = link_response
+            .take(0)
+            .map_err(|error| format!("Could not decode Location links: {error}"))?;
+        let resolved_links = links.iter().filter(|row| row.status == "resolved").count();
+        let unresolved_links = links
+            .iter()
+            .filter(|row| row.status == "unresolved")
+            .count();
+        let mut log_response = index
+            .db
+            .query(
+                "SELECT relative_path, body FROM document WHERE generation = $generation AND kind = 'log';",
+            )
+            .bind(("generation", generation))
+            .await
+            .map_err(|error| format!("Could not read OKF logs: {error}"))?
+            .check()
+            .map_err(|error| format!("Could not read OKF logs: {error}"))?;
+        let log_documents: Vec<LogDocumentRow> = log_response
+            .take(0)
+            .map_err(|error| format!("Could not decode OKF logs: {error}"))?;
+        let mut recent_logs = log_documents
+            .into_iter()
+            .flat_map(|document| parse_log_entries(&document))
+            .collect::<Vec<_>>();
+        recent_logs.sort_by(|left, right| {
+            right
+                .date
+                .cmp(&left.date)
+                .then_with(|| left.relative_path.cmp(&right.relative_path))
+        });
+        recent_logs.truncate(20);
+        let activity = self
+            .location_activity(LocationActivityRequest {
+                location_id: location_id.to_string(),
+                days: 15,
+                limit: 20,
+                path_prefix: String::new(),
+            })
+            .await?;
+        Ok(LocationOverview {
+            location_id: location_id.to_string(),
+            status,
+            types: facets.types,
+            tags: facets.tags,
+            roles: facets.roles,
+            statuses: facets.statuses,
+            trust: facets.trust,
+            resolved_links,
+            unresolved_links,
+            findings,
+            recent_logs,
+            activity,
         })
     }
 
@@ -1920,6 +2229,137 @@ fn json_strings(value: &Value, key: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+async fn record_daily_activity(
+    db: &Surreal<Db>,
+    relative_path: &str,
+    kind: &str,
+    now: &str,
+) -> Result<(), String> {
+    let day = Utc::now().date_naive().format("%Y-%m-%d").to_string();
+    let record_id = blake3::hash(format!("{day}\0{relative_path}").as_bytes())
+        .to_hex()
+        .to_string();
+    let mut row: ActivityDailyRow = db
+        .select(("document_activity_daily", record_id.as_str()))
+        .await
+        .map_err(|error| format!("Could not read document activity: {error}"))?
+        .unwrap_or(ActivityDailyRow {
+            relative_path: relative_path.to_string(),
+            day,
+            changed_count: 0,
+            served_count: 0,
+            context_count: 0,
+            created_count: 0,
+            removed_count: 0,
+            last_changed_at: None,
+            last_served_at: None,
+        });
+    match kind {
+        "changed" => {
+            row.changed_count += 1;
+            row.last_changed_at = Some(now.to_string());
+        }
+        "created" => {
+            row.created_count += 1;
+            row.last_changed_at = Some(now.to_string());
+        }
+        "removed" => {
+            row.removed_count += 1;
+            row.last_changed_at = Some(now.to_string());
+        }
+        "served" => {
+            row.served_count += 1;
+            row.last_served_at = Some(now.to_string());
+        }
+        "context" => {
+            row.context_count += 1;
+            row.last_served_at = Some(now.to_string());
+        }
+        _ => return Err("The document activity kind is invalid.".to_string()),
+    }
+    let _: Option<ActivityDailyRow> = db
+        .upsert(("document_activity_daily", record_id.as_str()))
+        .content(row)
+        .await
+        .map_err(|error| format!("Could not update document activity: {error}"))?;
+    Ok(())
+}
+
+async fn cleanup_activity(db: &Surreal<Db>) -> Result<(), String> {
+    let cutoff = (Utc::now().date_naive() - chrono::Duration::days(14))
+        .format("%Y-%m-%d")
+        .to_string();
+    db.query("DELETE document_activity_daily WHERE day < $cutoff;")
+        .bind(("cutoff", cutoff))
+        .await
+        .map_err(|error| format!("Could not clean up document activity: {error}"))?
+        .check()
+        .map_err(|error| format!("Could not clean up document activity: {error}"))?;
+    Ok(())
+}
+
+fn parse_log_entries(document: &LogDocumentRow) -> Vec<LogEntry> {
+    let scope = document
+        .relative_path
+        .rsplit_once('/')
+        .map(|(parent, _)| parent.to_string())
+        .unwrap_or_else(|| "root".to_string());
+    let mut entries = Vec::new();
+    let mut date: Option<String> = None;
+    let mut summary = Vec::new();
+    let flush = |entries: &mut Vec<LogEntry>, date: &Option<String>, summary: &mut Vec<String>| {
+        if summary.is_empty() {
+            return;
+        }
+        let text = summary.join(" ");
+        let text = truncate_characters(text.trim(), 500);
+        if !text.is_empty() {
+            entries.push(LogEntry {
+                relative_path: document.relative_path.clone(),
+                scope: scope.clone(),
+                date: date.clone(),
+                summary: text,
+            });
+        }
+        summary.clear();
+    };
+    for line in document.body.lines() {
+        let trimmed = line.trim();
+        if let Some(heading) = trimmed.strip_prefix('#') {
+            let heading = heading.trim_start_matches('#').trim();
+            let candidate = heading
+                .split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .trim_matches(|character: char| !character.is_ascii_digit() && character != '-');
+            if candidate.len() >= 10
+                && candidate.as_bytes().get(4) == Some(&b'-')
+                && candidate.as_bytes().get(7) == Some(&b'-')
+            {
+                flush(&mut entries, &date, &mut summary);
+                date = Some(candidate[..10].to_string());
+                continue;
+            }
+        }
+        if trimmed.is_empty() {
+            if !summary.is_empty() {
+                flush(&mut entries, &date, &mut summary);
+            }
+            continue;
+        }
+        if !trimmed.starts_with("---") {
+            summary.push(
+                trimmed
+                    .trim_start_matches(['-', '*', '+'])
+                    .trim()
+                    .to_string(),
+            );
+        }
+    }
+    flush(&mut entries, &date, &mut summary);
+    entries
 }
 
 fn okf_typed_string(value: &Value) -> Option<&str> {
@@ -2689,6 +3129,78 @@ mod tests {
         assert!(!pack
             .markdown
             .contains(&source.to_string_lossy().to_string()));
+
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn keeps_hot_activity_separate_and_reads_nested_okf_logs() {
+        let data = temporary_root("activity-data");
+        let source = temporary_root("activity-source");
+        fs::create_dir_all(source.join("projects")).expect("create nested scope");
+        fs::write(source.join("index.md"), "okf_version: 0.2\n").expect("write index");
+        fs::write(source.join("concept.md"), "# Concept\n\nInitial body.").expect("write concept");
+        fs::write(
+            source.join("projects/log.md"),
+            "# Project log\n\n## 2026-07-26\n\n- Added the retrieval service.\n\n## 2026-07-25\n\n- Prepared the corpus.",
+        )
+        .expect("write log");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        let mut sync_request = request("activity-location", &source);
+        sync_request.okf_bundle = true;
+        service
+            .sync(sync_request.clone(), source.clone())
+            .await
+            .expect("initial index");
+        let empty = service
+            .location_activity(LocationActivityRequest {
+                location_id: "activity-location".to_string(),
+                days: 15,
+                limit: 20,
+                path_prefix: String::new(),
+            })
+            .await
+            .expect("read empty activity");
+        assert!(
+            empty.documents.is_empty(),
+            "rebuilds must not heat activity"
+        );
+
+        fs::write(source.join("concept.md"), "# Concept\n\nChanged body.").expect("change concept");
+        service
+            .sync(sync_request, source.clone())
+            .await
+            .expect("incremental index");
+        service
+            .record_document_activity("activity-location", "concept.md", ActivityKind::Served)
+            .await
+            .expect("record served");
+        service
+            .record_document_activity("activity-location", "concept.md", ActivityKind::Context)
+            .await
+            .expect("record context");
+
+        let overview = service
+            .location_overview("activity-location")
+            .await
+            .expect("read overview");
+        let activity = overview
+            .activity
+            .documents
+            .iter()
+            .find(|document| document.relative_path == "concept.md")
+            .expect("find activity");
+        assert_eq!(activity.changed_count, 1);
+        assert_eq!(activity.served_count, 1);
+        assert_eq!(activity.context_count, 1);
+        assert_eq!(activity.created_count, 0);
+        assert_eq!(overview.recent_logs[0].date.as_deref(), Some("2026-07-26"));
+        assert_eq!(overview.recent_logs[0].scope, "projects");
+        assert!(overview.recent_logs[0]
+            .summary
+            .contains("retrieval service"));
 
         drop(service);
         fs::remove_dir_all(data).expect("remove data");

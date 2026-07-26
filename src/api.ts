@@ -38,6 +38,8 @@ export const api = {
     maxDocuments?: number;
   }) => invoke<ContextPackResponse>("build_context_pack", { request }),
   deleteLocationIndex: (locationId: string) => invoke<void>("delete_location_index", { locationId }),
+  getMcpConfiguration: (locationId: string) =>
+    invoke<string>("get_mcp_configuration", { locationId }),
   readImageDataUrl: (path: string) => invoke<string>("read_image_data_url", { path }),
   writeMarkdownFile: (path: string, content: string) => invoke<void>("write_markdown_file", { request: { path, content } }),
   getGitInfo: (path: string) => invoke<GitInfo>("get_git_info", { path }),

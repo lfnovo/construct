@@ -14,6 +14,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use walkdir::{DirEntry, WalkDir};
 
 mod index;
+mod knowledge;
+mod mcp;
 mod okf;
 
 const IGNORED_DIRECTORIES: &[&str] = &[
@@ -111,14 +113,6 @@ fn app_data_file(app: &AppHandle) -> Result<PathBuf, String> {
     fs::create_dir_all(&data_dir)
         .map_err(|error| format!("Could not create the application data directory: {error}"))?;
     Ok(data_dir.join("workspace.json"))
-}
-
-fn app_index_directory(app: &AppHandle) -> Result<PathBuf, String> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("Could not locate the application data directory: {error}"))?;
-    Ok(data_dir.join("indexes"))
 }
 
 fn legacy_app_data_file(app: &AppHandle) -> Option<PathBuf> {
@@ -435,7 +429,7 @@ async fn inspect_okf_bundle(
 async fn sync_location_index(
     request: index::SyncLocationRequest,
     watch_state: State<'_, WatchState>,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<index::IndexStatus, String> {
     let root = normalize_path(&request.root_path)?;
     if !root.is_dir() {
@@ -444,74 +438,82 @@ async fn sync_location_index(
     if !is_allowed(&root, &watch_state) {
         return Err("This folder is not inside a registered Location.".to_string());
     }
-    index_service.sync(request, root).await
+    knowledge.sync(request).await
 }
 
 #[tauri::command]
 async fn get_location_index_status(
     location_id: String,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<index::IndexStatus, String> {
-    index_service.status(&location_id).await
+    knowledge.status(&location_id).await
 }
 
 #[tauri::command]
 async fn search_location_index(
     request: index::SearchIndexRequest,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<Vec<index::SearchResult>, String> {
-    index_service.search(request).await
+    knowledge.search(request).await
 }
 
 #[tauri::command]
 async fn search_knowledge(
     request: index::KnowledgeSearchRequest,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<index::KnowledgeSearchResponse, String> {
-    index_service.search_knowledge(request).await
+    knowledge.search_knowledge(request).await
 }
 
 #[tauri::command]
 async fn get_search_facets(
     request: index::SearchFacetsRequest,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<index::SearchFacets, String> {
-    index_service.search_facets(request).await
+    knowledge.search_facets(request).await
 }
 
 #[tauri::command]
 async fn get_indexed_document(
     location_id: String,
     relative_path: String,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<Option<index::IndexedDocumentView>, String> {
-    index_service
-        .get_document(&location_id, &relative_path)
+    knowledge
+        .get_document(&location_id, &relative_path, false)
         .await
 }
 
 #[tauri::command]
 async fn get_related_documents(
     request: index::RelatedDocumentsRequest,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<index::RelatedDocumentsResponse, String> {
-    index_service.related_documents(request).await
+    knowledge.related_documents(request).await
 }
 
 #[tauri::command]
 async fn build_context_pack(
     request: index::BuildContextPackRequest,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<index::ContextPackResponse, String> {
-    index_service.build_context_pack(request).await
+    knowledge.build_context_pack(request, false).await
 }
 
 #[tauri::command]
 async fn delete_location_index(
     location_id: String,
-    index_service: State<'_, index::IndexService>,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<(), String> {
-    index_service.delete(&location_id).await
+    knowledge.delete(&location_id).await
+}
+
+#[tauri::command]
+fn get_mcp_configuration(
+    location_id: String,
+    knowledge: State<'_, knowledge::KnowledgeClient>,
+) -> Result<String, String> {
+    knowledge::mcp_configuration(knowledge.data_dir(), &location_id)
 }
 
 #[tauri::command]
@@ -698,11 +700,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(WatchState::default())
         .setup(|app| {
-            let index_directory =
-                app_index_directory(app.handle()).map_err(std::io::Error::other)?;
-            let index_service =
-                index::IndexService::new(index_directory).map_err(std::io::Error::other)?;
-            app.manage(index_service);
+            let data_directory = app.path().app_data_dir().map_err(std::io::Error::other)?;
+            let knowledge =
+                knowledge::KnowledgeClient::new(data_directory).map_err(std::io::Error::other)?;
+            app.manage(knowledge);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -722,6 +723,7 @@ pub fn run() {
             get_related_documents,
             build_context_pack,
             delete_location_index,
+            get_mcp_configuration,
             read_image_data_url,
             write_markdown_file,
             get_git_info,
@@ -731,6 +733,14 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Construct");
+}
+
+pub fn run_service_command(arguments: &[String]) -> Result<(), String> {
+    knowledge::run_service_command(arguments)
+}
+
+pub fn run_mcp_command(arguments: &[String]) -> Result<(), String> {
+    mcp::run_mcp_command(arguments)
 }
 
 #[cfg(test)]

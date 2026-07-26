@@ -1,6 +1,6 @@
 # RFC 05 — Local agent access
 
-**Status:** Proposed
+**Status:** First delivery implemented
 
 **Decision owner:** Product, native architecture, and security
 
@@ -24,32 +24,19 @@ context planner. Agent access is an adapter, not a separate retrieval product.
 
 ## Delivery decision
 
-Do not wait for the entire graph and context roadmap before testing agent
-value.
+Ship one local read-only MCP surface after lexical, direct-link, and context
+retrieval. The public Construct executable is a multi-mode binary:
 
-### Experimental pilot after lexical indexing
+```text
+Construct              desktop application
+Construct service      exclusive local index owner
+Construct mcp serve    stdio MCP adapter
+```
 
-Expose:
-
-- `list_locations`
-- `search`
-- `get`
-- `related`
-- `index_status`
-
-The pilot validates whether agents open fewer files and consume less context.
-Its packaging and schema may change.
-
-### Supported surface after graph/context validation
-
-Add:
-
-- `build_context`
-- bounded index refresh;
-- documented installation and permissions;
-- stable parity and concurrency tests.
-
-No source-document mutation is part of either stage.
+The desktop and MCP adapter both use authenticated local IPC. The service can
+outlive the desktop window, so agents can retrieve while the application is
+closed. No source-document mutation or index rebuild tool is part of this
+delivery.
 
 ## Shared command model
 
@@ -92,25 +79,8 @@ when the desktop is closed.
 
 ## CLI shape
 
-Illustrative commands:
-
-```text
-construct knowledge status
-construct knowledge search
-construct knowledge get
-construct knowledge related
-construct knowledge context
-construct knowledge refresh
-construct mcp serve
-```
-
-Human-readable output is the default for interactive CLI use. `--json` exposes
-the shared typed response without internal SQL or database row IDs.
-
-The user-facing executable may remain one `construct` command, but independent
-access is backed by a dedicated local service process. Packaging may place the
-service in a helper executable or in a multi-mode binary; this does not change
-its exclusive ownership of the indexes.
+The first user-facing agent command is `construct mcp serve`. Interactive
+knowledge subcommands remain a later adapter over the same typed client.
 
 ## MCP transport
 
@@ -129,14 +99,32 @@ Names are provisional.
 | Operation | Purpose |
 | --- | --- |
 | `construct_list_locations` | List allowed locations, capabilities, and index state |
-| `construct_search` | Search saved Markdown with visible filters and explanations |
-| `construct_get` | Read one saved document by location and relative path |
-| `construct_related` | Return bounded backlinks, outgoing links, and related documents |
-| `construct_build_context` | Assemble a bounded provenance-rich context pack |
-| `construct_index_status` | Report generation, freshness, findings, and capabilities |
-| `construct_refresh_index` | Refresh only derived local state for allowed locations |
+| `construct_get_location_overview` | Return hot memory, metadata counts, link health, and recent logs |
+| `construct_get_location_activity` | Return bounded 1–15 day changed, served, and context activity |
+| `construct_search_knowledge` | Search saved Markdown with visible filters and explanations |
+| `construct_read_document` | Read one saved document by location and relative path |
+| `construct_get_related_documents` | Return bounded backlinks and outgoing links |
+| `construct_build_context_pack` | Assemble a bounded provenance-rich context pack |
+| `construct_get_index_status` | Report generation, freshness, counts, storage, and errors |
 
-`refresh_index` mutates the disposable cache, not source knowledge.
+Refresh and rebuild remain desktop actions in the first MCP contract.
+
+## Hot memory
+
+Each Location keeps a derived daily activity cache with a rolling 15-day
+window. Counters remain separate:
+
+- `changed_count`, `created_count`, and `removed_count` are updated only after a
+  real saved-content reconciliation;
+- `served_count` increments after a successful MCP document read;
+- `context_count` increments for documents actually included in an MCP context
+  pack;
+- search candidates do not increment any counter;
+- full index rebuilds do not fabricate source changes.
+
+`construct_get_location_overview` reads every reserved OKF `log.md` available in
+the active index, including nested scopes. OKF logs are useful but remain
+optional and tolerant; a missing or unconventional log never blocks retrieval.
 
 ## Identity and path behavior
 
@@ -166,7 +154,10 @@ whatever model the user configured. Setup must explain:
 - that no document-writing tool is exposed.
 
 Starting the MCP server or granting a new location requires explicit user
-configuration. Merely opening Construct does not expose a server.
+configuration. `--allow <location-id>` may be repeated; `--allow-all` is an
+explicit broader choice. Starting without either fails. The desktop can copy a
+ready-to-paste MCP configuration for the selected Location. Merely opening
+Construct does not expose an MCP server.
 
 ## Excluded capabilities
 
@@ -201,13 +192,8 @@ The desktop and agent process may coexist through the one local service.
 
 ## Review workflow
 
-`get` and `build_context` may return open reviews as a separate typed field.
-Review payloads are never indistinguishable from source content.
-
-An agent that addresses review comments still edits through its existing
-filesystem authority, not through Construct MCP. It can remove resolved
-`construct-review:v1` entries in the source file and Construct observes the
-saved change normally.
+Review comments remain excluded until RFC 06 defines their typed contract. They
+are not mixed into source bodies, search, links, logs, or context packs.
 
 ## Pilot measurement
 
@@ -233,16 +219,18 @@ reduces traversal cost or improves answer quality.
 - The server performs no outbound network requests.
 - Desktop and agent readers never observe a partial index generation.
 - Setup clearly describes the external-client trust boundary.
+- With the desktop closed, an allowed client can list, overview, search, read,
+  inspect related documents, and build context through the service.
+- Search does not heat activity; successful read and context operations do.
+- Activity expires after 15 days and never contains absolute paths.
 
-## Open decisions
+## Deferred decisions
 
-- Helper executable versus a multi-mode `construct` binary for hosting the
-  dedicated service.
-- Local IPC transport, authentication, and process discovery.
-- Installation and discovery on macOS, Windows, and Linux.
-- Default location allowlist and content limits.
-- Whether trusted local clients ever receive resolved absolute paths.
-- Stability promise for the Phase 1.5 pilot.
+- Windows named-pipe transport and Linux packaging.
+- Interactive human-readable CLI knowledge commands.
+- Stable public schema/versioning promise after the experimental pilot.
+- Whether a future trusted local capability ever resolves absolute paths.
+- Whether bounded index refresh belongs in a later agent contract.
 
 ## Dependencies and handoff
 

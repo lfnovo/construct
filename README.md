@@ -82,6 +82,15 @@ agent interface over the same retrieval core. Later candidates include Windows
 and Linux, YAML and JSON, configurable exclusions, file management, optional
 local semantic search, and signed automatic updates.
 
+### Local MCP access
+
+Select a Location in Construct and use the clipboard button in the Locations
+header to copy a ready-to-paste MCP configuration. The generated command grants
+that server access only to the selected Location. Construct exposes local
+overview, activity, search, document, link, context, and index-status tools; it
+does not expose source-file mutation. Returned content is controlled by the MCP
+client after it leaves Construct.
+
 ## License
 
 Construct is available under the [MIT License](LICENSE).
