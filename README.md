@@ -44,7 +44,7 @@ Requirements:
 - Xcode Command Line Tools.
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/lfnovo/construct.git
 cd construct
 npm ci
 npm run dev
@@ -77,4 +77,4 @@ The current priority is a reliable macOS preview release. Later candidates inclu
 
 ## License
 
-The project license will be declared before the first public release.
+Construct is available under the [MIT License](LICENSE).
