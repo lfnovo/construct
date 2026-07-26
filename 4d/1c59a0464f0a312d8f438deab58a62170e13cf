@@ -1,0 +1,29 @@
+examples/okf-demo/systems/agent-context.md
+  s_954343fc536a43::t_4ca23270e38d32 5
+README.md
+  s_954343fc536a43::t_4ca23270e38d32 47,80
+LICENSE
+  s_954343fc536a43::t_4ca23270e38d32 1-21
+package.json
+  s_954343fc536a43::t_4ca23270e38d32 5-11
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_4ca23270e38d32 6-7
+package-lock.json
+  s_954343fc536a43::t_4a14701178aa1d 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4d1c59a0464f0a312d8f438deab58a62170e13cf",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
