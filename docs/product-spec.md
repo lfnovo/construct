@@ -438,7 +438,7 @@ flowchart LR
 - **SEARCH-003:** A correspondência deve tolerar digitação parcial e, preferencialmente, usar fuzzy matching.
 - **SEARCH-004:** Por padrão, a busca considera todos os Locais disponíveis.
 - **SEARCH-005:** Cada resultado exibe nome, caminho relativo e Local.
-- **SEARCH-006:** Selecionar um resultado abre o arquivo no Painel ativo.
+- **SEARCH-006:** `↑` e `↓` movem a seleção no localizador; `Enter` abre o resultado selecionado no Painel ativo.
 - **SEARCH-007:** `⌘⇧F` abre ou foca um workspace dedicado de busca de conhecimento, sem substituir `⌘P`.
 - **SEARCH-008:** A busca de conhecimento consulta corpo Markdown salvo, título, descrição, tipo, tags, headings, caminho relativo e demais valores de frontmatter indexáveis.
 - **SEARCH-009:** Quando aberta a partir de um Local ativo, a busca usa inicialmente apenas esse Local.

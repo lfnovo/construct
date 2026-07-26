@@ -13,6 +13,7 @@ import { ReviewEditor } from "./ReviewEditor";
 import { splitReviewDocument } from "./review";
 import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
+import { moveQuickOpenSelection } from "./quickOpen";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationRecord,
@@ -215,6 +216,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [quickOpenSelection, setQuickOpenSelection] = useState(0);
   const [query, setQuery] = useState("");
   const [historyFilter, setHistoryFilter] = useState<HistoryKind | "all">("all");
   const [fileContext, setFileContext] = useState<{ file: FileEntry; x: number; y: number } | null>(null);
@@ -225,6 +227,7 @@ export default function App() {
   const panesRef = useRef(panes);
   const refreshTimer = useRef<number | undefined>(undefined);
   const okfIndexSignatures = useRef<Record<string, string>>({});
+  const quickOpenResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
   locationsRef.current = locations;
   filesRef.current = filesByLocation;
   panesRef.current = panes;
@@ -657,7 +660,11 @@ export default function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.metaKey) return;
       if (event.shiftKey && event.key.toLowerCase() === "f") { event.preventDefault(); openKnowledgeSearch(); }
-      if (event.key.toLowerCase() === "p") { event.preventDefault(); setQuickOpen(true); }
+      if (event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        setQuickOpenSelection(0);
+        setQuickOpen(true);
+      }
       if (event.key.toLowerCase() === "s") { event.preventDefault(); void saveTab(); }
       if (event.key.toLowerCase() === "w") {
         event.preventDefault();
@@ -710,6 +717,13 @@ export default function App() {
   const activeLocation = locations.find((location) => location.id === selectedLocationId) || null;
   const exploreLocation = locations.find((location) => location.id === exploreLocationId) || null;
   const fileResults = useMemo(() => Object.entries(filesByLocation).flatMap(([locationId, files]) => files.map((file) => ({ ...file, locationId }))).filter((file) => `${file.name} ${file.relativePath}`.toLowerCase().includes(query.toLowerCase())).slice(0, 100), [filesByLocation, query]);
+  const activeQuickOpenIndex = fileResults.length
+    ? Math.min(quickOpenSelection, fileResults.length - 1)
+    : 0;
+  useEffect(() => {
+    if (!quickOpen || !fileResults.length) return;
+    quickOpenResultRefs.current[activeQuickOpenIndex]?.scrollIntoView({ block: "nearest" });
+  }, [activeQuickOpenIndex, fileResults.length, quickOpen]);
   const visibleHistory = history.filter((event) => historyFilter === "all" || event.kind === historyFilter);
 
   const resizeSidebar = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -849,8 +863,41 @@ export default function App() {
       onClose={() => setSearchSession(null)}
       onNotify={notify}
     /> : exploreLocation ? <BundleExplorer location={exploreLocation} index={okfIndexes[exploreLocation.id]} filters={exploreFilters} onFilters={setExploreFilters} onOpen={openExploreConcept} onClose={() => setExploreLocationId(null)} /> : <SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView>}</section>
-    {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input autoFocus placeholder="Open file…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuickOpen(false); if (event.key === "Enter" && fileResults[0]) { openFile(fileResults[0]); setQuickOpen(false); } }} />
-      <div className="quick-results">{fileResults.map((file) => <button key={file.path} onClick={() => { openFile(file); setQuickOpen(false); }}><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
+    {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input
+      autoFocus
+      placeholder="Open file…"
+      value={query}
+      onChange={(event) => {
+        setQuery(event.target.value);
+        setQuickOpenSelection(0);
+      }}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return;
+        if (event.key === "Escape") setQuickOpen(false);
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          setQuickOpenSelection((current) => moveQuickOpenSelection(
+            current,
+            fileResults.length,
+            event.key === "ArrowDown" ? "next" : "previous",
+          ));
+        }
+        const selectedFile = fileResults[activeQuickOpenIndex];
+        if (event.key === "Enter" && selectedFile) {
+          event.preventDefault();
+          void openFile(selectedFile);
+          setQuickOpen(false);
+        }
+      }}
+    />
+      <div className="quick-results">{fileResults.map((file, index) => <button
+        key={file.path}
+        ref={(element) => { quickOpenResultRefs.current[index] = element; }}
+        className={index === activeQuickOpenIndex ? "active" : ""}
+        aria-current={index === activeQuickOpenIndex ? "true" : undefined}
+        onMouseEnter={() => setQuickOpenSelection(index)}
+        onClick={() => { void openFile(file); setQuickOpen(false); }}
+      ><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
     {fileContext && <div className="context-backdrop" onMouseDown={() => setFileContext(null)}><div className="context-menu" style={{ left: fileContext.x, top: fileContext.y }} onMouseDown={(event) => event.stopPropagation()}>
       <button onClick={() => { openFile(fileContext.file); setFileContext(null); }}>Open</button>
       <button onClick={() => { openFile(fileContext.file, true); setFileContext(null); }}>Open to the right</button>
