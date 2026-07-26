@@ -15,6 +15,36 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
 
+#[derive(Clone, Debug, PartialEq)]
+struct McpToolError {
+    code: &'static str,
+    message: String,
+}
+
+impl McpToolError {
+    fn new(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+        }
+    }
+
+    fn structured_content(&self) -> Value {
+        json!({
+            "error": {
+                "code": self.code,
+                "message": self.message
+            }
+        })
+    }
+}
+
+impl From<String> for McpToolError {
+    fn from(message: String) -> Self {
+        Self::new("tool_execution_failed", message)
+    }
+}
+
 #[derive(Clone)]
 struct McpState {
     client: KnowledgeClient,
@@ -250,21 +280,16 @@ async fn handle_message(state: &McpState, message: Value) -> Value {
                         "isError": false
                     }
                 }),
-                Err(error) => json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": {
-                        "content": [{ "type": "text", "text": error }],
-                        "isError": true
-                    }
-                }),
+                Err(error) => {
+                    json!({ "jsonrpc": "2.0", "id": id, "result": tool_error_result(error) })
+                }
             }
         }
         _ => jsonrpc_error(id, -32601, "Method not found"),
     }
 }
 
-async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Value, String> {
+async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Value, McpToolError> {
     match name {
         "construct_list_locations" => {
             let mut output = Vec::new();
@@ -323,7 +348,12 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
                     .client
                     .get_document(&args.location_id, &args.relative_path, true)
                     .await?
-                    .ok_or_else(|| "The document was not found in the active index.".to_string())?,
+                    .ok_or_else(|| {
+                        McpToolError::new(
+                            "document_not_found",
+                            "The document was not found in the active index.",
+                        )
+                    })?,
             )
         }
         "construct_get_related_documents" => {
@@ -368,7 +398,7 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
             ensure_allowed(state, &args.location_id)?;
             encode(state.client.status(&args.location_id).await?)
         }
-        _ => Err("Unknown Construct tool.".to_string()),
+        _ => Err(McpToolError::new("unknown_tool", "Unknown Construct tool.")),
     }
 }
 
@@ -508,17 +538,23 @@ fn string_array() -> Value {
     json!({ "type": "array", "items": { "type": "string" } })
 }
 
-fn ensure_allowed(state: &McpState, location_id: &str) -> Result<(), String> {
+fn ensure_allowed(state: &McpState, location_id: &str) -> Result<(), McpToolError> {
     if state.allowed_ids.contains(location_id) {
         Ok(())
     } else {
-        Err("This Location is not in the MCP allowlist.".to_string())
+        Err(McpToolError::new(
+            "location_not_allowed",
+            "This Location is not in the MCP allowlist.",
+        ))
     }
 }
 
-fn ensure_allowed_many(state: &McpState, location_ids: &[String]) -> Result<(), String> {
+fn ensure_allowed_many(state: &McpState, location_ids: &[String]) -> Result<(), McpToolError> {
     if location_ids.is_empty() {
-        return Err("Choose at least one allowed Location.".to_string());
+        return Err(McpToolError::new(
+            "location_required",
+            "Choose at least one allowed Location.",
+        ));
     }
     for location_id in location_ids {
         ensure_allowed(state, location_id)?;
@@ -534,13 +570,30 @@ fn argument_values(arguments: &[String], flag: &str) -> Vec<String> {
         .collect()
 }
 
-fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, String> {
-    serde_json::from_value(value).map_err(|error| format!("Invalid tool arguments: {error}"))
+fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, McpToolError> {
+    serde_json::from_value(value).map_err(|error| {
+        McpToolError::new(
+            "invalid_arguments",
+            format!("Invalid tool arguments: {error}"),
+        )
+    })
 }
 
-fn encode<T: serde::Serialize>(value: T) -> Result<Value, String> {
-    serde_json::to_value(value)
-        .map_err(|error| format!("Could not encode the tool result: {error}"))
+fn encode<T: serde::Serialize>(value: T) -> Result<Value, McpToolError> {
+    serde_json::to_value(value).map_err(|error| {
+        McpToolError::new(
+            "result_encoding_failed",
+            format!("Could not encode the tool result: {error}"),
+        )
+    })
+}
+
+fn tool_error_result(error: McpToolError) -> Value {
+    json!({
+        "content": [{ "type": "text", "text": error.message }],
+        "structuredContent": error.structured_content(),
+        "isError": true
+    })
 }
 
 fn jsonrpc_error(id: Value, code: i32, message: &str) -> Value {
@@ -563,4 +616,31 @@ async fn write_message(stdout: &mut tokio::io::Stdout, message: Value) -> Result
         .flush()
         .await
         .map_err(|error| format!("Could not flush MCP stdout: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_errors_include_a_stable_structured_code() {
+        let result = tool_error_result(McpToolError::new(
+            "location_not_allowed",
+            "This Location is not in the MCP allowlist.",
+        ));
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(
+            result["structuredContent"]["error"]["code"],
+            "location_not_allowed"
+        );
+        assert_eq!(
+            result["structuredContent"]["error"]["message"],
+            "This Location is not in the MCP allowlist."
+        );
+        assert_eq!(
+            result["content"][0]["text"],
+            "This Location is not in the MCP allowlist."
+        );
+    }
 }

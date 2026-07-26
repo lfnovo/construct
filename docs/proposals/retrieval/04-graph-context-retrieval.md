@@ -154,6 +154,14 @@ The core always supports character budgets. Token budgets are estimates unless
 a named local tokenizer is configured. Responses state the estimator and keep
 a safety margin.
 
+Context assembly first gives as many selected documents as possible a useful
+minimum excerpt. It then distributes the remaining character budget in
+proportion to each document's still-unrepresented content. This keeps small
+documents intact when possible and prevents the first large document from
+starving later selections. If even provenance plus a minimal excerpt cannot fit
+for every document, the stable selection order decides which documents remain
+and omissions stay explicit.
+
 Proposed server maxima:
 
 - 50 search results;

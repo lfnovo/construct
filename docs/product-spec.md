@@ -474,6 +474,7 @@ flowchart LR
 - **CONTEXT-005:** Documentos truncados ou omitidos por orçamento, indisponibilidade ou limite de quantidade devem ser reportados explicitamente.
 - **CONTEXT-006:** A mesma seleção, corpus salvo, orçamento e versão do indexador devem produzir ordenação estável.
 - **CONTEXT-007:** O context pack não gera resposta por LLM, não salva arquivos e não inclui comentários de Review até a entrega explícita da RFC 06.
+- **CONTEXT-008:** O orçamento deve primeiro reservar um trecho útil para o maior número possível de documentos selecionados e depois distribuir o saldo proporcionalmente ao conteúdo restante; um documento grande não pode monopolizar o pacote quando outros documentos ainda puderem contribuir.
 
 ### 10.14 Persistência do workspace
 
@@ -569,6 +570,7 @@ no MVP.
 - **AGENT-008:** O overview deve combinar contagens por type, tag e role, saúde de links, findings, atividade recente e entradas recentes dos `log.md` reservados pelo OKF, inclusive em scopes aninhados.
 - **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 06 e nunca são misturados silenciosamente ao conteúdo fonte.
 - **AGENT-010:** A interface deve permitir copiar uma configuração MCP pronta para o Local selecionado e explicar que o cliente externo controla o destino do conteúdo recuperado.
+- **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
 
 ## 11. Estados e tratamento de erros
 
