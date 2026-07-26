@@ -1,9 +1,14 @@
 import type {
+  ContextDocumentRef,
   KnowledgeSearchFilters,
   KnowledgeSearchResult,
   LocationRecord,
   RecentKnowledgeSearch,
 } from "./types";
+
+export type SearchSelection = ContextDocumentRef & {
+  title: string;
+};
 
 export const emptyKnowledgeFilters = (): KnowledgeSearchFilters => ({
   types: [],
@@ -61,13 +66,13 @@ export function resultIdentity(result: Pick<KnowledgeSearchResult, "locationId" 
 }
 
 export function serializeSearchReferences(
-  results: KnowledgeSearchResult[],
+  results: SearchSelection[],
   locations: LocationRecord[],
 ) {
   const locationNames = new Map(locations.map((location) => [location.id, location.name]));
   const lines = results.map((result) => {
     const location = locationNames.get(result.locationId) || result.locationId;
-    return `- ${result.title} — ${location}:${result.relativePath} (${result.matchReason.toLowerCase()})`;
+    return `- ${result.title} — ${location}:${result.relativePath} (${result.reason.toLowerCase()})`;
   });
   return [
     "Selected Construct references:",

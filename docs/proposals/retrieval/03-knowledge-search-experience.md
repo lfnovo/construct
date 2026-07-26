@@ -1,6 +1,6 @@
 # RFC 03 — Knowledge search experience
 
-**Status:** Accepted — implementation in progress
+**Status:** Implemented
 
 **Decision owner:** Product and desktop UX
 
@@ -273,6 +273,23 @@ result, and files opened.
 - The latest 20 searches may be retained locally and cleared or disabled.
 - The first release includes ephemeral manual selection and `Copy references`.
 - Context assembly remains in RFC 04.
+
+## Implementation checkpoint
+
+The first desktop delivery includes:
+
+- a dedicated Search workspace available from the sidebar and `⌘⇧F`;
+- federated reciprocal-rank fusion across physically isolated Location indexes;
+- exact phrases, accent-insensitive matching, and visible Location, type, tag,
+  path, role, finding, status, trust, and freshness filters;
+- local optional recent searches;
+- keyboard navigation, pane-aware opening, manual selection, and
+  `Copy references`;
+- index progress and recovery controls without exposing absolute paths.
+
+Result-centered related navigation and `Copy context` are implemented under
+[RFC 04](04-graph-context-retrieval.md), not by expanding the Search database
+contract independently.
 
 ## Dependencies and handoff
 

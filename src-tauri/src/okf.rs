@@ -155,6 +155,18 @@ pub(crate) struct OkfInspection {
     is_conformant: bool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct IndexableLink {
+    pub(crate) target: String,
+    pub(crate) target_relative_path: Option<String>,
+    pub(crate) fragment: Option<String>,
+    pub(crate) origin: String,
+    pub(crate) field: Option<String>,
+    pub(crate) status: String,
+    pub(crate) start_line: Option<usize>,
+    pub(crate) end_line: Option<usize>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OkfConcept {
@@ -1026,6 +1038,45 @@ pub(crate) fn inspect_saved_document(
         bundle_root,
         is_bundle_root,
     )
+}
+
+pub(crate) fn indexable_links(
+    inspection: &OkfInspection,
+    bundle_root: &Path,
+) -> Vec<IndexableLink> {
+    inspection
+        .links
+        .iter()
+        .map(|link| {
+            let target_relative_path = link
+                .resolved_path
+                .as_deref()
+                .and_then(|path| Path::new(path).strip_prefix(bundle_root).ok())
+                .map(|path| path.to_string_lossy().replace('\\', "/"));
+            IndexableLink {
+                target: link.target.clone(),
+                target_relative_path,
+                fragment: link.fragment.clone(),
+                origin: match link.origin {
+                    LinkOrigin::Markdown => "markdown",
+                    LinkOrigin::Metadata => "metadata",
+                }
+                .to_string(),
+                field: link.field.clone(),
+                status: match link.status {
+                    LinkStatus::Candidate => "candidate",
+                    LinkStatus::Resolved => "resolved",
+                    LinkStatus::Unresolved => "unresolved",
+                    LinkStatus::External => "external",
+                    LinkStatus::Fragment => "fragment",
+                    LinkStatus::OutsideBundle => "outsideBundle",
+                }
+                .to_string(),
+                start_line: link.range.as_ref().map(|range| range.start_line),
+                end_line: link.range.as_ref().map(|range| range.end_line),
+            }
+        })
+        .collect()
 }
 
 fn is_markdown_path(path: &Path) -> bool {

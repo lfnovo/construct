@@ -26,6 +26,8 @@ Terminal-first agent workflows are excellent for conversation and execution, but
 - GFM preview with syntax highlighting, local images, and Mermaid.
 - Read-only Git status and diff against `HEAD`.
 - Dark and light themes, quick open, and Finder integration.
+- Local full-text knowledge search across isolated per-folder indexes.
+- Direct related-document navigation and budgeted context packs for agents.
 - OKF bundle detection, metadata inspection, types, tags, links, and backlinks.
 - OKF List and Graph views with multi-type filtering and stable type colors.
 
@@ -75,7 +77,10 @@ src-tauri/target/release/bundle/macos/Construct.app
 
 ## Roadmap
 
-The current priority is a reliable macOS preview release. Later candidates include Windows and Linux, YAML and JSON, full-text search, configurable exclusions, file management, and signed automatic updates.
+The current priority is a reliable macOS preview release and a read-only local
+agent interface over the same retrieval core. Later candidates include Windows
+and Linux, YAML and JSON, configurable exclusions, file management, optional
+local semantic search, and signed automatic updates.
 
 ## License
 

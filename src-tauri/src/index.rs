@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 
-const INDEXER_VERSION: i64 = 2;
+const INDEXER_VERSION: i64 = 3;
 const MAX_DOCUMENT_BYTES: u64 = 8 * 1024 * 1024;
 const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
@@ -56,8 +56,11 @@ const IGNORED_DIRECTORIES: &[&str] = &[
 const SCHEMA: &str = r#"
 DEFINE TABLE IF NOT EXISTS index_meta SCHEMALESS;
 DEFINE TABLE IF NOT EXISTS document SCHEMALESS;
+DEFINE TABLE IF NOT EXISTS document_link SCHEMALESS;
 DEFINE ANALYZER IF NOT EXISTS construct TOKENIZERS blank, class, punct FILTERS lowercase, ascii;
 DEFINE INDEX IF NOT EXISTS document_identity ON document FIELDS generation, relative_path UNIQUE;
+DEFINE INDEX IF NOT EXISTS document_link_source ON document_link FIELDS generation, source_relative_path;
+DEFINE INDEX IF NOT EXISTS document_link_target ON document_link FIELDS generation, target_relative_path;
 DEFINE INDEX IF NOT EXISTS document_search ON document FIELDS search_text FULLTEXT ANALYZER construct BM25 HIGHLIGHTS;
 DEFINE INDEX IF NOT EXISTS document_title_search ON document FIELDS title FULLTEXT ANALYZER construct BM25;
 DEFINE INDEX IF NOT EXISTS document_description_search ON document FIELDS description_text FULLTEXT ANALYZER construct BM25;
@@ -248,6 +251,22 @@ struct IndexedDocument {
     trust_tier: Option<String>,
     stale_after: Option<String>,
     finding_count: usize,
+    links: Vec<IndexedLink>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
+struct IndexedLink {
+    location_id: String,
+    generation: i64,
+    source_relative_path: String,
+    target: String,
+    target_relative_path: Option<String>,
+    fragment: Option<String>,
+    origin: String,
+    field: Option<String>,
+    status: String,
+    start_line: Option<usize>,
+    end_line: Option<usize>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
@@ -327,10 +346,113 @@ pub(crate) struct IndexedDocumentView {
     pub(crate) description: Option<String>,
     pub(crate) r#type: Option<String>,
     pub(crate) tags: Vec<String>,
+    pub(crate) role: String,
     pub(crate) headings: Vec<Heading>,
     pub(crate) frontmatter: Option<Value>,
     pub(crate) body: String,
     pub(crate) generation: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RelatedDocumentsRequest {
+    pub(crate) location_id: String,
+    pub(crate) relative_path: String,
+    #[serde(default = "default_related_limit")]
+    pub(crate) limit: usize,
+}
+
+fn default_related_limit() -> usize {
+    20
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RelatedDocument {
+    pub(crate) location_id: String,
+    pub(crate) relative_path: String,
+    pub(crate) title: String,
+    pub(crate) r#type: Option<String>,
+    pub(crate) tags: Vec<String>,
+    pub(crate) role: String,
+    pub(crate) direction: String,
+    pub(crate) reason: String,
+    pub(crate) fragment: Option<String>,
+    pub(crate) generation: i64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RelatedDocumentsResponse {
+    pub(crate) documents: Vec<RelatedDocument>,
+    pub(crate) outgoing_count: usize,
+    pub(crate) incoming_count: usize,
+    pub(crate) omitted_count: usize,
+    pub(crate) generation: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ContextDocumentRef {
+    pub(crate) location_id: String,
+    pub(crate) relative_path: String,
+    #[serde(default)]
+    pub(crate) reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BuildContextPackRequest {
+    #[serde(default)]
+    pub(crate) query: String,
+    pub(crate) documents: Vec<ContextDocumentRef>,
+    #[serde(default = "default_context_characters")]
+    pub(crate) max_characters: usize,
+    #[serde(default = "default_context_documents")]
+    pub(crate) max_documents: usize,
+}
+
+fn default_context_characters() -> usize {
+    30_000
+}
+
+fn default_context_documents() -> usize {
+    20
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ContextPackItem {
+    pub(crate) location_id: String,
+    pub(crate) relative_path: String,
+    pub(crate) title: String,
+    pub(crate) role: String,
+    pub(crate) reason: String,
+    pub(crate) content: String,
+    pub(crate) characters: usize,
+    pub(crate) truncated: bool,
+    pub(crate) generation: i64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ContextPackOmission {
+    pub(crate) location_id: String,
+    pub(crate) relative_path: String,
+    pub(crate) reason: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ContextPackResponse {
+    pub(crate) query: String,
+    pub(crate) items: Vec<ContextPackItem>,
+    pub(crate) omitted: Vec<ContextPackOmission>,
+    pub(crate) total_characters: usize,
+    pub(crate) max_characters: usize,
+    pub(crate) truncated: bool,
+    pub(crate) estimator: String,
+    pub(crate) markdown: String,
 }
 
 #[derive(Clone, Debug, Deserialize, SurrealValue)]
@@ -367,6 +489,23 @@ struct FacetRow {
     status: Option<String>,
     trust_tier: Option<String>,
     stale_after: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct StoredLink {
+    source_relative_path: String,
+    target_relative_path: Option<String>,
+    fragment: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct RelatedDocumentRow {
+    relative_path: String,
+    title: String,
+    r#type: Option<String>,
+    tags: Vec<String>,
+    kind: String,
+    generation: i64,
 }
 
 impl IndexStatus {
@@ -574,6 +713,12 @@ impl IndexService {
             .collect::<Vec<_>>();
         let mut changed = Vec::new();
         let mut failed = 0usize;
+        let build_context = DocumentBuildContext {
+            request,
+            root,
+            discovered_paths: &discovered_paths,
+            generation,
+        };
 
         for entry in &entries {
             if existing
@@ -605,10 +750,8 @@ impl IndexService {
                 .map(|stored| stored.continuity_id.clone())
                 .unwrap_or_else(|| Uuid::new_v4().to_string());
             changed.push(build_document(
-                request,
-                root,
+                &build_context,
                 entry,
-                generation,
                 continuity_id,
                 content_hash,
                 &content,
@@ -616,6 +759,7 @@ impl IndexService {
         }
 
         write_documents(&index.db, generation, &changed, &removed).await?;
+        refresh_link_resolutions(&index.db, generation, &discovered_paths).await?;
         let indexed_documents = count_documents(&index.db, generation).await?;
         meta.state = if failed > 0 {
             IndexState::Degraded
@@ -936,7 +1080,7 @@ LIMIT $limit;
         let mut response = index
             .db
             .query(
-                "SELECT relative_path, title, description, type, tags, headings, frontmatter, body, generation FROM document WHERE generation = $generation AND relative_path = $relative_path LIMIT 1;",
+                "SELECT relative_path, title, description, type, tags, kind AS role, headings, frontmatter, body, generation FROM document WHERE generation = $generation AND relative_path = $relative_path LIMIT 1;",
             )
             .bind(("generation", generation))
             .bind(("relative_path", normalize_relative_path(relative_path)))
@@ -948,6 +1092,300 @@ LIMIT $limit;
             .take(0)
             .map_err(|error| format!("Could not read the indexed document: {error}"))?;
         Ok(documents.into_iter().next())
+    }
+
+    pub(crate) async fn related_documents(
+        &self,
+        request: RelatedDocumentsRequest,
+    ) -> Result<RelatedDocumentsResponse, String> {
+        validate_location_id(&request.location_id)?;
+        let relative_path = normalize_relative_path(&request.relative_path);
+        if relative_path.is_empty() {
+            return Err("Choose a document before loading related knowledge.".to_string());
+        }
+        let index = self.open(&request.location_id).await?;
+        let meta = read_meta(&index.db)
+            .await?
+            .ok_or_else(|| "This Location has not been indexed yet.".to_string())?;
+        let generation = meta
+            .active_generation
+            .ok_or_else(|| "This Location has no complete index generation yet.".to_string())?;
+        let mut link_response = index
+            .db
+            .query(
+                r#"
+SELECT source_relative_path, target_relative_path, fragment
+FROM document_link
+WHERE generation = $generation
+  AND status = 'resolved'
+  AND (
+    source_relative_path = $relative_path OR
+    target_relative_path = $relative_path
+  );
+"#,
+            )
+            .bind(("generation", generation))
+            .bind(("relative_path", relative_path.clone()))
+            .await
+            .map_err(|error| format!("Could not read related Markdown links: {error}"))?
+            .check()
+            .map_err(|error| format!("Could not read related Markdown links: {error}"))?;
+        let links: Vec<StoredLink> = link_response
+            .take(0)
+            .map_err(|error| format!("Could not decode related Markdown links: {error}"))?;
+
+        #[derive(Default)]
+        struct Relationship {
+            outgoing: bool,
+            incoming: bool,
+            fragment: Option<String>,
+        }
+
+        let mut relationships: HashMap<String, Relationship> = HashMap::new();
+        for link in links {
+            if link.source_relative_path == relative_path {
+                if let Some(target) = link.target_relative_path {
+                    if target != relative_path {
+                        let relationship = relationships.entry(target).or_default();
+                        relationship.outgoing = true;
+                        if relationship.fragment.is_none() {
+                            relationship.fragment = link.fragment;
+                        }
+                    }
+                }
+            } else if link.target_relative_path.as_deref() == Some(relative_path.as_str()) {
+                let relationship = relationships.entry(link.source_relative_path).or_default();
+                relationship.incoming = true;
+            }
+        }
+
+        if relationships.is_empty() {
+            return Ok(RelatedDocumentsResponse {
+                documents: Vec::new(),
+                outgoing_count: 0,
+                incoming_count: 0,
+                omitted_count: 0,
+                generation,
+            });
+        }
+
+        let related_paths = relationships.keys().cloned().collect::<Vec<_>>();
+        let mut document_response = index
+            .db
+            .query(
+                r#"
+SELECT relative_path, title, type, tags, kind, generation
+FROM document
+WHERE generation = $generation AND relative_path IN $relative_paths;
+"#,
+            )
+            .bind(("generation", generation))
+            .bind(("relative_paths", related_paths))
+            .await
+            .map_err(|error| format!("Could not read related documents: {error}"))?
+            .check()
+            .map_err(|error| format!("Could not read related documents: {error}"))?;
+        let rows: Vec<RelatedDocumentRow> = document_response
+            .take(0)
+            .map_err(|error| format!("Could not decode related documents: {error}"))?;
+
+        let mut documents = rows
+            .into_iter()
+            .filter_map(|row| {
+                let relationship = relationships.remove(&row.relative_path)?;
+                let (direction, reason) = match (relationship.outgoing, relationship.incoming) {
+                    (true, true) => (
+                        "mutual".to_string(),
+                        format!("Linked in both directions with {relative_path}"),
+                    ),
+                    (true, false) => (
+                        "outgoing".to_string(),
+                        format!("Linked from {relative_path}"),
+                    ),
+                    (false, true) => ("incoming".to_string(), format!("Links to {relative_path}")),
+                    (false, false) => return None,
+                };
+                Some(RelatedDocument {
+                    location_id: request.location_id.clone(),
+                    relative_path: row.relative_path,
+                    title: row.title,
+                    r#type: row.r#type,
+                    tags: row.tags,
+                    role: row.kind,
+                    direction,
+                    reason,
+                    fragment: relationship.fragment,
+                    generation: row.generation,
+                })
+            })
+            .collect::<Vec<_>>();
+        documents.sort_by(|left, right| {
+            related_direction_rank(&left.direction)
+                .cmp(&related_direction_rank(&right.direction))
+                .then_with(|| left.title.to_lowercase().cmp(&right.title.to_lowercase()))
+                .then_with(|| left.relative_path.cmp(&right.relative_path))
+        });
+        let outgoing_count = documents
+            .iter()
+            .filter(|document| matches!(document.direction.as_str(), "outgoing" | "mutual"))
+            .count();
+        let incoming_count = documents
+            .iter()
+            .filter(|document| matches!(document.direction.as_str(), "incoming" | "mutual"))
+            .count();
+        let limit = request.limit.clamp(1, 50);
+        let omitted_count = documents.len().saturating_sub(limit);
+        documents.truncate(limit);
+        Ok(RelatedDocumentsResponse {
+            documents,
+            outgoing_count,
+            incoming_count,
+            omitted_count,
+            generation,
+        })
+    }
+
+    pub(crate) async fn build_context_pack(
+        &self,
+        request: BuildContextPackRequest,
+    ) -> Result<ContextPackResponse, String> {
+        if request.query.len() > 1_000 {
+            return Err("The context query is too long.".to_string());
+        }
+        if request.documents.is_empty() {
+            return Err("Select at least one document for the context pack.".to_string());
+        }
+        if request.documents.len() > 100 {
+            return Err("Too many documents were selected for one context pack.".to_string());
+        }
+        let max_characters = request.max_characters.clamp(1_000, 200_000);
+        let max_documents = request.max_documents.clamp(1, 20);
+        let query = request.query.trim().to_string();
+        let mut markdown = context_pack_header(&query, max_characters);
+        let content_limit = max_characters.saturating_sub(200);
+        let mut items = Vec::new();
+        let mut omitted = Vec::new();
+        let mut seen = HashSet::new();
+
+        for reference in request.documents {
+            validate_location_id(&reference.location_id)?;
+            let relative_path = normalize_relative_path(&reference.relative_path);
+            if relative_path.is_empty()
+                || !seen.insert(format!("{}:{relative_path}", reference.location_id))
+            {
+                continue;
+            }
+            if items.len() >= max_documents {
+                omitted.push(ContextPackOmission {
+                    location_id: reference.location_id,
+                    relative_path,
+                    reason: "Document limit reached".to_string(),
+                });
+                continue;
+            }
+            let document = match self
+                .get_document(&reference.location_id, &relative_path)
+                .await
+            {
+                Ok(Some(document)) => document,
+                Ok(None) => {
+                    omitted.push(ContextPackOmission {
+                        location_id: reference.location_id,
+                        relative_path,
+                        reason: "Document is not available in the active index".to_string(),
+                    });
+                    continue;
+                }
+                Err(_) => {
+                    omitted.push(ContextPackOmission {
+                        location_id: reference.location_id,
+                        relative_path,
+                        reason: "Location index is unavailable".to_string(),
+                    });
+                    continue;
+                }
+            };
+            let reason = if reference.reason.trim().is_empty() {
+                "Selected manually".to_string()
+            } else {
+                reference.reason.trim().to_string()
+            };
+            let prefix = context_document_prefix(
+                &document.title,
+                &reference.location_id,
+                &relative_path,
+                &document.role,
+                &reason,
+            );
+            let full_block = format!("{prefix}{}\n", document.body.trim());
+            let used = markdown.chars().count();
+            let remaining = content_limit.saturating_sub(used);
+            if full_block.chars().count() <= remaining {
+                let characters = full_block.chars().count();
+                markdown.push_str(&full_block);
+                items.push(ContextPackItem {
+                    location_id: reference.location_id,
+                    relative_path,
+                    title: document.title,
+                    role: document.role,
+                    reason,
+                    content: document.body,
+                    characters,
+                    truncated: false,
+                    generation: document.generation,
+                });
+                continue;
+            }
+
+            const TRUNCATION_NOTE: &str = "\n\n[Content truncated by the character budget.]\n";
+            let overhead = prefix.chars().count() + TRUNCATION_NOTE.chars().count();
+            let body_budget = remaining.saturating_sub(overhead);
+            if body_budget < 80 {
+                omitted.push(ContextPackOmission {
+                    location_id: reference.location_id,
+                    relative_path,
+                    reason: "Character budget reached".to_string(),
+                });
+                continue;
+            }
+            let content = truncate_characters(document.body.trim(), body_budget);
+            let block = format!("{prefix}{content}{TRUNCATION_NOTE}");
+            let characters = block.chars().count();
+            markdown.push_str(&block);
+            items.push(ContextPackItem {
+                location_id: reference.location_id,
+                relative_path,
+                title: document.title,
+                role: document.role,
+                reason,
+                content,
+                characters,
+                truncated: true,
+                generation: document.generation,
+            });
+        }
+
+        let truncated_items = items.iter().filter(|item| item.truncated).count();
+        if !omitted.is_empty() || truncated_items > 0 {
+            markdown.push_str(&format!(
+                "\n---\nContext pack truncated: {} document(s) omitted; {} included document(s) shortened.\n",
+                omitted.len(),
+                truncated_items
+            ));
+        }
+        let total_characters = markdown.chars().count();
+        let truncated = !omitted.is_empty() || truncated_items > 0;
+        debug_assert!(total_characters <= max_characters);
+        Ok(ContextPackResponse {
+            query,
+            items,
+            omitted,
+            total_characters,
+            max_characters,
+            truncated,
+            estimator: "characters".to_string(),
+            markdown,
+        })
     }
 
     pub(crate) async fn delete(&self, location_id: &str) -> Result<(), String> {
@@ -1034,6 +1472,40 @@ fn sorted_counts(counts: HashMap<String, usize>) -> Vec<FacetCount> {
             .then_with(|| left.value.to_lowercase().cmp(&right.value.to_lowercase()))
     });
     values
+}
+
+fn related_direction_rank(direction: &str) -> u8 {
+    match direction {
+        "mutual" => 0,
+        "outgoing" => 1,
+        "incoming" => 2,
+        _ => 3,
+    }
+}
+
+fn context_pack_header(query: &str, max_characters: usize) -> String {
+    let query_line = if query.is_empty() {
+        "No query supplied.".to_string()
+    } else {
+        format!("Query: {query}")
+    };
+    format!("# Construct context pack\n\n{query_line}\n\nBudget: {max_characters} characters\n\n")
+}
+
+fn context_document_prefix(
+    title: &str,
+    location_id: &str,
+    relative_path: &str,
+    role: &str,
+    reason: &str,
+) -> String {
+    format!(
+        "## {title}\n\n- Location: `{location_id}`\n- Path: `{relative_path}`\n- Role: {role}\n- Included because: {reason}\n\n---\n\n"
+    )
+}
+
+fn truncate_characters(value: &str, limit: usize) -> String {
+    value.chars().take(limit).collect()
 }
 
 fn freshness_for(stale_after: Option<&str>) -> String {
@@ -1507,11 +1979,16 @@ fn trust_tier(metadata: &Value, is_okf_concept: bool) -> Option<String> {
     }
 }
 
-fn build_document(
-    request: &SyncLocationRequest,
-    root: &Path,
-    entry: &MarkdownEntry,
+struct DocumentBuildContext<'a> {
+    request: &'a SyncLocationRequest,
+    root: &'a Path,
+    discovered_paths: &'a HashSet<String>,
     generation: i64,
+}
+
+fn build_document(
+    context: &DocumentBuildContext<'_>,
+    entry: &MarkdownEntry,
     continuity_id: String,
     content_hash: String,
     content: &str,
@@ -1522,9 +1999,36 @@ fn build_document(
         content,
         &entry.relative_path,
         &entry.path,
-        root,
+        context.root,
         entry.relative_path.eq_ignore_ascii_case("index.md"),
     );
+    let links = okf::indexable_links(&inspection, context.root)
+        .into_iter()
+        .map(|link| {
+            let mut status = link.status;
+            if status == "candidate" {
+                status = match link.target_relative_path.as_ref() {
+                    Some(path) if context.discovered_paths.contains(path) => "resolved",
+                    Some(_) => "unresolved",
+                    None => "candidate",
+                }
+                .to_string();
+            }
+            IndexedLink {
+                location_id: context.request.location_id.clone(),
+                generation: context.generation,
+                source_relative_path: entry.relative_path.clone(),
+                target: link.target,
+                target_relative_path: link.target_relative_path,
+                fragment: link.fragment,
+                origin: link.origin,
+                field: link.field,
+                status,
+                start_line: link.start_line,
+                end_line: link.end_line,
+            }
+        })
+        .collect::<Vec<_>>();
     let inspection_json = serde_json::to_value(inspection).unwrap_or(Value::Null);
     let metadata = inspection_json
         .get("metadata")
@@ -1553,7 +2057,7 @@ fn build_document(
         .cloned()
         .filter(|value| !value.is_null());
     let kind = json_string(&inspection_json, "kind").unwrap_or_else(|| "concept".to_string());
-    let is_okf_concept = request.okf_bundle && kind == "concept";
+    let is_okf_concept = context.request.okf_bundle && kind == "concept";
     let lifecycle_status = if is_okf_concept {
         Some(json_string(&metadata, "status").unwrap_or_else(|| "stable".to_string()))
     } else {
@@ -1594,8 +2098,8 @@ fn build_document(
     ];
     projection.retain(|value| !value.is_empty());
     IndexedDocument {
-        location_id: request.location_id.clone(),
-        generation,
+        location_id: context.request.location_id.clone(),
+        generation: context.generation,
         relative_path: entry.relative_path.clone(),
         continuity_id,
         content_hash,
@@ -1616,12 +2120,13 @@ fn build_document(
         relative_path_search,
         metadata_text,
         search_text: projection.join("\n"),
-        okf: request.okf_bundle.then_some(inspection_json),
+        okf: context.request.okf_bundle.then_some(inspection_json),
         parse_error: None,
         status: lifecycle_status,
         trust_tier,
         stale_after,
         finding_count,
+        links,
     }
 }
 
@@ -1673,12 +2178,30 @@ async fn write_documents(
         ));
     }
     query.push_str(
+        "DELETE document_link WHERE generation = $generation AND source_relative_path IN $changed_or_removed;\n",
+    );
+    let mut link_position = 0usize;
+    for document in documents {
+        for _ in &document.links {
+            query.push_str(&format!(
+                "UPSERT type::record('document_link', $link_record_id_{link_position}) CONTENT $link_{link_position};\n"
+            ));
+            link_position += 1;
+        }
+    }
+    query.push_str(
         "DELETE document WHERE generation = $generation AND relative_path IN $removed;\nCOMMIT TRANSACTION;",
     );
+    let changed_or_removed = documents
+        .iter()
+        .map(|document| document.relative_path.clone())
+        .chain(removed.iter().cloned())
+        .collect::<Vec<_>>();
     let mut pending = db
         .query(query)
         .bind(("generation", generation))
-        .bind(("removed", removed.to_vec()));
+        .bind(("removed", removed.to_vec()))
+        .bind(("changed_or_removed", changed_or_removed));
     for (position, document) in documents.iter().enumerate() {
         let mut hasher = Hasher::new();
         hasher.update(document.generation.to_string().as_bytes());
@@ -1689,11 +2212,60 @@ async fn write_documents(
             .bind((format!("record_id_{position}"), record_id))
             .bind((format!("document_{position}"), document.clone()));
     }
+    let mut link_position = 0usize;
+    for document in documents {
+        for link in &document.links {
+            let mut hasher = Hasher::new();
+            hasher.update(link.generation.to_string().as_bytes());
+            hasher.update(b":");
+            hasher.update(link.source_relative_path.as_bytes());
+            hasher.update(b":");
+            hasher.update(link_position.to_string().as_bytes());
+            hasher.update(b":");
+            hasher.update(link.target.as_bytes());
+            let record_id = hasher.finalize().to_hex().to_string();
+            pending = pending
+                .bind((format!("link_record_id_{link_position}"), record_id))
+                .bind((format!("link_{link_position}"), link.clone()));
+            link_position += 1;
+        }
+    }
     pending
         .await
         .map_err(|error| format!("Could not update the Location index: {error}"))?
         .check()
         .map_err(|error| format!("Could not update the Location index: {error}"))?;
+    Ok(())
+}
+
+async fn refresh_link_resolutions(
+    db: &Surreal<Db>,
+    generation: i64,
+    discovered_paths: &HashSet<String>,
+) -> Result<(), String> {
+    let paths = discovered_paths.iter().cloned().collect::<Vec<_>>();
+    db.query(
+        r#"
+BEGIN TRANSACTION;
+UPDATE document_link
+SET status = 'unresolved'
+WHERE generation = $generation
+  AND target_relative_path != NONE
+  AND status != 'fragment';
+UPDATE document_link
+SET status = 'resolved'
+WHERE generation = $generation
+  AND target_relative_path IN $paths
+  AND status != 'fragment';
+COMMIT TRANSACTION;
+"#,
+    )
+    .bind(("generation", generation))
+    .bind(("paths", paths))
+    .await
+    .map_err(|error| format!("Could not refresh Markdown link resolution: {error}"))?
+    .check()
+    .map_err(|error| format!("Could not refresh Markdown link resolution: {error}"))?;
     Ok(())
 }
 
@@ -1716,12 +2288,17 @@ async fn count_documents(db: &Surreal<Db>, generation: i64) -> Result<usize, Str
 }
 
 async fn delete_other_generations(db: &Surreal<Db>, active_generation: i64) -> Result<(), String> {
-    db.query("DELETE document WHERE generation != $active_generation;")
-        .bind(("active_generation", active_generation))
-        .await
-        .map_err(|error| format!("Could not clean obsolete index generations: {error}"))?
-        .check()
-        .map_err(|error| format!("Could not clean obsolete index generations: {error}"))?;
+    db.query(
+        r#"
+DELETE document WHERE generation != $active_generation;
+DELETE document_link WHERE generation != $active_generation;
+"#,
+    )
+    .bind(("active_generation", active_generation))
+    .await
+    .map_err(|error| format!("Could not clean obsolete index generations: {error}"))?
+    .check()
+    .map_err(|error| format!("Could not clean obsolete index generations: {error}"))?;
     Ok(())
 }
 
@@ -2010,6 +2587,110 @@ mod tests {
         assert_eq!(result.len(), 1);
 
         drop(reopened);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn persists_direct_links_and_explains_both_directions() {
+        let data = temporary_root("links-data");
+        let source = temporary_root("links-source");
+        fs::write(
+            source.join("alpha.md"),
+            "# Alpha\n\nSee [Beta](beta.md).\n\n<!-- construct-review:v1\n{\"comments\":[{\"id\":\"1\",\"quote\":\"Alpha\",\"comment\":\"See [Hidden](hidden.md)\",\"createdAt\":\"2026-07-26T00:00:00Z\"}]}\n-->",
+        )
+        .expect("write alpha");
+        fs::write(source.join("beta.md"), "# Beta\n\nSupporting knowledge.").expect("write beta");
+        fs::write(source.join("hidden.md"), "# Hidden\n\nReview-only target.")
+            .expect("write hidden");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request("links-location", &source), source.clone())
+            .await
+            .expect("index links");
+
+        let from_alpha = service
+            .related_documents(RelatedDocumentsRequest {
+                location_id: "links-location".to_string(),
+                relative_path: "alpha.md".to_string(),
+                limit: 20,
+            })
+            .await
+            .expect("read outgoing links");
+        assert_eq!(from_alpha.documents.len(), 1);
+        assert_eq!(from_alpha.documents[0].relative_path, "beta.md");
+        assert_eq!(from_alpha.documents[0].direction, "outgoing");
+        assert_eq!(from_alpha.documents[0].reason, "Linked from alpha.md");
+
+        let from_beta = service
+            .related_documents(RelatedDocumentsRequest {
+                location_id: "links-location".to_string(),
+                relative_path: "beta.md".to_string(),
+                limit: 20,
+            })
+            .await
+            .expect("read backlinks");
+        assert_eq!(from_beta.documents.len(), 1);
+        assert_eq!(from_beta.documents[0].relative_path, "alpha.md");
+        assert_eq!(from_beta.documents[0].direction, "incoming");
+        assert_eq!(from_beta.documents[0].reason, "Links to beta.md");
+
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn assembles_context_with_provenance_and_a_character_budget() {
+        let data = temporary_root("context-data");
+        let source = temporary_root("context-source");
+        fs::write(
+            source.join("first.md"),
+            format!("# First\n\n{}", "Órbita de contexto. ".repeat(200)),
+        )
+        .expect("write first");
+        fs::write(source.join("second.md"), "# Second\n\nAdditional context.")
+            .expect("write second");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request("context-location", &source), source.clone())
+            .await
+            .expect("index context");
+
+        let pack = service
+            .build_context_pack(BuildContextPackRequest {
+                query: "orbital context".to_string(),
+                documents: vec![
+                    ContextDocumentRef {
+                        location_id: "context-location".to_string(),
+                        relative_path: "first.md".to_string(),
+                        reason: "Body match".to_string(),
+                    },
+                    ContextDocumentRef {
+                        location_id: "context-location".to_string(),
+                        relative_path: "second.md".to_string(),
+                        reason: "Linked from first.md".to_string(),
+                    },
+                ],
+                max_characters: 1_000,
+                max_documents: 1,
+            })
+            .await
+            .expect("build context pack");
+
+        assert_eq!(pack.items.len(), 1);
+        assert!(pack.items[0].truncated);
+        assert_eq!(pack.omitted.len(), 1);
+        assert!(pack.total_characters <= 1_000);
+        assert_eq!(pack.total_characters, pack.markdown.chars().count());
+        assert!(pack.markdown.contains("Location: `context-location`"));
+        assert!(pack.markdown.contains("Path: `first.md`"));
+        assert!(pack.markdown.contains("Content truncated"));
+        assert!(!pack
+            .markdown
+            .contains(&source.to_string_lossy().to_string()));
+
+        drop(service);
         fs::remove_dir_all(data).expect("remove data");
         fs::remove_dir_all(source).expect("remove source");
     }

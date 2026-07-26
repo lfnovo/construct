@@ -467,7 +467,7 @@ export default function App() {
       : { initialLocationId: selectedLocationId, focusSignal: 1 });
   }, [selectedLocationId]);
 
-  const openKnowledgeResult = useCallback((result: KnowledgeSearchResult, newPane = false) => {
+  const openKnowledgeResult = useCallback((result: Pick<KnowledgeSearchResult, "locationId" | "relativePath">, newPane = false) => {
     const file = (filesRef.current[result.locationId] || [])
       .find((entry) => entry.relativePath.replace(/\\/g, "/") === result.relativePath);
     if (!file) return notify("The selected document is no longer available.");
@@ -584,6 +584,7 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
+    let workspaceRevealed = false;
     (async () => {
       try {
         const saved = await api.loadState();
@@ -615,11 +616,18 @@ export default function App() {
           }
           hydrated[savedPane.id] = { id: savedPane.id, tabs, activeTabId: tabs.some((tab) => tab.id === savedPane.activeTabId) ? savedPane.activeTabId : tabs.at(-1)?.id || null };
         }
+        if (!mounted) return;
         if (!Object.keys(hydrated).length) hydrated.main = defaultPane;
         setPanes(hydrated);
-        await Promise.all(restoredLocations.map((location) => refreshLocation(location, "reconciliation")));
+        setReady(true);
+        workspaceRevealed = true;
+        void Promise.allSettled(
+          restoredLocations.map((location) => refreshLocation(location, "reconciliation")),
+        );
       } catch (error) { notify(error instanceof Error ? error.message : String(error)); }
-      finally { if (mounted) setReady(true); }
+      finally {
+        if (mounted && !workspaceRevealed) setReady(true);
+      }
     })();
     return () => { mounted = false; };
   }, [configureLocations, notify, refreshLocation]);

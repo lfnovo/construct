@@ -1,6 +1,6 @@
 # RFC 02 — Local Markdown index
 
-**Status:** Accepted — implementation in progress
+**Status:** Implemented — capacity and cross-platform validation continue
 
 **Decision owner:** Native architecture
 
@@ -303,9 +303,10 @@ size, and interrupted indexing.
 - Active and unavailable Locations retain indexes without TTL.
 - `IndexService` is the exclusive storage owner and runs in Tauri initially.
 
-## Implementation validation
+## Remaining implementation validation
 
-Before declaring RFC 02 implemented, the SurrealDB integration must measure:
+The production foundation is implemented. The following validation remains
+before treating the current performance and packaging profile as mature:
 
 - release bundle-size and clean-build impact;
 - initial ingestion for 1,000 and 10,000 documents;

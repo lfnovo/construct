@@ -135,10 +135,64 @@ export type IndexedDocument = {
   description: string | null;
   type: string | null;
   tags: string[];
+  role: string;
   headings: Array<{ level: number; text: string }>;
   frontmatter: unknown | null;
   body: string;
   generation: number;
+};
+
+export type RelatedDocument = {
+  locationId: string;
+  relativePath: string;
+  title: string;
+  type: string | null;
+  tags: string[];
+  role: string;
+  direction: "outgoing" | "incoming" | "mutual";
+  reason: string;
+  fragment: string | null;
+  generation: number;
+};
+
+export type RelatedDocumentsResponse = {
+  documents: RelatedDocument[];
+  outgoingCount: number;
+  incomingCount: number;
+  omittedCount: number;
+  generation: number;
+};
+
+export type ContextDocumentRef = {
+  locationId: string;
+  relativePath: string;
+  reason: string;
+};
+
+export type ContextPackItem = ContextDocumentRef & {
+  title: string;
+  role: string;
+  content: string;
+  characters: number;
+  truncated: boolean;
+  generation: number;
+};
+
+export type ContextPackOmission = {
+  locationId: string;
+  relativePath: string;
+  reason: string;
+};
+
+export type ContextPackResponse = {
+  query: string;
+  items: ContextPackItem[];
+  omitted: ContextPackOmission[];
+  totalCharacters: number;
+  maxCharacters: number;
+  truncated: boolean;
+  estimator: "characters";
+  markdown: string;
 };
 
 export type KnowledgeSearchFilters = {

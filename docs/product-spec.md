@@ -457,7 +457,23 @@ flowchart LR
 - **SEARCH-022:** A retenção de buscas recentes pode ser limpa e desativada; desativá-la remove as entradas retidas.
 - **SEARCH-023:** Resultados podem ser selecionados manualmente durante a sessão de Search.
 - **SEARCH-024:** `Copy references` copia título, Local, caminho relativo e razão do match, sem conteúdo ou caminho absoluto.
-- **SEARCH-025:** A seleção de Search é efêmera; coleções persistentes e `Build context` pertencem à entrega posterior de context assembly.
+- **SEARCH-025:** A seleção de Search é efêmera e pode alimentar `Copy context`; coleções persistentes continuam fora deste corte.
+- **SEARCH-026:** Cada resultado pode abrir uma lista limitada de links de saída e backlinks diretos, com razão estrutural em texto.
+
+#### 10.13.1 Grafo de retrieval e context packs
+
+- **GRAPH-001:** Links Markdown internos resolvidos devem ser persistidos no índice derivado do próprio Local, incluindo origem, fragmento e range quando disponíveis.
+- **GRAPH-002:** Links de saída e backlinks devem continuar consultáveis independentemente dos limites de renderização do Graph visual.
+- **GRAPH-003:** A primeira navegação estrutural usa um hop e nunca atravessa automaticamente para outro Local.
+- **GRAPH-004:** Cada documento relacionado deve explicar se foi ligado pela origem, se liga de volta à origem ou se a relação é mútua.
+- **GRAPH-005:** Links externos, links que escapam da raiz e links encontrados dentro de `construct-review:v1` não entram no grafo de retrieval.
+- **CONTEXT-001:** O usuário pode adicionar resultados de Search e documentos relacionados a uma seleção efêmera de contexto.
+- **CONTEXT-002:** `Copy context` monta o pacote no núcleo nativo usando apenas corpos salvos presentes nos índices autorizados.
+- **CONTEXT-003:** O pacote preserva limites visíveis entre documentos e inclui Local, caminho relativo, título, papel técnico e razão de inclusão.
+- **CONTEXT-004:** A primeira implementação usa um orçamento selecionável de caracteres, limitado pelo servidor, e nunca excede esse teto.
+- **CONTEXT-005:** Documentos truncados ou omitidos por orçamento, indisponibilidade ou limite de quantidade devem ser reportados explicitamente.
+- **CONTEXT-006:** A mesma seleção, corpus salvo, orçamento e versão do indexador devem produzir ordenação estável.
+- **CONTEXT-007:** O context pack não gera resposta por LLM, não salva arquivos e não inclui comentários de Review até a entrega explícita da RFC 06.
 
 ### 10.14 Persistência do workspace
 
@@ -472,6 +488,7 @@ flowchart LR
 - **STATE-009:** Ao encerrar com alterações não salvas, o aplicativo deve pedir que o usuário salve, descarte ou cancele.
 - **STATE-010:** Arquivos ausentes durante a restauração devem ser ignorados ou apresentados como indisponíveis sem impedir a abertura do aplicativo.
 - **STATE-011:** Dados de estado corrompidos devem ser recuperados com defaults seguros, preservando os arquivos do usuário.
+- **STATE-012:** A inicialização deve liberar o workspace após restaurar estado, watchers e abas; reconciliação, inspeção OKF e indexação de todos os Locais continuam progressivamente em segundo plano.
 
 ### 10.15 Atalhos iniciais
 
@@ -538,6 +555,7 @@ no MVP.
 - **INDEX-010:** Um único `IndexService` nativo deve possuir todas as conexões embedded. React e futuros adaptadores CLI/MCP acessam contratos tipados e nunca abrem o banco diretamente.
 - **INDEX-011:** Consultas estruturadas normais identificam resultados por ID do Local e caminho relativo; caminhos absolutos permanecem no limite nativo.
 - **INDEX-012:** Nenhum conteúdo, caminho, query ou métrica do índice pode ser enviado a serviços remotos.
+- **INDEX-013:** O índice de cada Local deve manter seus próprios links derivados; nenhuma tabela ou consulta pode misturar relações de Locais diferentes.
 
 ## 11. Estados e tratamento de erros
 
@@ -880,6 +898,8 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Armazenar comentários de Review no próprio Markdown em um bloco invisível `construct-review:v1`, com remoção exata e prompt copiável para novas sessões de agente. |
 | 2026-07-26 | Consumir OKF v0.1/v0.2 e versões futuras de forma tolerante por um parser Rust compartilhado, preservando YAML aberto e usando findings estáveis. |
 | 2026-07-26 | Adotar um SurrealDB/SurrealKV embedded por Local, possuído por um `IndexService` nativo, com corpo e frontmatter completos, projeção limpa de busca e arquivos como fonte da verdade. |
+| 2026-07-26 | Manter a inicialização interativa fora do caminho crítico da reconciliação e indexação completas. |
+| 2026-07-26 | Persistir links por Local, oferecer relações diretas explicáveis e montar context packs manuais com orçamento de caracteres antes de qualquer expansão automática ou LLM. |
 
 ## 24. Histórico do documento
 
@@ -891,3 +911,5 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.4 | 2026-07-26 | Review persistente no documento, ciclo de comentários e handoff copiável para agentes. |
 | 0.5 | 2026-07-26 | Compatibilidade OKF v0.1/v0.2, parser nativo compartilhado, metadados tipados e contrato de findings. |
 | 0.6 | 2026-07-26 | Índice local persistente por Local, ownership nativo, gerações, retenção e controles de rebuild. |
+| 0.7 | 2026-07-26 | Search dedicado, filtros OKF, federação entre Locais e seleção efêmera de referências. |
+| 0.8 | 2026-07-26 | Startup progressivo, links persistidos, related documents e context packs manuais com orçamento. |

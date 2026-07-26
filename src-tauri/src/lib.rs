@@ -491,6 +491,22 @@ async fn get_indexed_document(
 }
 
 #[tauri::command]
+async fn get_related_documents(
+    request: index::RelatedDocumentsRequest,
+    index_service: State<'_, index::IndexService>,
+) -> Result<index::RelatedDocumentsResponse, String> {
+    index_service.related_documents(request).await
+}
+
+#[tauri::command]
+async fn build_context_pack(
+    request: index::BuildContextPackRequest,
+    index_service: State<'_, index::IndexService>,
+) -> Result<index::ContextPackResponse, String> {
+    index_service.build_context_pack(request).await
+}
+
+#[tauri::command]
 async fn delete_location_index(
     location_id: String,
     index_service: State<'_, index::IndexService>,
@@ -703,6 +719,8 @@ pub fn run() {
             search_knowledge,
             get_search_facets,
             get_indexed_document,
+            get_related_documents,
+            build_context_pack,
             delete_location_index,
             read_image_data_url,
             write_markdown_file,
