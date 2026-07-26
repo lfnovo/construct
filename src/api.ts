@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type { OkfBundleSnapshot, OkfInspection } from "./okf";
 import type {
   FileContent, FileEntry, FileSystemChange, GitDiff, GitInfo, IndexedDocument,
-  IndexSearchResult, IndexStatus, SavedWorkspace,
+  IndexSearchResult, IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResponse,
+  SavedWorkspace, SearchFacets,
 } from "./types";
 
 export const api = {
@@ -19,6 +20,10 @@ export const api = {
   getLocationIndexStatus: (locationId: string) => invoke<IndexStatus>("get_location_index_status", { locationId }),
   searchLocationIndex: (request: { locationId: string; query: string; limit?: number }) =>
     invoke<IndexSearchResult[]>("search_location_index", { request }),
+  searchKnowledge: (request: { locationIds: string[]; query: string; filters: KnowledgeSearchFilters; limit?: number }) =>
+    invoke<KnowledgeSearchResponse>("search_knowledge", { request }),
+  getSearchFacets: (locationIds: string[]) =>
+    invoke<SearchFacets>("get_search_facets", { request: { locationIds } }),
   getIndexedDocument: (locationId: string, relativePath: string) =>
     invoke<IndexedDocument | null>("get_indexed_document", { locationId, relativePath }),
   deleteLocationIndex: (locationId: string) => invoke<void>("delete_location_index", { locationId }),

@@ -431,7 +431,7 @@ flowchart LR
 - **GIT-013:** O aplicativo deve atualizar status e diff após mudanças no arquivo ou no estado relevante do repositório.
 - **GIT-014:** Submódulos e worktrees devem ser tratados como repositórios próprios quando o Git assim os reconhecer.
 
-### 10.13 Busca por nome
+### 10.13 Localização de arquivos e busca de conhecimento
 
 - **SEARCH-001:** `⌘P` abre o localizador de arquivos.
 - **SEARCH-002:** A busca considera nome e caminho relativo.
@@ -439,7 +439,25 @@ flowchart LR
 - **SEARCH-004:** Por padrão, a busca considera todos os Locais disponíveis.
 - **SEARCH-005:** Cada resultado exibe nome, caminho relativo e Local.
 - **SEARCH-006:** Selecionar um resultado abre o arquivo no Painel ativo.
-- **SEARCH-007:** Busca textual no conteúdo não faz parte do MVP.
+- **SEARCH-007:** `⌘⇧F` abre ou foca um workspace dedicado de busca de conhecimento, sem substituir `⌘P`.
+- **SEARCH-008:** A busca de conhecimento consulta corpo Markdown salvo, título, descrição, tipo, tags, headings, caminho relativo e demais valores de frontmatter indexáveis.
+- **SEARCH-009:** Quando aberta a partir de um Local ativo, a busca usa inicialmente apenas esse Local.
+- **SEARCH-010:** O escopo é um multiselect visível e pode conter um, vários ou todos os Locais disponíveis.
+- **SEARCH-011:** Consultas em vários Locais executam fan-out sobre índices fisicamente isolados e combinam rankings locais; não existe índice físico global.
+- **SEARCH-012:** Resultados identificam Local e caminho relativo, sem expor caminhos absolutos no contrato normal.
+- **SEARCH-013:** Cada resultado contém título, snippet destacado, razão do match, metadados relevantes, geração do índice e findings quando houver.
+- **SEARCH-014:** Os filtros visíveis iniciais são Locais, types e tags.
+- **SEARCH-015:** Path, papel técnico, findings, status, trust e freshness ficam disponíveis em `More filters`.
+- **SEARCH-016:** Múltiplos valores dentro da mesma categoria usam OR; categorias diferentes usam AND.
+- **SEARCH-017:** `status`, trust derivado de `verified` e freshness derivado de `stale_after` seguem a semântica oficial do OKF v0.2.
+- **SEARCH-018:** A ausência de `status` em um conceito OKF significa stable; ausência de `stale_after` significa freshness não especificada.
+- **SEARCH-019:** Documentos sem type continuam pesquisáveis quando nenhum filtro de type estiver aplicado.
+- **SEARCH-020:** A busca permanece local; query, snippets e interações não podem ser enviados para autocomplete, analytics ou serviços remotos.
+- **SEARCH-021:** O aplicativo pode guardar localmente as 20 buscas submetidas mais recentes, com query, escopo e filtros.
+- **SEARCH-022:** A retenção de buscas recentes pode ser limpa e desativada; desativá-la remove as entradas retidas.
+- **SEARCH-023:** Resultados podem ser selecionados manualmente durante a sessão de Search.
+- **SEARCH-024:** `Copy references` copia título, Local, caminho relativo e razão do match, sem conteúdo ou caminho absoluto.
+- **SEARCH-025:** A seleção de Search é efêmera; coleções persistentes e `Build context` pertencem à entrega posterior de context assembly.
 
 ### 10.14 Persistência do workspace
 
@@ -462,6 +480,7 @@ Os atalhos abaixo usam a notação do macOS. A implementação futura deve mapea
 | Ação | Atalho |
 | --- | --- |
 | Localizar arquivo | `⌘P` |
+| Buscar conhecimento | `⌘⇧F` |
 | Salvar arquivo | `⌘S` |
 | Fechar aba | `⌘W` |
 | Localizar dentro do arquivo | `⌘F` |

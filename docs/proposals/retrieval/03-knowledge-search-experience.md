@@ -1,6 +1,6 @@
 # RFC 03 — Knowledge search experience
 
-**Status:** Proposed
+**Status:** Accepted — implementation in progress
 
 **Decision owner:** Product and desktop UX
 
@@ -21,40 +21,49 @@ Construct has two related but different jobs:
 optimized for the second. They may share a command surface later, but their
 result semantics and keyboard behavior must remain clear.
 
-## Proposed first experience
+## Accepted first experience
 
-Add a dedicated Search workspace available from the sidebar and a keyboard
-shortcut. It searches every indexed registered location and can be scoped to
-the active location.
+Construct adds a dedicated Search workspace available from the sidebar and
+`⌘⇧F`. `⌘P` remains the fast filename/path opener, while Search answers topic,
+claim, metadata, and question-shaped discovery needs. `⌘F` remains reserved for
+finding text inside the current document.
 
 The surface contains:
 
 - a query input with immediate keyboard focus;
-- location, path, type, tag, role, status, and finding filters;
+- visible Location, type, and tag filters;
+- path, role, finding, lifecycle, trust, and freshness filters under
+  `More filters`;
 - ranked results with title, relative path, snippet, and match explanation;
 - an index-state indicator;
 - keyboard navigation and open-in-pane actions;
-- pivots from a result to related documents or a graph subset.
+- an ephemeral manual selection with `Copy references`;
+- future pivots from a result to related documents or a graph subset.
 
 Empty search should present useful navigation rather than every document body:
 
-- recent queries stored locally;
+- up to 20 recent queries stored locally when the user enables retention;
 - active location filters;
 - common OKF types and tags;
 - recently changed indexed documents;
 - an explanation when indexing is incomplete.
 
-## Search scope
+## Search scope and federation
 
-The default scope is a product decision:
-
-- Search opened from a location defaults to that location.
-- Search opened globally defaults to all registered locations.
+- Search opened from a Location defaults to that Location.
+- If no Location is active, Search defaults to all available Locations.
+- The scope is a visible multiselect, so users can search one, several, or all
+  Locations.
 - Scope is always visible and can be changed without rewriting the query.
 - Results never silently mix identities from locations with the same name.
+- Cross-Location search fans out to physically isolated per-Location indexes.
+  It does not create a global database.
+- Raw full-text scores from separate corpora are not compared directly.
+  Construct converts each local result list into a rank and applies reciprocal
+  rank fusion before presenting one list.
 
-The app should remember the last scope for the current search session but avoid
-creating persistent hidden filters that surprise users later.
+The app remembers scope inside the current Search session. A recent query
+restores its explicit scope and filters only when the user selects it.
 
 ## Query behavior
 
@@ -62,31 +71,65 @@ The first query language supports:
 
 - ordinary free text;
 - quoted exact phrases;
-- visible filter controls;
+- visible multiselect filter controls;
 - an optional path subtree;
 - arbitrary OKF type and tag values;
-- inclusion or exclusion of documents with parse findings.
+- inclusion or exclusion of documents with parse findings;
+- official OKF v0.2 lifecycle, trust, and freshness interpretation.
 
 Advanced operators are deferred until normal queries are measured. User input
-is translated into safe parameterized FTS expressions; raw SQLite syntax and
-errors are never exposed.
+is translated into safe parameterized SurrealQL full-text expressions; raw
+database syntax and errors are never exposed.
+
+Filter values use OR inside one category and AND between categories. For
+example, `Person OR Project` combined with `content OR strategy` means:
+
+```text
+(Person OR Project) AND (content OR strategy)
+```
+
+Documents without a type remain searchable until the user explicitly applies a
+type filter.
+
+The first visible filters are:
+
+- Locations;
+- types;
+- tags.
+
+`More filters` contains:
+
+- path prefix;
+- document role: concept, index, or log;
+- with or without findings;
+- OKF `status`: draft, stable, or deprecated;
+- trust tier derived from `verified`: unverified, machine-confirmed, or
+  human-reviewed;
+- freshness derived from `stale_after`: current, stale, or unspecified.
+
+Absent OKF `status` means stable. Absent `stale_after` means unspecified, not
+proven current. `generated`, `sources`, and the complete open-ended
+frontmatter remain indexed without becoming first-release visible filters.
 
 Portuguese and English queries, diacritics, Unicode filenames, and case
 behavior require explicit tests.
 
 ## Ranking
 
-The initial candidate rank is FTS5 BM25 with field weights that are benchmark
-defaults rather than semantic truth:
+The initial candidate rank uses SurrealDB full-text indexes with BM25 signals
+and deterministic field weights. The weights are benchmark defaults rather
+than semantic truth:
 
 | Field | Starting relative weight |
 | --- | ---: |
 | Title | 8 |
 | Description | 5 |
+| Type | 4 |
 | Tags | 4 |
 | Headings | 3 |
 | Relative path | 2 |
 | Body | 1 |
+| Other frontmatter | 1 |
 
 Exact title, exact path, and exact tag matches may receive deterministic
 documented boosts.
@@ -118,13 +161,32 @@ From a result, the user can:
 - open in the active pane;
 - open to the right;
 - reveal its containing location in the file tree;
-- copy its relative identity;
+- add or remove it from the current Search selection;
+- copy selected relative identities;
 - inspect related documents;
 - open a result-centered graph view;
-- add it to a future context selection.
+- add it to a future context assembly.
 
-The first delivery needs only open-in-pane and related-document navigation.
-Manual context selection is useful but can follow the context RFC.
+The first delivery includes open in the active pane, open to the right,
+ephemeral multiselection, and `Copy references`. The copied representation
+contains Location name or ID, relative path, title, and match reason. It does
+not expose an absolute path or copy document contents.
+
+Selection belongs to the current Search session and is never populated
+automatically from rank. Persistent collections and `Build context` belong to
+[RFC 04](04-graph-context-retrieval.md).
+
+## Recent searches
+
+Construct can retain the latest 20 submitted searches locally. A recent entry
+contains query, explicit Location scope, filters, and time. Recent searches:
+
+- appear only in the empty Search state;
+- can be cleared together;
+- can be disabled through `Remember recent searches`;
+- are deleted when retention is disabled;
+- never contain result snippets or document contents;
+- never leave the device.
 
 ## Index states
 
@@ -151,7 +213,7 @@ that it removes only derived local data.
 ## Privacy
 
 - Queries and result interactions remain local.
-- Query history, if retained, is local and user-clearable.
+- Query history is limited, local, optional, and user-clearable.
 - No remote autocomplete or analytics receive query text.
 - Snippets are created from the local saved index.
 
@@ -186,20 +248,31 @@ result, and files opened.
 - A user can distinguish file navigation from knowledge search.
 - Search covers ordinary Markdown and OKF documents.
 - Scope and filters are visible and keyboard operable.
-- Every result includes provenance, relative identity, snippet, and match
+- Every result includes provenance, relative identity, highlighted snippet, and match
   explanation.
 - Incomplete indexing is visible without making available results unusable.
 - Query text and snippets never leave the device.
 - Opening a result uses the existing pane and explicit-save model.
+- Search opened from a Location defaults to that Location.
+- Multiple Location indexes are combined without creating shared storage or
+  comparing raw scores directly.
+- Filters implement OR inside a category and AND between categories.
+- Official OKF v0.2 status, trust, and freshness semantics are available.
+- Manual selection is ephemeral and copied references contain no absolute path.
+- Recent queries are bounded, local, optional, and clearable.
 
-## Open decisions
+## Accepted decisions
 
-- Separate Search workspace versus a mode inside the command palette.
-- Global or active-location default scope.
-- Dedicated keyboard shortcut.
-- Whether recent queries are persisted.
-- Which filters belong in the first visible UI.
-- Whether the first release includes manual context selection.
+- Search is a dedicated workspace, not a command-palette mode.
+- `⌘⇧F` opens or focuses Search.
+- The active Location is the default scope and the visible scope control is a
+  multiselect.
+- Cross-Location results use rank fusion over isolated indexes.
+- Locations, types, and tags are first-level filters; advanced filters are
+  grouped under `More filters`.
+- The latest 20 searches may be retained locally and cleared or disabled.
+- The first release includes ephemeral manual selection and `Copy references`.
+- Context assembly remains in RFC 04.
 
 ## Dependencies and handoff
 
