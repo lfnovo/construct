@@ -26,8 +26,10 @@ The frontend lives in `src/`.
 | `App.tsx` | Workspace state, locations, panes, tabs, commands, and native event coordination |
 | `CodeEditor.tsx` | CodeMirror lifecycle and Markdown editing |
 | `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
+| `ReviewEditor.tsx` | Rendered text selection, review composer, comment list, and clipboard handoff |
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
 | `markdownDocument.ts` | Lossless frontmatter/body boundaries and visual-editor serialization |
+| `review.ts` | Pure parsing, lossless review-block updates, and agent prompt serialization |
 | `okf.ts` | Pure OKF frontmatter inspection, link resolution, and graph inputs |
 | `KnowledgeGraph.tsx` | Deterministic local graph layout and interactions |
 | `history.ts` | File identity across repeated changes and renames |
@@ -72,7 +74,7 @@ The persisted history retains the most recent event for each file identity and d
 
 Markdown preview uses a sanitized rendering pipeline. Mermaid runs only on fenced diagram blocks. Relative files are resolved locally and external URLs are handed to the operating system.
 
-Preview, Edit, and Source operate on one in-memory tab buffer. Source owns the raw
+Preview, Edit, Review, and Source operate on one in-memory tab buffer. Source owns the raw
 representation through CodeMirror. Edit is lazy-loaded and gives Milkdown only the
 Markdown body; `markdownDocument.ts` retains the exact YAML frontmatter prefix and
 reattaches it whenever the visual editor changes the body. Milkdown's normalized
@@ -83,6 +85,14 @@ write through the existing tab flow.
 The visual editor intentionally excludes remote AI features, image upload, and math
 for its first release. Mermaid remains a fenced code block while editing and renders
 in Preview. Malformed or unclosed frontmatter fails safely back to Source.
+
+Review comments use a versioned `construct-review:v1` HTML comment at the boundary
+between frontmatter and body. The block is invisible in rendered Markdown, remains
+readable to local agents, and can be removed without changing the original document
+bytes. `review.ts` owns parsing and serialization so Review, Edit, OKF indexing, and
+clipboard handoff share one interpretation. Visual Edit removes the review block
+from Milkdown's input and reattaches it unchanged; OKF link extraction excludes it.
+Malformed review data fails closed to Source rather than being rewritten.
 
 OKF support is derived and non-destructive:
 

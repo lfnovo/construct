@@ -22,6 +22,7 @@ Terminal-first agent workflows are excellent for conversation and execution, but
 - Automatic filesystem monitoring and a deduplicated 30-day history.
 - Tabs, horizontal and vertical panes, and workspace restoration.
 - Rich Markdown editing plus editable source, with explicit saves and conflict protection.
+- Document review with anchored quotes, persistent agent comments, and copyable handoffs.
 - GFM preview with syntax highlighting, local images, and Mermaid.
 - Read-only Git status and diff against `HEAD`.
 - Dark and light themes, quick open, and Finder integration.

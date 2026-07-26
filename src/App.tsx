@@ -9,12 +9,21 @@ import { deduplicateHistory } from "./history";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { extractOkfLinks, inspectOkfDocument, type OkfBundleIndex, type OkfConcept } from "./okf";
+import { ReviewEditor } from "./ReviewEditor";
+import { splitReviewDocument } from "./review";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   LayoutNode, LocationRecord, Pane, SavedPane, SavedWorkspace, TabMode,
 } from "./types";
 
 const VisualEditor = lazy(() => import("./VisualEditor").then(({ VisualEditor: Component }) => ({ default: Component })));
+const modeLabels: Record<TabMode, string> = {
+  preview: "Preview",
+  edit: "Edit",
+  review: "Review",
+  source: "Source",
+  diff: "Diff",
+};
 
 const emptyPane = (id: string = crypto.randomUUID()): Pane => ({ id, tabs: [], activeTabId: null });
 const defaultPane = emptyPane("main");
@@ -566,6 +575,7 @@ export default function App() {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId) || null;
     const tabLocation = tab ? locationsRef.current.find((location) => location.id === tab.locationId) : null;
     const okf = tab && tabLocation?.okfBundle ? inspectOkfDocument(tab.content, tab.relativePath, tab.relativePath === "index.md") : null;
+    const review = tab ? splitReviewDocument(tab.content) : null;
     const bundleIndex = tabLocation ? okfIndexes[tabLocation.id] : undefined;
     const concept = tab && bundleIndex?.status === "ready" ? bundleIndex.concepts.find((item) => item.path === tab.path) : undefined;
     const outgoingConcepts = concept ? concept.outgoingPaths.map((path) => bundleIndex?.concepts.find((item) => item.path === path)).filter((item): item is OkfConcept => Boolean(item)) : [];
@@ -597,7 +607,11 @@ export default function App() {
           <span className="document-path" title={tab.path}>{tab.relativePath}</span>
           {okf && <button className={`okf-status ${okf.isConformant ? "valid" : "invalid"}`} title="Open Knowledge Format details" onClick={() => setShowOkfInspector((current) => !current)}>OKF</button>}
           <div className="mode-switch">
-            {(["preview", "edit", "source", "diff"] as TabMode[]).map((mode) => <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode }))}>{mode === "preview" ? "Preview" : mode === "edit" ? "Edit" : mode === "source" ? "Source" : "Diff"}</button>)}
+            {(["preview", "edit", "review", "source", "diff"] as TabMode[]).map((mode) => (
+              <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode }))}>
+                {modeLabels[mode]}{mode === "review" && review?.comments.length ? <span className="mode-count">{review.comments.length}</span> : null}
+              </button>
+            ))}
           </div>
           <button className="toolbar-button" disabled={!tab.dirty || tab.deleted} onClick={() => void saveTab(pane.id, tab.id)}>Save</button>
           <button className="icon-button" title="Reveal in Finder" onClick={() => void api.revealInFileManager(tab.path)}><Folder size={14} /></button>
@@ -627,6 +641,7 @@ export default function App() {
             </Suspense>
           )}
           {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} />}
+          {tab.mode === "review" && <ReviewEditor content={tab.content} relativePath={tab.relativePath} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} readOnly={tab.deleted} onChange={changeContent} onOpenInternal={openPath} onRequestSource={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode: "source" }))} onNotify={notify} />}
           {tab.mode === "diff" && <DiffView tab={tab} />}
         </div>
       </>}

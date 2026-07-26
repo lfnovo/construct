@@ -11,7 +11,8 @@ import { toolbar } from "@milkdown/crepe/feature/toolbar";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
 import { replaceAll } from "@milkdown/kit/utils";
 import "@milkdown/crepe/theme/common/style.css";
-import { serializeVisualMarkdown, splitMarkdownDocument } from "./markdownDocument";
+import { serializeVisualMarkdown } from "./markdownDocument";
+import { splitReviewDocument } from "./review";
 
 type Props = {
   tabId: string;
@@ -41,12 +42,12 @@ export function VisualEditor({ tabId, value, readOnly, onChange, onRequestSource
 
   useEffect(() => {
     if (!host.current) return;
-    const parts = splitMarkdownDocument(lastValueRef.current);
-    setFrontmatter(parts.hasFrontmatter && !parts.error);
+    const parts = splitReviewDocument(lastValueRef.current);
+    setFrontmatter(Boolean(parts.frontmatter) && !parts.error);
     setError(parts.error || null);
     if (parts.error) return;
 
-    prefixRef.current = parts.frontmatter;
+    prefixRef.current = `${parts.frontmatter}${parts.reviewBlock}`;
     lastBodyRef.current = parts.body;
     baselineValueRef.current = lastValueRef.current;
     readyRef.current = false;
@@ -110,9 +111,9 @@ export function VisualEditor({ tabId, value, readOnly, onChange, onRequestSource
         }
         // Milkdown may normalize its internal representation during creation.
         // Treat that as the baseline so merely entering Edit never dirties a file.
-        const latest = splitMarkdownDocument(lastValueRef.current);
+        const latest = splitReviewDocument(lastValueRef.current);
         if (!latest.error && latest.body !== parts.body) {
-          prefixRef.current = latest.frontmatter;
+          prefixRef.current = `${latest.frontmatter}${latest.reviewBlock}`;
           suppressChangesRef.current = true;
           crepe.editor.action(replaceAll(latest.body, true));
           suppressChangesRef.current = false;
@@ -144,12 +145,12 @@ export function VisualEditor({ tabId, value, readOnly, onChange, onRequestSource
   useEffect(() => {
     if (value === lastValueRef.current) return;
     lastValueRef.current = value;
-    const parts = splitMarkdownDocument(value);
-    setFrontmatter(parts.hasFrontmatter && !parts.error);
+    const parts = splitReviewDocument(value);
+    setFrontmatter(Boolean(parts.frontmatter) && !parts.error);
     setError(parts.error || null);
     if (parts.error || !readyRef.current || !crepeRef.current) return;
 
-    prefixRef.current = parts.frontmatter;
+    prefixRef.current = `${parts.frontmatter}${parts.reviewBlock}`;
     const current = crepeRef.current.getMarkdown();
     if (current === parts.body) {
       lastBodyRef.current = current;
