@@ -423,6 +423,10 @@ fn default_context_documents() -> usize {
     20
 }
 
+const MIN_CONTEXT_EXCERPT_CHARACTERS: usize = 160;
+const HARD_MIN_CONTEXT_EXCERPT_CHARACTERS: usize = 80;
+const CONTEXT_TRUNCATION_NOTE: &str = "\n\n[Content truncated by the character budget.]\n";
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ContextPackItem {
@@ -456,6 +460,17 @@ pub(crate) struct ContextPackResponse {
     pub(crate) truncated: bool,
     pub(crate) estimator: String,
     pub(crate) markdown: String,
+}
+
+struct PreparedContextDocument {
+    location_id: String,
+    relative_path: String,
+    title: String,
+    role: String,
+    reason: String,
+    body: String,
+    generation: i64,
+    prefix: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1384,6 +1399,7 @@ WHERE generation = $generation AND relative_path IN $relative_paths;
         let mut items = Vec::new();
         let mut omitted = Vec::new();
         let mut seen = HashSet::new();
+        let mut prepared = Vec::new();
 
         for reference in request.documents {
             validate_location_id(&reference.location_id)?;
@@ -1393,7 +1409,7 @@ WHERE generation = $generation AND relative_path IN $relative_paths;
             {
                 continue;
             }
-            if items.len() >= max_documents {
+            if prepared.len() >= max_documents {
                 omitted.push(ContextPackOmission {
                     location_id: reference.location_id,
                     relative_path,
@@ -1435,50 +1451,93 @@ WHERE generation = $generation AND relative_path IN $relative_paths;
                 &document.role,
                 &reason,
             );
-            let full_block = format!("{prefix}{}\n", document.body.trim());
-            let used = markdown.chars().count();
-            let remaining = content_limit.saturating_sub(used);
-            if full_block.chars().count() <= remaining {
-                let characters = full_block.chars().count();
-                markdown.push_str(&full_block);
-                items.push(ContextPackItem {
-                    location_id: reference.location_id,
-                    relative_path,
-                    title: document.title,
-                    role: document.role,
-                    reason,
-                    content: document.body,
-                    characters,
-                    truncated: false,
-                    generation: document.generation,
-                });
-                continue;
-            }
-
-            const TRUNCATION_NOTE: &str = "\n\n[Content truncated by the character budget.]\n";
-            let overhead = prefix.chars().count() + TRUNCATION_NOTE.chars().count();
-            let body_budget = remaining.saturating_sub(overhead);
-            if body_budget < 80 {
-                omitted.push(ContextPackOmission {
-                    location_id: reference.location_id,
-                    relative_path,
-                    reason: "Character budget reached".to_string(),
-                });
-                continue;
-            }
-            let content = truncate_characters(document.body.trim(), body_budget);
-            let block = format!("{prefix}{content}{TRUNCATION_NOTE}");
-            let characters = block.chars().count();
-            markdown.push_str(&block);
-            items.push(ContextPackItem {
+            prepared.push(PreparedContextDocument {
                 location_id: reference.location_id,
                 relative_path,
                 title: document.title,
                 role: document.role,
                 reason,
+                body: document.body.trim().to_string(),
+                generation: document.generation,
+                prefix,
+            });
+        }
+
+        let available = content_limit.saturating_sub(markdown.chars().count());
+        let mut budget_omissions = Vec::new();
+        while minimum_context_cost(&prepared) > available {
+            let Some(document) = prepared.pop() else {
+                break;
+            };
+            budget_omissions.push(ContextPackOmission {
+                location_id: document.location_id,
+                relative_path: document.relative_path,
+                reason: "Character budget reached".to_string(),
+            });
+        }
+        budget_omissions.reverse();
+        omitted.extend(budget_omissions);
+
+        let body_lengths = prepared
+            .iter()
+            .map(|document| document.body.chars().count())
+            .collect::<Vec<_>>();
+        let prefix_characters = prepared
+            .iter()
+            .map(|document| document.prefix.chars().count())
+            .sum::<usize>();
+        let mut truncation_reserved = body_lengths
+            .iter()
+            .map(|length| *length > HARD_MIN_CONTEXT_EXCERPT_CHARACTERS)
+            .collect::<Vec<_>>();
+        let suffix_characters = truncation_reserved
+            .iter()
+            .map(|truncated| {
+                if *truncated {
+                    CONTEXT_TRUNCATION_NOTE.chars().count()
+                } else {
+                    1
+                }
+            })
+            .sum::<usize>();
+        let body_budget =
+            available.saturating_sub(prefix_characters.saturating_add(suffix_characters));
+        let mut allocations = allocate_context_body_characters(&body_lengths, body_budget);
+
+        loop {
+            let mut reclaimed = 0;
+            for (index, reserved) in truncation_reserved.iter_mut().enumerate() {
+                if *reserved && allocations[index] >= body_lengths[index] {
+                    *reserved = false;
+                    reclaimed += CONTEXT_TRUNCATION_NOTE.chars().count().saturating_sub(1);
+                }
+            }
+            if reclaimed == 0 {
+                break;
+            }
+            distribute_context_budget_proportionally(&body_lengths, &mut allocations, reclaimed);
+        }
+
+        for (document, body_characters) in prepared.into_iter().zip(allocations) {
+            let truncated = body_characters < document.body.chars().count();
+            let content = truncate_characters(&document.body, body_characters);
+            let suffix = if truncated {
+                CONTEXT_TRUNCATION_NOTE
+            } else {
+                "\n"
+            };
+            let block = format!("{}{content}{suffix}", document.prefix);
+            let characters = block.chars().count();
+            markdown.push_str(&block);
+            items.push(ContextPackItem {
+                location_id: document.location_id,
+                relative_path: document.relative_path,
+                title: document.title,
+                role: document.role,
+                reason: document.reason,
                 content,
                 characters,
-                truncated: true,
+                truncated,
                 generation: document.generation,
             });
         }
@@ -1811,6 +1870,110 @@ fn context_document_prefix(
     format!(
         "## {title}\n\n- Location: `{location_id}`\n- Path: `{relative_path}`\n- Role: {role}\n- Included because: {reason}\n\n---\n\n"
     )
+}
+
+fn minimum_context_cost(documents: &[PreparedContextDocument]) -> usize {
+    documents
+        .iter()
+        .map(|document| {
+            let body_characters = document.body.chars().count();
+            let excerpt_characters = body_characters.min(HARD_MIN_CONTEXT_EXCERPT_CHARACTERS);
+            let suffix_characters = if excerpt_characters < body_characters {
+                CONTEXT_TRUNCATION_NOTE.chars().count()
+            } else {
+                1
+            };
+            document.prefix.chars().count() + excerpt_characters + suffix_characters
+        })
+        .sum()
+}
+
+fn allocate_context_body_characters(lengths: &[usize], budget: usize) -> Vec<usize> {
+    let mut allocations = vec![0; lengths.len()];
+    let minimum_targets = lengths
+        .iter()
+        .map(|length| (*length).min(MIN_CONTEXT_EXCERPT_CHARACTERS))
+        .collect::<Vec<_>>();
+    let remaining = distribute_context_budget_evenly(&minimum_targets, &mut allocations, budget);
+    distribute_context_budget_proportionally(lengths, &mut allocations, remaining);
+    allocations
+}
+
+fn distribute_context_budget_evenly(
+    targets: &[usize],
+    allocations: &mut [usize],
+    mut budget: usize,
+) -> usize {
+    loop {
+        let active = targets
+            .iter()
+            .enumerate()
+            .filter_map(|(index, target)| (allocations[index] < *target).then_some(index))
+            .collect::<Vec<_>>();
+        if active.is_empty() || budget == 0 {
+            return budget;
+        }
+        let share = (budget / active.len()).max(1);
+        for index in active {
+            let addition = share
+                .min(targets[index].saturating_sub(allocations[index]))
+                .min(budget);
+            allocations[index] += addition;
+            budget -= addition;
+            if budget == 0 {
+                return 0;
+            }
+        }
+    }
+}
+
+fn distribute_context_budget_proportionally(
+    lengths: &[usize],
+    allocations: &mut [usize],
+    mut budget: usize,
+) -> usize {
+    let needs = lengths
+        .iter()
+        .enumerate()
+        .map(|(index, length)| length.saturating_sub(allocations[index]))
+        .collect::<Vec<_>>();
+    let total_need = needs.iter().sum::<usize>();
+    if total_need == 0 || budget == 0 {
+        return budget;
+    }
+    if budget >= total_need {
+        for (index, need) in needs.into_iter().enumerate() {
+            allocations[index] += need;
+        }
+        return budget - total_need;
+    }
+
+    let original_budget = budget;
+    let mut remainders = Vec::new();
+    for (index, need) in needs.iter().copied().enumerate() {
+        let weighted = original_budget * need;
+        let addition = weighted / total_need;
+        allocations[index] += addition;
+        budget -= addition;
+        remainders.push((weighted % total_need, need, index));
+    }
+    remainders.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| right.1.cmp(&left.1))
+            .then_with(|| left.2.cmp(&right.2))
+    });
+    for (_, _, index) in remainders {
+        if budget == 0 {
+            break;
+        }
+        if allocations[index] < lengths[index] {
+            allocations[index] += 1;
+            budget -= 1;
+        }
+    }
+    budget
 }
 
 fn truncate_characters(value: &str, limit: usize) -> String {
@@ -3129,6 +3292,76 @@ mod tests {
         assert!(!pack
             .markdown
             .contains(&source.to_string_lossy().to_string()));
+
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn balances_context_across_documents_before_growing_large_excerpts() {
+        let data = temporary_root("balanced-context-data");
+        let source = temporary_root("balanced-context-source");
+        fs::write(source.join("small.md"), "# Small\n\nBrief context.").expect("write small");
+        fs::write(
+            source.join("medium.md"),
+            format!("# Medium\n\n{}", "Medium context. ".repeat(120)),
+        )
+        .expect("write medium");
+        fs::write(
+            source.join("large.md"),
+            format!(
+                "# Large\n\n{}",
+                "Large context with more detail. ".repeat(220)
+            ),
+        )
+        .expect("write large");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(
+                request("balanced-context-location", &source),
+                source.clone(),
+            )
+            .await
+            .expect("index context");
+
+        let pack = service
+            .build_context_pack(BuildContextPackRequest {
+                query: "balanced context".to_string(),
+                documents: vec![
+                    ContextDocumentRef {
+                        location_id: "balanced-context-location".to_string(),
+                        relative_path: "small.md".to_string(),
+                        reason: "Small source".to_string(),
+                    },
+                    ContextDocumentRef {
+                        location_id: "balanced-context-location".to_string(),
+                        relative_path: "medium.md".to_string(),
+                        reason: "Medium source".to_string(),
+                    },
+                    ContextDocumentRef {
+                        location_id: "balanced-context-location".to_string(),
+                        relative_path: "large.md".to_string(),
+                        reason: "Large source".to_string(),
+                    },
+                ],
+                max_characters: 1_600,
+                max_documents: 3,
+            })
+            .await
+            .expect("build balanced context pack");
+
+        assert_eq!(pack.items.len(), 3);
+        assert!(pack.omitted.is_empty());
+        assert!(!pack.items[0].truncated);
+        assert!(pack.items[1].truncated);
+        assert!(pack.items[2].truncated);
+        assert!(pack.items[1].content.chars().count() >= MIN_CONTEXT_EXCERPT_CHARACTERS);
+        assert!(pack.items[2].content.chars().count() > pack.items[1].content.chars().count());
+        assert!(pack.total_characters <= 1_600);
+        assert!(pack.markdown.contains("## Small"));
+        assert!(pack.markdown.contains("## Medium"));
+        assert!(pack.markdown.contains("## Large"));
 
         drop(service);
         fs::remove_dir_all(data).expect("remove data");

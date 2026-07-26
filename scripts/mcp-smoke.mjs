@@ -89,6 +89,17 @@ try {
   }));
   if (listed.locations[0].id !== "smoke-location") throw new Error("Location allowlist failed.");
 
+  const denied = await request("tools/call", {
+    name: "construct_get_location_overview",
+    arguments: { locationId: "not-allowed" },
+  });
+  if (
+    denied.result?.isError !== true
+    || denied.result?.structuredContent?.error?.code !== "location_not_allowed"
+  ) {
+    throw new Error("Allowlist errors must include a stable structured code.");
+  }
+
   const overview = structured(await request("tools/call", {
     name: "construct_get_location_overview",
     arguments: { locationId: "smoke-location" },

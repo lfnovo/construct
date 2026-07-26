@@ -109,6 +109,11 @@ Names are provisional.
 
 Refresh and rebuild remain desktop actions in the first MCP contract.
 
+Tool failures use MCP `isError` responses with both readable text and structured
+content shaped as `{ error: { code, message } }`. Stable codes let agents
+distinguish allowlist rejection, invalid arguments, missing documents, unknown
+tools, and execution failures without parsing English copy.
+
 ## Hot memory
 
 Each Location keeps a derived daily activity cache with a rolling 15-day
