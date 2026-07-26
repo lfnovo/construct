@@ -1,0 +1,30 @@
+docs/product-spec.md
+  s_954343fc536a43::t_87abc3873537ba 459-462
+src/App.tsx
+  s_954343fc536a43::t_8ec3685d3c5020 126
+  s_954343fc536a43::t_0b9e5080f64144 369-375,540,555-558
+  s_954343fc536a43::t_b37f7ea49ee99e 597,604-605
+  s_954343fc536a43::t_d6f8d1896be3d8 8,102-125,127-134,180-182,197,245-246,248,256-281,289-291,318
+  s_954343fc536a43::t_7cacb7252e55ec 628,639
+src/okf.ts
+  s_954343fc536a43::t_e70e7d2088e6ab 19-38,149-159
+  s_954343fc536a43::t_eb37ab17c26c00 160
+src/styles.css
+  s_954343fc536a43::t_8ec3685d3c5020 98-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6aa30194c44c56fceaea8d04dffdd6476e95414b",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
