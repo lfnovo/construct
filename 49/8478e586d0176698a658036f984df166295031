@@ -1,0 +1,34 @@
+docs/proposals/retrieval/04-graph-context-retrieval.md
+  s_954343fc536a43::t_697d7efdaa49cd 157-164
+src-tauri/src/mcp.rs
+  s_954343fc536a43::t_697d7efdaa49cd 283-285,588,591-595,620-645
+  s_954343fc536a43::t_bb5936792710ec 292,401,552
+  s_954343fc536a43::t_cced40c7f1918c 18-47,351-356,541,545-548,554-557,573-587,596,646
+src-tauri/src/index.rs
+  s_954343fc536a43::t_cced40c7f1918c 426-429,465-475,1402,1412,1454-1464,1466-1516,1519-1529,1533-1534,1537,1540,1875-1879,1881-1896,1898-1977,3299
+  s_954343fc536a43::t_697d7efdaa49cd 3302-3312,3317-3358,3361-3364
+  s_954343fc536a43::t_bb5936792710ec 1518,1880,1897,3313-3316,3359-3360
+  s_954343fc536a43::t_2c6756a7c3608d 1978,3298,3300-3301,3365-3367
+scripts/mcp-smoke.mjs
+  s_954343fc536a43::t_b4d57d12d50e3c 92-102
+docs/proposals/retrieval/05-local-agent-access.md
+  s_954343fc536a43::t_697d7efdaa49cd 112-116
+docs/product-spec.md
+  s_954343fc536a43::t_697d7efdaa49cd 477,573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "498478e586d0176698a658036f984df166295031",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
