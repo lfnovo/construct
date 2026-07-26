@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Sun, X } from "lucide-react";
@@ -13,6 +13,8 @@ import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   LayoutNode, LocationRecord, Pane, SavedPane, SavedWorkspace, TabMode,
 } from "./types";
+
+const VisualEditor = lazy(() => import("./VisualEditor").then(({ VisualEditor: Component }) => ({ default: Component })));
 
 const emptyPane = (id: string = crypto.randomUUID()): Pane => ({ id, tabs: [], activeTabId: null });
 const defaultPane = emptyPane("main");
@@ -595,7 +597,7 @@ export default function App() {
           <span className="document-path" title={tab.path}>{tab.relativePath}</span>
           {okf && <button className={`okf-status ${okf.isConformant ? "valid" : "invalid"}`} title="Open Knowledge Format details" onClick={() => setShowOkfInspector((current) => !current)}>OKF</button>}
           <div className="mode-switch">
-            {(["preview", "source", "diff"] as TabMode[]).map((mode) => <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode }))}>{mode === "preview" ? "Preview" : mode === "source" ? "Source" : "Diff"}</button>)}
+            {(["preview", "edit", "source", "diff"] as TabMode[]).map((mode) => <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode }))}>{mode === "preview" ? "Preview" : mode === "edit" ? "Edit" : mode === "source" ? "Source" : "Diff"}</button>)}
           </div>
           <button className="toolbar-button" disabled={!tab.dirty || tab.deleted} onClick={() => void saveTab(pane.id, tab.id)}>Save</button>
           <button className="icon-button" title="Reveal in Finder" onClick={() => void api.revealInFileManager(tab.path)}><Folder size={14} /></button>
@@ -619,6 +621,11 @@ export default function App() {
         </aside>}
         <div className="document-content">
           {tab.mode === "source" && <CodeEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onSave={() => void saveTab(pane.id, tab.id)} />}
+          {tab.mode === "edit" && (
+            <Suspense fallback={<div className="visual-editor-loading">Preparing visual editor…</div>}>
+              <VisualEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onRequestSource={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode: "source" }))} />
+            </Suspense>
+          )}
           {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} />}
           {tab.mode === "diff" && <DiffView tab={tab} />}
         </div>

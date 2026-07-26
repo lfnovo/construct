@@ -25,7 +25,9 @@ The frontend lives in `src/`.
 | --- | --- |
 | `App.tsx` | Workspace state, locations, panes, tabs, commands, and native event coordination |
 | `CodeEditor.tsx` | CodeMirror lifecycle and Markdown editing |
+| `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
+| `markdownDocument.ts` | Lossless frontmatter/body boundaries and visual-editor serialization |
 | `okf.ts` | Pure OKF frontmatter inspection, link resolution, and graph inputs |
 | `KnowledgeGraph.tsx` | Deterministic local graph layout and interactions |
 | `history.ts` | File identity across repeated changes and renames |
@@ -69,6 +71,18 @@ The persisted history retains the most recent event for each file identity and d
 ## Markdown and OKF
 
 Markdown preview uses a sanitized rendering pipeline. Mermaid runs only on fenced diagram blocks. Relative files are resolved locally and external URLs are handed to the operating system.
+
+Preview, Edit, and Source operate on one in-memory tab buffer. Source owns the raw
+representation through CodeMirror. Edit is lazy-loaded and gives Milkdown only the
+Markdown body; `markdownDocument.ts` retains the exact YAML frontmatter prefix and
+reattaches it whenever the visual editor changes the body. Milkdown's normalized
+baseline is mapped back to the original source bytes so opening Edit—or undoing all
+visual changes—does not create a false dirty state. Saving remains an explicit Tauri
+write through the existing tab flow.
+
+The visual editor intentionally excludes remote AI features, image upload, and math
+for its first release. Mermaid remains a fenced code block while editing and renders
+in Preview. Malformed or unclosed frontmatter fails safely back to Source.
 
 OKF support is derived and non-destructive:
 
