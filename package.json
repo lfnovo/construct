@@ -36,7 +36,7 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.36.5",
     "@tauri-apps/api": "^2.6.0",
-    "@tauri-apps/plugin-dialog": "^2.2.1",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
     "highlight.js": "^11.11.1",
     "lucide-react": "^1.25.0",
     "mermaid": "^11.6.0",
