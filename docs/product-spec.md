@@ -379,13 +379,14 @@ flowchart LR
 - **HIST-006:** O período padrão de retenção é de 30 dias.
 - **HIST-007:** Eventos mais antigos podem ser removidos automaticamente sem afetar arquivos.
 - **HIST-008:** Deve existir uma ação para limpar o Histórico, com confirmação.
-- **HIST-009:** Várias alterações consecutivas no mesmo arquivo devem ser agrupadas quando fizerem parte da mesma rajada de escrita.
+- **HIST-009:** O Histórico deve manter uma única entrada por arquivo durante a janela de retenção, substituindo seu estado, tipo e horário pelos do evento mais recente.
 - **HIST-010:** Um evento de arquivo existente pode ser selecionado para navegar até o documento.
 - **HIST-011:** Um evento de arquivo removido permanece visível até expirar, mas indica que o arquivo não está mais disponível.
 - **HIST-012:** O Histórico guarda metadados de eventos, não snapshots ou versões do conteúdo.
 - **HIST-013:** Na inicialização, o aplicativo deve comparar o estado conhecido com o estado atual e registrar mudanças detectáveis ocorridas enquanto estava fechado.
 - **HIST-014:** Eventos detectados após tempo offline podem usar o horário de detecção quando o horário exato não estiver disponível, deixando isso claro na interface quando necessário.
 - **HIST-015:** Ações realizadas pelo próprio aplicativo também devem aparecer no Histórico, sem duplicidade causada pelo watcher.
+- **HIST-016:** Renomes devem preservar a identidade histórica do arquivo, evitando que o caminho anterior e o atual apareçam como duas entradas independentes.
 
 ### 10.12 Integração Git e diff
 
@@ -460,6 +461,10 @@ O aplicativo deve oferecer suporte de consumo não destrutivo ao [Open Knowledge
 - **OKF-010:** A ação Explore deve permitir navegar pelos types e tags presentes no bundle e abrir a coleção filtrada de conceitos correspondente.
 - **OKF-011:** O inspector de um conceito deve apresentar links de saída e referências de entrada conhecidos no bundle.
 - **OKF-012:** O índice semântico é um cache derivado, não uma fonte de verdade; deve ser atualizado quando arquivos do bundle forem alterados e nunca deve alterar conteúdo por conta própria.
+- **OKF-013:** Explore deve oferecer visões List e Graph sobre o mesmo conjunto filtrado de conceitos.
+- **OKF-014:** Graph deve representar conceitos como nós e links Markdown internos conhecidos como arestas, usando `type` como agrupamento visual sem impor uma taxonomia fechada.
+- **OKF-015:** O usuário deve poder navegar, aplicar zoom, selecionar um nó para consultar seus metadados essenciais e abrir o documento correspondente.
+- **OKF-016:** Em bundles grandes, Graph pode limitar a renderização aos conceitos mais conectados, desde que informe claramente quantos conceitos foram omitidos e preserve o índice completo nas demais visões.
 
 ## 11. Estados e tratamento de erros
 
@@ -672,7 +677,8 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 - Criar um `.md` externamente faz o arquivo aparecer na árvore e no Histórico.
 - Alterar um arquivo aberto e limpo atualiza Source e Preview.
 - Renomear ou remover o arquivo atualiza a navegação sem travar.
-- Eventos duplicados de uma única escrita são agrupados de forma razoável.
+- Cada arquivo aparece uma única vez no Histórico, com o tipo e o horário da alteração mais recente.
+- Renomear um arquivo preserva uma única entrada para sua identidade atual.
 
 ### 19.3 Editar com segurança
 
@@ -701,6 +707,7 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 ### 19.6 Consultar Histórico e Git
 
 - Eventos de todos os Locais aparecem em ordem recente.
+- Um arquivo editado repetidamente ocupa apenas uma entrada, atualizada para o evento mais recente.
 - Selecionar um evento existente abre o arquivo correto.
 - Eventos persistem entre execuções e expiram depois de 30 dias.
 - Um arquivo em Git oferece comparação com `HEAD`.

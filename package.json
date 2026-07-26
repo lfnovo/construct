@@ -9,7 +9,7 @@
     "build": "tauri build --bundles app",
     "build:web": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
-    "test": "npm run check && cd src-tauri && cargo test"
+    "test": "npm run check && node --experimental-strip-types --test tests/*.test.mjs && cd src-tauri && cargo test"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",

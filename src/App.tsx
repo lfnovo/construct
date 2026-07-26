@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, MapPin, Moon, PanelLeftClose, PanelLeftOpen, PanelTop, Rows3, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelTop, Rows3, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
+import { deduplicateHistory } from "./history";
+import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { extractOkfLinks, inspectOkfDocument, type OkfBundleIndex, type OkfConcept } from "./okf";
 import type {
@@ -113,6 +115,7 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }
   onOpen: (path: string) => void;
   onClose: () => void;
 }) {
+  const [view, setView] = useState<"list" | "graph">("list");
   if (!index || index.status === "scanning") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Building the local knowledge index…</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
   if (index.status === "error") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Could not build the knowledge index.</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
   const typeCounts = new Map<string, number>();
@@ -125,10 +128,10 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }
   const types = [...typeCounts.entries()].sort(([left], [right]) => left.localeCompare(right));
   const tags = [...tagCounts.entries()].sort(([leftName, leftCount], [rightName, rightCount]) => rightCount - leftCount || leftName.localeCompare(rightName));
   return <section className="bundle-explorer">
-    <header><div><h1>{location.name}</h1><p>OKF bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header>
+    <header><div><h1>{location.name}</h1><p>OKF bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
     <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list">{types.map(([type, count]) => <button key={type} className={filters.type === type ? "selected" : ""} onClick={() => onFilters({ ...filters, type: filters.type === type ? undefined : type })}>{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
-    <div className="explore-results-heading"><h2>{filters.type || filters.tag ? `${concepts.length} matching concepts` : "All concepts"}</h2>{(filters.type || filters.tag) && <button onClick={() => onFilters({})}>Clear filters</button>}</div>
-    <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>
+    <div className="explore-results-heading"><h2>{filters.type || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.type || filters.tag) && <button onClick={() => onFilters({})}>Clear filters</button>}</div>
+    {view === "graph" ? <KnowledgeGraph concepts={concepts} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
   </section>;
 }
 
@@ -204,7 +207,7 @@ export default function App() {
   const addHistory = useCallback((events: HistoryEvent[]) => {
     if (!events.length) return;
     const cutoff = Date.now() - 30 * 86_400_000;
-    setHistory((previous) => [...events, ...previous].filter((event) => event.observedAt >= cutoff).slice(0, 5000));
+    setHistory((previous) => deduplicateHistory([...events, ...previous].filter((event) => event.observedAt >= cutoff)).slice(0, 5000));
   }, []);
 
   const reconcile = useCallback((location: LocationRecord, entries: FileEntry[], source: HistoryEvent["source"]) => {
@@ -479,7 +482,7 @@ export default function App() {
         const restoredPanes = saved.panes?.length ? saved.panes : [{ ...defaultPane, tabs: [] } as SavedPane];
         const restoredLayout = saved.layout || defaultLayout;
         setLocations(restoredLocations);
-        setHistory((saved.history || []).filter((event) => event.observedAt >= Date.now() - 30 * 86_400_000));
+        setHistory(deduplicateHistory((saved.history || []).filter((event) => event.observedAt >= Date.now() - 30 * 86_400_000)).slice(0, 5000));
         setFingerprints(saved.fingerprints || {});
         setSelectedLocationId(saved.selectedLocationId || restoredLocations[0]?.id || null);
         setSidebarWidth(saved.sidebarWidth || 295);
@@ -637,7 +640,7 @@ export default function App() {
       </section>
       <section className="sidebar-section history-section">
         <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, history: !current.history }))}>{collapsedSections.history ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><History size={13} /><span>HISTORY</span><select aria-label="Filter history" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value as HistoryKind | "all")}><option value="all">All</option><option value="created">New</option><option value="modified">Changed</option><option value="renamed">Renamed</option><option value="removed">Removed</option></select><button className="clear-history" title="Clear history" onClick={() => { if (window.confirm("Clear all local history? This will not alter any files.")) setHistory([]); }}><X size={13} /></button></div>
-        {!collapsedSections.history && <div className="history-list">{visibleHistory.length ? visibleHistory.map((event) => <button key={event.id} className="history-row" onClick={() => event.available ? openPath(event.path) : notify("Este arquivo não está mais disponível.")} title={event.previousPath ? `${event.previousPath} → ${event.path}` : event.path}>
+        {!collapsedSections.history && <div className="history-list">{visibleHistory.length ? visibleHistory.map((event) => <button key={event.id} className="history-row" onClick={() => event.available ? openPath(event.path) : notify("This file is no longer available.")} title={event.previousPath ? `${event.previousPath} → ${event.path}` : event.path}>
           <span className={`history-kind ${event.kind}`}>{statusLabel(event.kind)}</span><span className="history-file">{basename(event.path)}</span><time>{formatWhen(event.observedAt)}</time>
         </button>) : <div className="empty-sidebar">Changes from your agents will appear here.</div>}</div>}
       </section>
