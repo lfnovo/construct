@@ -1,14 +1,15 @@
 # Architecture
 
-Construct is a local-first desktop application built with Tauri, React, TypeScript, and Rust. The architecture keeps presentation and document interpretation in the webview while native filesystem authority remains in the Rust process.
+Construct is a local-first desktop application built with Tauri, React, TypeScript, and Rust. Presentation and lossless editing remain in the webview. Filesystem authority and retrieval-critical OKF interpretation live in the Rust process so future UI, index, CLI, and MCP consumers share one contract.
 
 ## System shape
 
 ```mermaid
 flowchart LR
     U[User] --> R[React workspace]
-    R --> P[Markdown and OKF parsers]
+    R --> P[Lossless Markdown editor boundary]
     R --> T[Tauri command boundary]
+    T --> O[Native OKF parser]
     T --> F[Filesystem and watcher]
     T --> G[Read-only Git commands]
     T --> S[Local workspace state]
@@ -30,7 +31,7 @@ The frontend lives in `src/`.
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
 | `markdownDocument.ts` | Lossless frontmatter/body boundaries and visual-editor serialization |
 | `review.ts` | Pure parsing, lossless review-block updates, and agent prompt serialization |
-| `okf.ts` | Pure OKF frontmatter inspection, link resolution, and graph inputs |
+| `okf.ts` | Typed native OKF response contracts plus preview-only link resolution |
 | `KnowledgeGraph.tsx` | Deterministic local graph layout and interactions |
 | `history.ts` | File identity across repeated changes and renames |
 | `explore.ts` | OKF filters and stable visual type assignment |
@@ -50,6 +51,20 @@ Pure domain logic should stay outside `App.tsx` so it can be tested without a we
 - workspace persistence;
 - read-only Git inspection;
 - Finder and external-link integration.
+
+`src-tauri/src/okf.rs` owns the shared, read-only OKF interpretation:
+
+- tolerant YAML frontmatter parsing for v0.1, v0.2, and future metadata;
+- an open-ended typed metadata tree plus normalized convenience fields;
+- technical document roles and stable findings;
+- CommonMark inline and reference link extraction;
+- safe bundle-relative path resolution and broken-link diagnostics;
+- the derived in-memory snapshot consumed by detection, Explore, and Graph.
+
+The parser is isolated from filesystem mutation. It receives saved files for
+bundle snapshots or an in-memory tab buffer for the inspector and never
+serializes YAML back into a document. YAML and CommonMark dependencies stay
+behind this module so they can be replaced without changing the Tauri contract.
 
 The frontend can operate only on files under registered locations. Path validation happens again in Rust; frontend checks are not a security boundary.
 
@@ -97,8 +112,15 @@ Malformed review data fails closed to Source rather than being rewritten.
 OKF support is derived and non-destructive:
 
 - the bundle remains the source of truth;
-- unknown metadata is preserved during inspection;
-- indexes and graphs are rebuilt from local Markdown;
+- unknown and nested YAML metadata is preserved as typed values during inspection;
+- `generated.at` is normalized as the preferred v0.2 timestamp while legacy
+  `timestamp` remains available;
+- stable findings describe malformed YAML, missing required fields,
+  compatibility behavior, broken links, and unsafe paths;
+- bundle detection, the inspector, Explore, and Graph consume the same native
+  interpretation;
+- indexes and graphs are still rebuilt from local Markdown; persistent indexing
+  belongs to the next retrieval RFC;
 - Construct never completes or rewrites OKF metadata automatically.
 
 ## Security boundaries
@@ -108,6 +130,8 @@ OKF support is derived and non-destructive:
 - Git commands are read-only and scoped to the file repository.
 - HTML is sanitized before preview.
 - Symlink traversal is disabled during discovery.
+- OKF inspection bounds document size, frontmatter size, and YAML nesting.
+- OKF links that normalize outside the registered bundle are rejected from the graph.
 - Native writes require a registered location and explicit save.
 
 ## Known pressure points

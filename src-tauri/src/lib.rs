@@ -13,6 +13,8 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, State};
 use walkdir::{DirEntry, WalkDir};
 
+mod okf;
+
 const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
     ".hg",
@@ -392,6 +394,35 @@ fn read_markdown_file(path: String, state: State<WatchState>) -> Result<FileCont
 }
 
 #[tauri::command]
+fn inspect_okf_document(request: okf::InspectDocumentRequest) -> okf::OkfInspection {
+    okf::inspect_document(request)
+}
+
+#[tauri::command]
+async fn inspect_okf_bundle(
+    path: String,
+    state: State<'_, WatchState>,
+) -> Result<okf::OkfBundleSnapshot, String> {
+    let root = normalize_path(&path)?;
+    if !root.is_dir() {
+        return Err("The Location is not available.".to_string());
+    }
+    if !is_allowed(&root, &state) {
+        return Err("This folder is not inside a registered Location.".to_string());
+    }
+    let files = collect_files(&root)?
+        .into_iter()
+        .map(|entry| okf::BundleFile {
+            path: PathBuf::from(entry.path),
+            relative_path: entry.relative_path,
+        })
+        .collect();
+    tauri::async_runtime::spawn_blocking(move || okf::inspect_bundle(&root, files))
+        .await
+        .map_err(|error| format!("The OKF inspection task failed: {error}"))?
+}
+
+#[tauri::command]
 fn write_markdown_file(request: WriteFileRequest, state: State<WatchState>) -> Result<(), String> {
     let path = require_allowed(&request.path, &state)?;
     if !is_markdown(&path) {
@@ -580,6 +611,8 @@ pub fn run() {
             set_watched_locations,
             list_markdown_files,
             read_markdown_file,
+            inspect_okf_document,
+            inspect_okf_bundle,
             read_image_data_url,
             write_markdown_file,
             get_git_info,

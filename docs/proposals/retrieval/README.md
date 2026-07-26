@@ -1,6 +1,6 @@
 # Local retrieval and agent access
 
-**Status:** Proposed
+**Status:** In progress — RFC 01 implemented; RFCs 02–06 proposed
 
 **Date:** 2026-07-26
 
@@ -43,14 +43,14 @@ This framing avoids two unhelpful extremes:
 The [research baseline](00-research-baseline.md) preserves the ecosystem
 evidence and low-risk experiments behind these RFCs.
 
-| RFC | Question it owns | Depends on |
-| --- | --- | --- |
-| [01 — OKF compatibility](01-okf-compatibility.md) | How should Construct consume OKF v0.1, v0.2, and future metadata safely? | Current Markdown boundary rules |
-| [02 — Local Markdown index](02-local-markdown-index.md) | How should all registered Markdown become incrementally searchable? | RFC 01 for OKF enrichment |
-| [03 — Knowledge search experience](03-knowledge-search-experience.md) | How should people search content without weakening quick file navigation? | RFC 02 |
-| [04 — Graph and context retrieval](04-graph-context-retrieval.md) | How should links improve discovery and produce bounded context packs? | RFCs 01–03 |
-| [05 — Local agent access](05-local-agent-access.md) | How should agents use the same retrieval core through CLI and MCP? | RFCs 02 and 04 |
-| [06 — Review integration](06-review-integration.md) | How should persisted review comments participate without polluting knowledge? | RFCs 02, 04, and 05 |
+| RFC | Status | Question it owns | Depends on |
+| --- | --- | --- | --- |
+| [01 — OKF compatibility](01-okf-compatibility.md) | Implemented | How should Construct consume OKF v0.1, v0.2, and future metadata safely? | Current Markdown boundary rules |
+| [02 — Local Markdown index](02-local-markdown-index.md) | Proposed | How should all registered Markdown become incrementally searchable? | RFC 01 for OKF enrichment |
+| [03 — Knowledge search experience](03-knowledge-search-experience.md) | Proposed | How should people search content without weakening quick file navigation? | RFC 02 |
+| [04 — Graph and context retrieval](04-graph-context-retrieval.md) | Proposed | How should links improve discovery and produce bounded context packs? | RFCs 01–03 |
+| [05 — Local agent access](05-local-agent-access.md) | Proposed | How should agents use the same retrieval core through CLI and MCP? | RFCs 02 and 04 |
+| [06 — Review integration](06-review-integration.md) | Proposed | How should persisted review comments participate without polluting knowledge? | RFCs 02, 04, and 05 |
 
 ## Shared invariants
 

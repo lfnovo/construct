@@ -8,7 +8,7 @@ import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./exp
 import { deduplicateHistory } from "./history";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
-import { extractOkfLinks, inspectOkfDocument, type OkfBundleIndex, type OkfConcept } from "./okf";
+import { formatOkfValue, type OkfBundleIndex, type OkfConcept, type OkfInspection } from "./okf";
 import { ReviewEditor } from "./ReviewEditor";
 import { splitReviewDocument } from "./review";
 import type {
@@ -113,12 +113,6 @@ function FileTree({ entries, onOpen, onContext }: { entries: FileEntry[]; onOpen
   return <div className="file-tree">{entries.length ? render(tree, "") : <p className="empty-sidebar">No Markdown files found.</p>}</div>;
 }
 
-async function mapInBatches<T, R>(items: T[], mapper: (item: T) => Promise<R>, batchSize = 12) {
-  const results: R[] = [];
-  for (let index = 0; index < items.length; index += batchSize) results.push(...await Promise.all(items.slice(index, index + batchSize).map(mapper)));
-  return results;
-}
-
 function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }: {
   location: LocationRecord;
   index: OkfBundleIndex | undefined;
@@ -141,7 +135,7 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }
   const typeColors = buildTypeColorMap(types.map(([type]) => type));
   const tags = [...tagCounts.entries()].sort(([leftName, leftCount], [rightName, rightCount]) => rightCount - leftCount || leftName.localeCompare(rightName));
   return <section className="bundle-explorer">
-    <header><div><h1>{location.name}</h1><p>OKF bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
+    <header><div><h1>{location.name}</h1><p>{index.declaredVersion ? `OKF ${index.declaredVersion}` : "OKF"} bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags{index.findingCount ? ` · ${index.findingCount} findings` : ""}</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
     <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list types">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} style={{ "--type-color": typeColors[type] } as CSSProperties} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}><i className="type-color-dot" />{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
     <div className="explore-results-heading"><h2>{filters.types.length || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.types.length || filters.tag) && <button onClick={() => onFilters({ types: [] })}>Clear filters</button>}</div>
     {view === "graph" ? <KnowledgeGraph concepts={concepts} typeColors={typeColors} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span className="concept-type" style={{ "--type-color": typeColors[concept.type] } as CSSProperties}>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
@@ -194,6 +188,7 @@ export default function App() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [showOkfInspector, setShowOkfInspector] = useState(false);
   const [okfIndexes, setOkfIndexes] = useState<Record<string, OkfBundleIndex>>({});
+  const [okfInspections, setOkfInspections] = useState<Record<string, { content: string; inspection: OkfInspection }>>({});
   const [exploreLocationId, setExploreLocationId] = useState<string | null>(null);
   const [exploreFilters, setExploreFilters] = useState<ExploreFilters>({ types: [] });
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -257,50 +252,40 @@ export default function App() {
     });
   }, [addHistory]);
 
-  const detectOkfBundle = useCallback(async (location: LocationRecord, entries: FileEntry[]) => {
-    if (location.okfMode === "manual") return Boolean(location.okfBundle);
-    const rootIndex = entries.find((entry) => entry.relativePath === "index.md");
-    if (!rootIndex) return false;
-    try {
-      const { content } = await api.readMarkdownFile(rootIndex.path);
-      const declaredVersion = Boolean(inspectOkfDocument(content, rootIndex.relativePath, true).metadata.okfVersion);
-      const candidates = entries.filter((entry) => !/(^|[\\/])(index|log)\.md$/i.test(entry.relativePath)).slice(0, 32);
-      const typedConcepts = (await mapInBatches(candidates, async (entry) => {
-        try {
-          const concept = inspectOkfDocument((await api.readMarkdownFile(entry.path)).content, entry.relativePath);
-          return concept.kind === "concept" && Boolean(concept.metadata.type?.trim());
-        } catch { return false; }
-      })).filter(Boolean).length;
-      const detected = declaredVersion || typedConcepts > 0;
-      setLocations((current) => current.map((item) => {
-        if (item.id !== location.id || item.okfMode === "manual") return item;
-        return detected ? { ...item, okfBundle: true, okfMode: "auto" } : { ...item, okfBundle: false, okfMode: "auto" };
-      }));
-      return detected;
-    } catch { return false; }
-  }, []);
-
-  const buildOkfIndex = useCallback(async (location: LocationRecord, entries: FileEntry[]) => {
+  const refreshOkfIndex = useCallback(async (location: LocationRecord, entries: FileEntry[]) => {
+    if (location.okfMode === "disabled" || (location.okfMode === "manual" && !location.okfBundle)) {
+      setOkfIndexes((current) => { const next = { ...current }; delete next[location.id]; return next; });
+      return false;
+    }
     const signature = entries.map((entry) => `${entry.path}:${entry.modifiedAtMs}:${entry.size}`).join("|");
-    if (okfIndexSignatures.current[location.id] === signature) return;
+    if (okfIndexSignatures.current[location.id] === signature) return Boolean(location.okfBundle);
     okfIndexSignatures.current[location.id] = signature;
     setOkfIndexes((current) => ({ ...current, [location.id]: { status: "scanning", concepts: current[location.id]?.concepts || [], signature } }));
     try {
-      const concepts = (await mapInBatches(entries, async (entry): Promise<OkfConcept | null> => {
-        try {
-          const { content } = await api.readMarkdownFile(entry.path);
-          const inspection = inspectOkfDocument(content, entry.relativePath, entry.relativePath === "index.md");
-          if (inspection.kind !== "concept") return null;
-          return { id: entry.relativePath.replace(/\.md$/i, ""), path: entry.path, relativePath: entry.relativePath, type: inspection.metadata.type || "Unclassified", title: inspection.metadata.title || basename(entry.relativePath).replace(/\.md$/i, ""), description: inspection.metadata.description, tags: inspection.metadata.tags, timestamp: inspection.metadata.timestamp, outgoingPaths: extractOkfLinks(content, entry.path, location.path), incomingPaths: [] };
-        } catch { return null; }
-      })).filter((concept): concept is OkfConcept => Boolean(concept));
-      const knownPaths = new Set(concepts.map((concept) => concept.path));
-      const incomingByPath = new Map<string, string[]>();
-      for (const concept of concepts) for (const target of concept.outgoingPaths) if (knownPaths.has(target)) incomingByPath.set(target, [...(incomingByPath.get(target) || []), concept.path]);
-      const connected = concepts.map((concept) => ({ ...concept, outgoingPaths: concept.outgoingPaths.filter((path) => knownPaths.has(path)), incomingPaths: incomingByPath.get(concept.path) || [] }));
-      setOkfIndexes((current) => ({ ...current, [location.id]: { status: "ready", concepts: connected, signature } }));
+      const snapshot = await api.inspectOkfBundle(location.path);
+      const enabled = location.okfMode === "manual" ? Boolean(location.okfBundle) : snapshot.detected;
+      if (location.okfMode !== "manual") {
+        setLocations((current) => current.map((item) => item.id === location.id
+          ? { ...item, okfBundle: enabled, okfMode: "auto" }
+          : item));
+      }
+      if (enabled) {
+        setOkfIndexes((current) => ({ ...current, [location.id]: {
+          status: "ready",
+          concepts: snapshot.concepts,
+          signature,
+          declaredVersion: snapshot.declaredVersion,
+          documentCount: snapshot.documentCount,
+          findingCount: snapshot.findingCount,
+          findings: snapshot.findings,
+        } }));
+      } else {
+        setOkfIndexes((current) => { const next = { ...current }; delete next[location.id]; return next; });
+      }
+      return enabled;
     } catch (error) {
       setOkfIndexes((current) => ({ ...current, [location.id]: { status: "error", concepts: [], signature, error: error instanceof Error ? error.message : String(error) } }));
+      return Boolean(location.okfBundle);
     }
   }, []);
 
@@ -309,9 +294,7 @@ export default function App() {
       const entries = await api.listMarkdownFiles(location.path);
       setFilesByLocation((current) => ({ ...current, [location.id]: entries }));
       reconcile(location, entries, source);
-      const isOkfBundle = await detectOkfBundle(location, entries);
-      if (isOkfBundle) void buildOkfIndex(location, entries);
-      else setOkfIndexes((current) => { const next = { ...current }; delete next[location.id]; return next; });
+      await refreshOkfIndex(location, entries);
       const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
       const candidates = Object.values(panesRef.current).flatMap((pane) => pane.tabs.filter((tab) => tab.locationId === location.id).map((tab) => ({ paneId: pane.id, tab })));
       setPanes((current) => Object.fromEntries(Object.entries(current).map(([paneId, pane]) => [paneId, {
@@ -338,7 +321,7 @@ export default function App() {
       setLocations((current) => current.map((item) => item.id === location.id ? { ...item, available: false } : item));
       setFilesByLocation((current) => ({ ...current, [location.id]: [] }));
     }
-  }, [buildOkfIndex, detectOkfBundle, reconcile]);
+  }, [reconcile, refreshOkfIndex]);
 
   const refreshAll = useCallback((source: HistoryEvent["source"] = "external") => Promise.all(locationsRef.current.map((location) => refreshLocation(location, source))), [refreshLocation]);
 
@@ -559,6 +542,43 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activePaneId, closeTab, findTab, saveTab]);
 
+  const inspectableOkfTabs = useMemo(() => {
+    const locationsById = new Map(locations.filter((location) => location.okfBundle).map((location) => [location.id, location]));
+    return Object.values(panes).flatMap((pane) => {
+      const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
+      if (!tab) return [];
+      const location = locationsById.get(tab.locationId);
+      return location ? [{ tab, location }] : [];
+    });
+  }, [locations, panes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void Promise.all(inspectableOkfTabs.map(async ({ tab, location }) => {
+        try {
+          const inspection = await api.inspectOkfDocument({
+            content: tab.content,
+            relativePath: tab.relativePath,
+            sourcePath: tab.path,
+            bundleRoot: location.path,
+            isBundleRoot: tab.relativePath.toLowerCase() === "index.md",
+          });
+          return [tab.id, { content: tab.content, inspection }] as const;
+        } catch {
+          return null;
+        }
+      })).then((results) => {
+        if (cancelled) return;
+        setOkfInspections(Object.fromEntries(results.filter((result): result is NonNullable<typeof result> => result !== null)));
+      });
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [inspectableOkfTabs]);
+
   const activeLocation = locations.find((location) => location.id === selectedLocationId) || null;
   const exploreLocation = locations.find((location) => location.id === exploreLocationId) || null;
   const fileResults = useMemo(() => Object.entries(filesByLocation).flatMap(([locationId, files]) => files.map((file) => ({ ...file, locationId }))).filter((file) => `${file.name} ${file.relativePath}`.toLowerCase().includes(query.toLowerCase())).slice(0, 100), [filesByLocation, query]);
@@ -574,9 +594,17 @@ export default function App() {
   const renderPane = (pane: Pane, active: boolean) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId) || null;
     const tabLocation = tab ? locationsRef.current.find((location) => location.id === tab.locationId) : null;
-    const okf = tab && tabLocation?.okfBundle ? inspectOkfDocument(tab.content, tab.relativePath, tab.relativePath === "index.md") : null;
+    const cachedInspection = tab ? okfInspections[tab.id] : undefined;
+    const bufferInspection = tab && tabLocation?.okfBundle && cachedInspection?.content === tab.content ? cachedInspection.inspection : null;
     const review = tab ? splitReviewDocument(tab.content) : null;
     const bundleIndex = tabLocation ? okfIndexes[tabLocation.id] : undefined;
+    const savedFindings = tab && !tab.dirty && bundleIndex?.status === "ready"
+      ? (bundleIndex.findings || []).filter((finding) => finding.relativePath === tab.relativePath)
+      : [];
+    const okf = bufferInspection ? {
+      ...bufferInspection,
+      findings: [...bufferInspection.findings, ...savedFindings.filter((saved) => !bufferInspection.findings.some((item) => item.code === saved.code && item.message === saved.message))],
+    } : null;
     const concept = tab && bundleIndex?.status === "ready" ? bundleIndex.concepts.find((item) => item.path === tab.path) : undefined;
     const outgoingConcepts = concept ? concept.outgoingPaths.map((path) => bundleIndex?.concepts.find((item) => item.path === path)).filter((item): item is OkfConcept => Boolean(item)) : [];
     const incomingConcepts = concept ? concept.incomingPaths.map((path) => bundleIndex?.concepts.find((item) => item.path === path)).filter((item): item is OkfConcept => Boolean(item)) : [];
@@ -625,13 +653,22 @@ export default function App() {
             {okf.metadata.type && <><dt>Type</dt><dd><button className="okf-metadata-link" onClick={() => { if (tabLocation) { setExploreFilters({ types: [okf.metadata.type!] }); setExploreLocationId(tabLocation.id); } }}>{okf.metadata.type}</button></dd></>}
             {okf.metadata.title && <><dt>Title</dt><dd>{okf.metadata.title}</dd></>}
             {okf.metadata.description && <><dt>Description</dt><dd>{okf.metadata.description}</dd></>}
-            {okf.metadata.resource && <><dt>Resource</dt><dd><a href={okf.metadata.resource} onClick={(event) => { event.preventDefault(); void api.openExternalUrl(okf.metadata.resource!); }}>{okf.metadata.resource}</a></dd></>}
-            {okf.metadata.timestamp && <><dt>Timestamp</dt><dd>{okf.metadata.timestamp}</dd></>}
+            {okf.metadata.resource && <><dt>Resource</dt><dd>{/^https?:\/\//i.test(okf.metadata.resource) ? <a href={okf.metadata.resource} onClick={(event) => { event.preventDefault(); void api.openExternalUrl(okf.metadata.resource!); }}>{okf.metadata.resource}</a> : okf.metadata.resource}</dd></>}
+            {okf.metadata.effectiveTimestamp && <><dt>Generated at</dt><dd>{okf.metadata.effectiveTimestamp}</dd></>}
             {okf.metadata.okfVersion && <><dt>OKF version</dt><dd>{okf.metadata.okfVersion}</dd></>}
+            {okf.metadata.status && <><dt>Status</dt><dd>{okf.metadata.status}</dd></>}
+            {okf.metadata.staleAfter && <><dt>Stale after</dt><dd>{okf.metadata.staleAfter}</dd></>}
+            {okf.metadata.sources && <><dt>Sources</dt><dd title={formatOkfValue(okf.metadata.sources)}>{formatOkfValue(okf.metadata.sources)}</dd></>}
+            {okf.metadata.generated && <><dt>Generated</dt><dd title={formatOkfValue(okf.metadata.generated)}>{formatOkfValue(okf.metadata.generated)}</dd></>}
+            {okf.metadata.verified && <><dt>Verified</dt><dd title={formatOkfValue(okf.metadata.verified)}>{formatOkfValue(okf.metadata.verified)}</dd></>}
+            {okf.metadata.extra.flatMap((entry) => [
+              <dt key={`${entry.name}-term`}>{entry.name}</dt>,
+              <dd key={`${entry.name}-value`} title={formatOkfValue(entry.value)}>{formatOkfValue(entry.value)}</dd>,
+            ])}
           </dl>
           {!!okf.metadata.tags.length && <div className="okf-tags">{okf.metadata.tags.map((tag) => <button key={tag} onClick={() => { if (tabLocation) { setExploreFilters({ types: [], tag }); setExploreLocationId(tabLocation.id); } }}>#{tag}</button>)}</div>}
           {concept && <div className="okf-relations"><div><h3>Links to</h3>{outgoingConcepts.length ? outgoingConcepts.map((item) => <button key={item.path} onClick={() => openPath(item.path)}>{item.title}</button>) : <p>No links to concepts in this bundle.</p>}</div><div><h3>Referenced by</h3>{incomingConcepts.length ? incomingConcepts.map((item) => <button key={item.path} onClick={() => openPath(item.path)}>{item.title}</button>) : <p>No concepts reference this document.</p>}</div></div>}
-          {!!okf.issues.length && <ul className="okf-issues">{okf.issues.map((issue) => <li key={issue.message} className={issue.level}>{issue.message}</li>)}</ul>}
+          {!!okf.findings.length && <ul className="okf-issues">{okf.findings.map((item) => <li key={`${item.code}-${item.message}`} className={item.severity} title={item.code}>{item.message}</li>)}</ul>}
         </aside>}
         <div className="document-content">
           {tab.mode === "source" && <CodeEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onSave={() => void saveTab(pane.id, tab.id)} />}

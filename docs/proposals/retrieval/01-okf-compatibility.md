@@ -1,6 +1,6 @@
 # RFC 01 — OKF compatibility
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Decision owner:** Product and native architecture
 
@@ -25,7 +25,7 @@ compatibility boundary:
 - UI inspection, future indexing, CLI, and MCP would otherwise implement
   different interpretations.
 
-## Proposed decision
+## Decision
 
 Construct consumes OKF v0.1 and v0.2 tolerantly in a shared native parser.
 Future versions are read on a best-effort basis and produce compatibility
@@ -43,8 +43,10 @@ The normalized view never replaces the original metadata.
 ### Bundle detection
 
 - A root `index.md` declaring `okf_version` is an automatic signal.
-- A location with typed concept documents may be detected as OKF even when the
-  optional version declaration is absent.
+- A location with a root `index.md` and typed concept documents may be detected
+  as OKF even when the optional version declaration is absent.
+- Typed examples nested inside an otherwise ordinary repository are not enough
+  to classify the entire location as OKF.
 - Users can explicitly mark or unmark a location.
 - A user decision takes precedence over automatic detection.
 - Detection never rewrites `index.md` or concept metadata.
@@ -157,15 +159,36 @@ The current lossless editor boundary remains separate:
 
 ## Open decisions
 
-- Which Rust YAML library best combines typed values, limits, and source ranges?
-- Which Markdown parser should own headings and link extraction?
-- Should initial v0.2 lifecycle metadata be displayed or only indexed?
-- Should wikilinks be an opt-in location compatibility setting?
-- Which public fixtures can be included under a compatible license?
+- YAML parsing uses `serde_yaml` behind the private native OKF module. Its
+  mature typed value model and location-aware errors fit the current contract;
+  because upstream is archived, the adapter boundary, synthetic fixtures, and
+  no-write design are intentionally prepared for a future library replacement.
+- CommonMark links are extracted with `pulldown-cmark`; inline and
+  reference-style links therefore share one parser.
+- The inspector displays v0.2 lifecycle, provenance, generation, verification,
+  and unknown metadata. Explore uses the preferred effective timestamp.
+- Wikilinks remain unsupported pending a separate opt-in compatibility decision.
+- Checked-in fixtures are original synthetic MIT-licensed project data; no
+  third-party fixture licensing is required.
+
+## Implementation
+
+The accepted contract is implemented by `src-tauri/src/okf.rs` and exposed
+through two typed commands:
+
+- `inspect_okf_document` inspects the current in-memory tab buffer;
+- `inspect_okf_bundle` reads a registered location and produces the shared
+  detection, concept, link, backlink, and finding snapshot.
+
+The former handwritten TypeScript YAML parser has been removed. `src/okf.ts`
+now contains only typed response contracts, value formatting, and preview link
+navigation. Fixture cases live in `tests/fixtures/okf`; `cases.json` is a
+table-driven extension point for new versions and regressions. An ignored
+10,000-document capacity probe provides a repeatable baseline without slowing
+normal validation.
 
 ## Dependencies and handoff
 
-This RFC is a prerequisite for OKF enrichment in the
-[local Markdown index](02-local-markdown-index.md). Accepted decisions must
-later update the current product specification and architecture before code is
-implemented.
+This implemented RFC is the compatibility prerequisite for OKF enrichment in
+the [local Markdown index](02-local-markdown-index.md). It does not add the
+persistent database or content search described by that next RFC.

@@ -1,0 +1,49 @@
+[
+  {
+    "bundle": "v01",
+    "relativePath": "index.md",
+    "kind": "index",
+    "conformant": true,
+    "okfVersion": "0.1",
+    "findingCodes": []
+  },
+  {
+    "bundle": "v01",
+    "relativePath": "concepts/construct.md",
+    "kind": "concept",
+    "conformant": true,
+    "type": "Knowledge Map",
+    "findingCodes": []
+  },
+  {
+    "bundle": "v02",
+    "relativePath": "concepts/revenue.md",
+    "kind": "concept",
+    "conformant": true,
+    "type": "Metric",
+    "findingCodes": []
+  },
+  {
+    "bundle": "future",
+    "relativePath": "concept.md",
+    "kind": "concept",
+    "conformant": true,
+    "type": "Future Concept",
+    "okfVersion": "0.9",
+    "findingCodes": ["OKF_VERSION_UNSUPPORTED"]
+  },
+  {
+    "bundle": "partial",
+    "relativePath": "missing-type.md",
+    "kind": "concept",
+    "conformant": false,
+    "findingCodes": ["OKF_TYPE_REQUIRED"]
+  },
+  {
+    "bundle": "partial",
+    "relativePath": "malformed.md",
+    "kind": "concept",
+    "conformant": false,
+    "findingCodes": ["OKF_YAML_INVALID", "OKF_TYPE_REQUIRED"]
+  }
+]
