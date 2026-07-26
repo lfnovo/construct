@@ -1,4 +1,4 @@
-# Agent Context — Especificação de Produto
+# Construct — Especificação de Produto
 
 > Documento vivo que define o comportamento esperado do produto. Decisões de implementação devem preservar estes requisitos ou atualizar explicitamente esta especificação.
 
@@ -9,11 +9,11 @@
 | Data | 17 de julho de 2026 |
 | Plataforma inicial | macOS |
 | Plataformas futuras | Windows e Linux |
-| Nome do produto | Provisório: **Agent Context** |
+| Nome do produto | **Construct** |
 
 ## 1. Resumo
 
-Agent Context é um aplicativo desktop para localizar, acompanhar, visualizar e editar arquivos de contexto produzidos por coding agents em diferentes projetos.
+Construct é um aplicativo desktop para localizar, acompanhar, visualizar e editar arquivos de contexto produzidos por coding agents em diferentes projetos.
 
 O produto atende principalmente pessoas que trabalham com agentes pelo terminal e não têm acesso conveniente aos arquivos do projeto durante a sessão. O aplicativo permite cadastrar pastas monitoradas, navegar recursivamente pelos arquivos Markdown, abrir múltiplos documentos em abas e painéis, visualizar Markdown renderizado, editar o conteúdo e acompanhar mudanças feitas externamente pelos agentes.
 
@@ -338,7 +338,7 @@ O Preview deve renderizar este fluxo, usado também como caso de validação vis
 flowchart LR
     A[Coding agent] --> B[Cria ou atualiza Markdown]
     B --> C[Watcher local]
-    C --> D[Agent Context]
+    C --> D[Construct]
     D --> E[Preview, Source ou Diff Git]
 ```
 

@@ -1,12 +1,12 @@
 [package]
-name = "agent-context"
+name = "construct"
 version = "0.1.0"
-description = "A desktop workspace for coding agent context files"
+description = "A desktop knowledge workspace for coding agents"
 authors = ["Luis Novo"]
 edition = "2021"
 
 [lib]
-name = "agent_context_lib"
+name = "construct_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

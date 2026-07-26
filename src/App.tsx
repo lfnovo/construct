@@ -466,7 +466,7 @@ export default function App() {
 
   const removeLocation = useCallback(async (locationId: string) => {
     const location = locationsRef.current.find((item) => item.id === locationId);
-    if (!location || !window.confirm(`Remove “${location.name}” from Agent Context? Its files will not be deleted.`)) return;
+    if (!location || !window.confirm(`Remove “${location.name}” from Construct? Its files will not be deleted.`)) return;
     const next = locationsRef.current.filter((item) => item.id !== locationId);
     setLocations(next);
     setSelectedLocationId((current) => current === locationId ? next[0]?.id || null : current);
@@ -572,7 +572,7 @@ export default function App() {
     const reloadExternal = () => { if (tab) void reloadTab(pane.id, tab.id); };
     return <section className={`editor-pane ${active ? "active" : ""}`}>
       <div className="tab-bar" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
-        const payload = event.dataTransfer.getData("application/agent-context-tab");
+        const payload = event.dataTransfer.getData("application/construct-tab");
         if (!payload) return;
         const { paneId, tabId } = JSON.parse(payload) as { paneId: string; tabId: string };
         setPanes((current) => {
@@ -583,7 +583,7 @@ export default function App() {
           return { ...current, [paneId]: { ...source, tabs: source.tabs.filter((item) => item.id !== tabId), activeTabId: source.activeTabId === tabId ? source.tabs.find((item) => item.id !== tabId)?.id || null : source.activeTabId }, [pane.id]: { ...target, tabs: [...target.tabs, moving], activeTabId: moving.id } };
         });
       }}>
-        <div className="tabs-scroll">{pane.tabs.map((item) => <div key={item.id} draggable className={`tab ${item.id === pane.activeTabId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-tab", JSON.stringify({ paneId: pane.id, tabId: item.id }))} onClick={() => setPane(pane.id, (current) => ({ ...current, activeTabId: item.id }))} onContextMenu={(event) => { event.preventDefault(); setTabContext({ tab: item, paneId: pane.id, x: event.clientX, y: event.clientY }); }} title={item.relativePath}>
+        <div className="tabs-scroll">{pane.tabs.map((item) => <div key={item.id} draggable className={`tab ${item.id === pane.activeTabId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-tab", JSON.stringify({ paneId: pane.id, tabId: item.id }))} onClick={() => setPane(pane.id, (current) => ({ ...current, activeTabId: item.id }))} onContextMenu={(event) => { event.preventDefault(); setTabContext({ tab: item, paneId: pane.id, x: event.clientX, y: event.clientY }); }} title={item.relativePath}>
           <span className={item.dirty ? "dirty-dot" : "file-tab-icon"}>{item.dirty ? "●" : "#"}</span><span>{item.title}</span><button aria-label={`Fechar ${item.title}`} onClick={(event) => { event.stopPropagation(); closeTab(pane.id, item.id); }}>×</button>
         </div>)}</div>
         <button className="icon-button" title="Split vertically" onClick={() => { setActivePaneId(pane.id); splitPane("horizontal"); }}><Columns2 size={14} /></button>
@@ -632,7 +632,7 @@ export default function App() {
     {sidebarHidden ? <aside className="sidebar-rail"><button className="sidebar-toggle" onClick={() => setSidebarHidden(false)} title="Show sidebar" aria-label="Show sidebar"><PanelLeftOpen size={16} /></button></aside> : <aside className="sidebar">
       <section className="sidebar-section locations-section">
         <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button><button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
-        {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/agent-context-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/agent-context-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
+        {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
           <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span>{location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}<button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>

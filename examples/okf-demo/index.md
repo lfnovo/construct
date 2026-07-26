@@ -2,11 +2,11 @@
 okf_version: "0.1"
 ---
 
-# Agent Context knowledge bundle
+# Construct knowledge bundle
 
 ## Product
 
-* [Agent Context system](systems/agent-context.md) - The local desktop reader for coding-agent context.
+* [Construct system](systems/agent-context.md) - The local desktop knowledge workspace for coding agents.
 
 ## Playbooks
 

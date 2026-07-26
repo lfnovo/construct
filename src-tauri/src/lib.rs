@@ -85,6 +85,11 @@ fn app_data_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir.join("workspace.json"))
 }
 
+fn legacy_app_data_file(app: &AppHandle) -> Option<PathBuf> {
+    let data_dir = app.path().app_data_dir().ok()?;
+    Some(data_dir.parent()?.join("com.luisnovo.agent-context").join("workspace.json"))
+}
+
 fn is_markdown(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -132,7 +137,7 @@ fn is_allowed(path: &Path, state: &WatchState) -> bool {
 fn require_allowed(path: &str, state: &WatchState) -> Result<PathBuf, String> {
     let candidate = normalize_path(path)?;
     if !is_allowed(&candidate, state) {
-        return Err("O arquivo não pertence a uma pasta cadastrada no Agent Context.".to_string());
+        return Err("The file is not inside a folder registered in Construct.".to_string());
     }
     Ok(candidate)
 }
@@ -209,10 +214,14 @@ fn collect_files(root: &Path) -> Result<Vec<FileEntry>, String> {
 #[tauri::command]
 fn load_app_state(app: AppHandle) -> Result<Value, String> {
     let path = app_data_file(&app)?;
-    if !path.exists() {
+    let source = if path.exists() {
+        path
+    } else if let Some(legacy) = legacy_app_data_file(&app).filter(|candidate| candidate.exists()) {
+        legacy
+    } else {
         return Ok(serde_json::json!({}));
-    }
-    let contents = fs::read_to_string(&path)
+    };
+    let contents = fs::read_to_string(&source)
         .map_err(|error| format!("Não foi possível ler o workspace salvo: {error}"))?;
     serde_json::from_str(&contents)
         .map_err(|error| format!("O workspace salvo está inválido: {error}"))
@@ -437,7 +446,7 @@ pub fn run() {
             open_external_url,
         ])
         .run(tauri::generate_context!())
-        .expect("erro ao executar o Agent Context");
+        .expect("erro ao executar o Construct");
 }
 
 #[cfg(test)]

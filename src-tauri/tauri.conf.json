@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Agent Context",
+  "productName": "Construct",
   "version": "0.1.0",
-  "identifier": "com.luisnovo.agent-context",
+  "identifier": "com.luisnovo.construct",
   "build": {
     "beforeDevCommand": "npm run dev:web",
     "devUrl": "http://127.0.0.1:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Agent Context",
+        "title": "Construct",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

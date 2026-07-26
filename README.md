@@ -1,6 +1,6 @@
-# Agent Context
+# Construct
 
-Aplicativo desktop local para acompanhar e editar arquivos Markdown produzidos por coding agents.
+Um workspace desktop local para acompanhar, conectar e editar o conhecimento produzido por coding agents.
 
 ## O que já funciona
 
@@ -43,7 +43,7 @@ cd src-tauri && cargo check
 npm run build
 ```
 
-O bundle `.app` é gerado em `src-tauri/target/release/bundle/macos/Agent Context.app`.
+O bundle `.app` é gerado em `src-tauri/target/release/bundle/macos/Construct.app`.
 
 ## Documento de produto
 
