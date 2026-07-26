@@ -2,4 +2,11 @@ node_modules/
 dist/
 src-tauri/target/
 .DS_Store
-
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.log
+*.swp
+coverage/

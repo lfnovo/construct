@@ -1,50 +1,80 @@
-# Construct
+<p align="center">
+  <img src="src-tauri/app-icon.svg" width="128" height="128" alt="Construct icon">
+</p>
 
-Um workspace desktop local para acompanhar, conectar e editar o conhecimento produzido por coding agents.
+<h1 align="center">Construct</h1>
 
-## O que já funciona
+<p align="center">
+  A local-first desktop knowledge workspace for coding agents.
+</p>
 
-- cadastro persistente de pastas (Locais);
-- descoberta recursiva de `.md` e `.markdown`, incluindo diretórios ocultos relevantes;
-- exclusão de diretórios de dependências, cache e build;
-- monitoramento de mudanças no sistema de arquivos;
-- Histórico local de eventos por 30 dias;
-- Source com editor Markdown e salvamento explícito;
-- Preview CommonMark/GFM com tabelas, checklists, highlighting, Mermaid, links e imagens locais;
-- abas, drag-and-drop entre painéis e divisões horizontal/vertical;
-- busca por nome/caminho com `⌘P`;
-- integração Git somente leitura e diff contra `HEAD`;
-- restauração de Locais, histórico, layout, abas e modos de visualização.
+Construct watches the project folders where you work with coding agents and gives their Markdown output a dedicated place to live. Browse recent changes, read rendered documents, edit source, compare Git changes, arrange files in panes, and explore connected [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundles.
 
-## Requisitos de desenvolvimento
+> **Status:** early preview for macOS. Construct is useful today, but distribution, signing, and large-workspace hardening are still in progress.
 
-- macOS com Xcode Command Line Tools;
-- Node.js 22 ou posterior;
-- Rust estável, via `rustup`.
+## Why Construct
 
-## Desenvolvimento
+Terminal-first agent workflows are excellent for conversation and execution, but poor at exposing the plans, specifications, reports, and knowledge files agents leave behind. Construct stays beside the terminal and turns those files into a navigable workspace without uploading their contents.
+
+## Features
+
+- Multiple local project folders with recursive Markdown discovery.
+- Automatic filesystem monitoring and a deduplicated 30-day history.
+- Tabs, horizontal and vertical panes, and workspace restoration.
+- Editable Markdown source with explicit saves and conflict protection.
+- GFM preview with syntax highlighting, local images, and Mermaid.
+- Read-only Git status and diff against `HEAD`.
+- Dark and light themes, quick open, and Finder integration.
+- OKF bundle detection, metadata inspection, types, tags, links, and backlinks.
+- OKF List and Graph views with multi-type filtering and stable type colors.
+
+## Privacy
+
+Construct processes project files locally. It does not require an account, send document content to remote services, or write to Git. External links open only after an explicit user action.
+
+See [SECURITY.md](SECURITY.md) for reporting and security boundaries.
+
+## Run from source
+
+Requirements:
+
+- macOS 13 or newer;
+- Node.js 22;
+- the Rust toolchain declared in `rust-toolchain.toml`;
+- Xcode Command Line Tools.
 
 ```bash
-npm install
+git clone <repository-url>
+cd construct
+npm ci
 npm run dev
 ```
 
-## Verificações
+## Validation
 
 ```bash
-npm run check
-npm run build:web
-cd src-tauri && cargo check
-```
-
-## Bundle macOS
-
-```bash
+npm run validate
 npm run build
 ```
 
-O bundle `.app` é gerado em `src-tauri/target/release/bundle/macos/Construct.app`.
+The macOS bundle is written to:
 
-## Documento de produto
+```text
+src-tauri/target/release/bundle/macos/Construct.app
+```
 
-A especificação detalhada do MVP está em [docs/product-spec.md](docs/product-spec.md).
+## Project documentation
+
+- [Product specification](docs/product-spec.md)
+- [Architecture](docs/architecture.md)
+- [Contributing](CONTRIBUTING.md)
+- [Release process](docs/releasing.md)
+- [Security policy](SECURITY.md)
+
+## Roadmap
+
+The current priority is a reliable macOS preview release. Later candidates include Windows and Linux, YAML and JSON, full-text search, configurable exclusions, file management, and signed automatic updates.
+
+## License
+
+The project license will be declared before the first public release.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { OkfConcept } from "./okf";
 
 const GRAPH_WIDTH = 1200;
@@ -122,10 +122,6 @@ export function KnowledgeGraph({ concepts, typeColors, onOpen }: {
   const selected = graph.nodes.find((node) => node.path === selectedPath) || null;
   const relatedPaths = useMemo(() => selected ? new Set([...selected.outgoingPaths, ...selected.incomingPaths, selected.path]) : null, [selected]);
 
-  useEffect(() => {
-    if (selectedPath && !graph.nodes.some((node) => node.path === selectedPath)) setSelectedPath(null);
-  }, [graph.nodes, selectedPath]);
-
   if (!graph.nodes.length) return <div className="knowledge-graph-empty">No concepts match the current filters.</div>;
 
   return <div className="knowledge-graph">
@@ -181,7 +177,8 @@ export function KnowledgeGraph({ concepts, typeColors, onOpen }: {
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    isSelected ? onOpen(node.path) : setSelectedPath(node.path);
+                    if (isSelected) onOpen(node.path);
+                    else setSelectedPath(node.path);
                   }
                 }}
               >

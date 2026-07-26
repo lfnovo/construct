@@ -19,8 +19,11 @@ export function CodeEditor({ tabId, value, readOnly, onChange, onSave }: Props) 
   const editableCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
-  onChangeRef.current = onChange;
-  onSaveRef.current = onSave;
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onSaveRef.current = onSave;
+  }, [onChange, onSave]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -59,6 +62,9 @@ export function CodeEditor({ tabId, value, readOnly, onChange, onSave }: Props) 
     });
     viewRef.current = view;
     return () => view.destroy();
+    // Recreate the editor only when the active tab changes. Later effects synchronize
+    // value and read-only state without destroying selection or undo history.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabId]);
 
   useEffect(() => {

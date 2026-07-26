@@ -25,7 +25,7 @@ function MermaidDiagram({ code }: { code: string }) {
     mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
     mermaid.render(`mermaid-${id}`, code)
       .then((result) => { if (!cancelled) { setSvg(result.svg); setError(null); } })
-      .catch(() => { if (!cancelled) { setSvg(""); setError("Não foi possível renderizar este diagrama Mermaid."); } });
+      .catch(() => { if (!cancelled) { setSvg(""); setError("This Mermaid diagram could not be rendered."); } });
     return () => { cancelled = true; };
   }, [code, id]);
 
@@ -34,15 +34,25 @@ function MermaidDiagram({ code }: { code: string }) {
 }
 
 function LocalImage({ src = "", alt = "", sourcePath, bundleRoot }: { src?: string; alt?: string; sourcePath: string; bundleRoot?: string }) {
-  const [resolved, setResolved] = useState<string | null>(null);
+  const directSource = src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:");
+  const localPath = directSource ? null : resolveOkfLink(sourcePath, bundleRoot, src);
+  const [loaded, setLoaded] = useState<{ path: string; url: string } | null>(null);
   useEffect(() => {
-    if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:")) {
-      setResolved(src);
-      return;
-    }
-    void api.readImageDataUrl(resolveOkfLink(sourcePath, bundleRoot, src)).then(setResolved).catch(() => setResolved(null));
-  }, [bundleRoot, sourcePath, src]);
-  return resolved ? <img src={resolved} alt={alt} /> : <span className="missing-image">Imagem indisponível: {alt || src}</span>;
+    if (!localPath) return;
+    let cancelled = false;
+    void api.readImageDataUrl(localPath)
+      .then((url) => {
+        if (!cancelled) setLoaded({ path: localPath, url });
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [localPath]);
+  const resolved = directSource ? src : loaded?.path === localPath ? loaded.url : null;
+  return resolved ? <img src={resolved} alt={alt} /> : <span className="missing-image">Image unavailable: {alt || src}</span>;
 }
 
 export function MarkdownPreview({ content, sourcePath, bundleRoot, onOpenInternal }: Props) {

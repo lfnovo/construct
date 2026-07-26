@@ -1,5 +1,5 @@
-use chrono::Utc;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use chrono::Utc;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,10 +14,35 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use walkdir::{DirEntry, WalkDir};
 
 const IGNORED_DIRECTORIES: &[&str] = &[
-    ".git", ".hg", ".svn", "node_modules", "vendor", ".venv", "venv", "__pycache__",
-    ".pytest_cache", ".mypy_cache", ".ruff_cache", "target", "dist", "build", "out",
-    ".next", ".nuxt", ".svelte-kit", ".gradle", ".idea", "Pods", "DerivedData", "bin",
-    "obj", ".terraform", ".dart_tool", ".pub-cache", "coverage", ".coverage",
+    ".git",
+    ".hg",
+    ".svn",
+    "node_modules",
+    "vendor",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "target",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".gradle",
+    ".idea",
+    "Pods",
+    "DerivedData",
+    "bin",
+    "obj",
+    ".terraform",
+    ".dart_tool",
+    ".pub-cache",
+    "coverage",
+    ".coverage",
 ];
 
 #[derive(Default)]
@@ -79,15 +104,20 @@ fn app_data_file(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app
         .path()
         .app_data_dir()
-        .map_err(|error| format!("Não foi possível localizar os dados do aplicativo: {error}"))?;
+        .map_err(|error| format!("Could not locate the application data directory: {error}"))?;
     fs::create_dir_all(&data_dir)
-        .map_err(|error| format!("Não foi possível criar os dados do aplicativo: {error}"))?;
+        .map_err(|error| format!("Could not create the application data directory: {error}"))?;
     Ok(data_dir.join("workspace.json"))
 }
 
 fn legacy_app_data_file(app: &AppHandle) -> Option<PathBuf> {
     let data_dir = app.path().app_data_dir().ok()?;
-    Some(data_dir.parent()?.join("com.luisnovo.agent-context").join("workspace.json"))
+    Some(
+        data_dir
+            .parent()?
+            .join("com.luisnovo.agent-context")
+            .join("workspace.json"),
+    )
 }
 
 fn is_markdown(path: &Path) -> bool {
@@ -104,7 +134,11 @@ fn is_ignored_entry(entry: &DirEntry) -> bool {
     entry
         .file_name()
         .to_str()
-        .map(|name| IGNORED_DIRECTORIES.iter().any(|ignored| name.eq_ignore_ascii_case(ignored)))
+        .map(|name| {
+            IGNORED_DIRECTORIES
+                .iter()
+                .any(|ignored| name.eq_ignore_ascii_case(ignored))
+        })
         .unwrap_or(false)
 }
 
@@ -121,7 +155,7 @@ fn normalize_path(path: &str) -> Result<PathBuf, String> {
     let candidate = PathBuf::from(path);
     candidate
         .canonicalize()
-        .map_err(|error| format!("Não foi possível acessar '{}': {error}", candidate.display()))
+        .map_err(|error| format!("Could not access '{}': {error}", candidate.display()))
 }
 
 fn is_allowed(path: &Path, state: &WatchState) -> bool {
@@ -147,13 +181,13 @@ fn run_git(path: &Path, arguments: &[&str]) -> Result<std::process::Output, Stri
         .current_dir(path.parent().unwrap_or(path))
         .args(arguments)
         .output()
-        .map_err(|error| format!("Não foi possível executar o Git: {error}"))
+        .map_err(|error| format!("Could not run Git: {error}"))
 }
 
 fn git_root(path: &Path) -> Result<PathBuf, String> {
     let output = run_git(path, &["rev-parse", "--show-toplevel"])?;
     if !output.status.success() {
-        return Err("Este arquivo não pertence a um repositório Git.".to_string());
+        return Err("This file is not inside a Git repository.".to_string());
     }
     let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
     normalize_path(&root)
@@ -167,7 +201,10 @@ fn git_status(path: &Path, root: &Path) -> Option<String> {
         .output()
         .ok()?;
     let status = String::from_utf8_lossy(&output.stdout);
-    status.get(0..2).map(|value| value.trim().to_string()).filter(|value| !value.is_empty())
+    status
+        .get(0..2)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn git_has_head(root: &Path) -> bool {
@@ -186,17 +223,17 @@ fn collect_files(root: &Path) -> Result<Vec<FileEntry>, String> {
         .into_iter()
         .filter_entry(|entry| !is_ignored_entry(entry))
     {
-        let entry = entry.map_err(|error| format!("Falha ao percorrer a pasta: {error}"))?;
+        let entry = entry.map_err(|error| format!("Could not walk the folder: {error}"))?;
         if !entry.file_type().is_file() || !is_markdown(entry.path()) {
             continue;
         }
         let metadata = entry
             .metadata()
-            .map_err(|error| format!("Falha ao ler metadados: {error}"))?;
+            .map_err(|error| format!("Could not read file metadata: {error}"))?;
         let relative_path = entry
             .path()
             .strip_prefix(root)
-            .map_err(|error| format!("Falha ao calcular caminho relativo: {error}"))?
+            .map_err(|error| format!("Could not calculate the relative path: {error}"))?
             .to_string_lossy()
             .to_string();
         entries.push(FileEntry {
@@ -207,7 +244,7 @@ fn collect_files(root: &Path) -> Result<Vec<FileEntry>, String> {
             size: metadata.len(),
         });
     }
-    entries.sort_by(|left, right| left.relative_path.to_lowercase().cmp(&right.relative_path.to_lowercase()));
+    entries.sort_by_key(|entry| entry.relative_path.to_lowercase());
     Ok(entries)
 }
 
@@ -222,7 +259,7 @@ fn load_app_state(app: AppHandle) -> Result<Value, String> {
         return Ok(serde_json::json!({}));
     };
     let contents = fs::read_to_string(&source)
-        .map_err(|error| format!("Não foi possível ler o workspace salvo: {error}"))?;
+        .map_err(|error| format!("Could not read the saved workspace: {error}"))?;
     serde_json::from_str(&contents)
         .map_err(|error| format!("O workspace salvo está inválido: {error}"))
 }
@@ -232,20 +269,28 @@ fn save_app_state(app: AppHandle, state: Value) -> Result<(), String> {
     let path = app_data_file(&app)?;
     let temporary = path.with_extension("json.tmp");
     let serialized = serde_json::to_string_pretty(&state)
-        .map_err(|error| format!("Não foi possível serializar o workspace: {error}"))?;
+        .map_err(|error| format!("Could not serialize the workspace: {error}"))?;
     fs::write(&temporary, serialized)
-        .map_err(|error| format!("Não foi possível salvar o workspace: {error}"))?;
+        .map_err(|error| format!("Could not write the workspace: {error}"))?;
     fs::rename(&temporary, &path)
-        .map_err(|error| format!("Não foi possível finalizar o salvamento do workspace: {error}"))
+        .map_err(|error| format!("Could not finish saving the workspace: {error}"))
 }
 
 #[tauri::command]
-fn set_watched_locations(app: AppHandle, state: State<WatchState>, locations: Vec<String>) -> Result<Vec<String>, String> {
+fn set_watched_locations(
+    app: AppHandle,
+    state: State<WatchState>,
+    locations: Vec<String>,
+) -> Result<Vec<String>, String> {
     let mut unique_roots = Vec::new();
     let mut seen = HashSet::new();
     for location in locations {
-        let Ok(root) = normalize_path(&location) else { continue; };
-        if !root.is_dir() { continue; }
+        let Ok(root) = normalize_path(&location) else {
+            continue;
+        };
+        if !root.is_dir() {
+            continue;
+        }
         if seen.insert(root.clone()) {
             unique_roots.push(root);
         }
@@ -254,42 +299,60 @@ fn set_watched_locations(app: AppHandle, state: State<WatchState>, locations: Ve
     let mut next_watchers = Vec::new();
     for root in &unique_roots {
         let app_handle = app.clone();
-        let mut watcher = notify::recommended_watcher(move |event: Result<Event, notify::Error>| {
-            if let Ok(event) = event {
-                let payload = FsChange {
-                    paths: event.paths.iter().map(|path| path.to_string_lossy().to_string()).collect(),
-                    kind: format!("{:?}", event.kind),
-                };
-                let _ = app_handle.emit("filesystem-change", payload);
-            }
-        })
-        .map_err(|error| format!("Não foi possível iniciar o monitoramento: {error}"))?;
+        let mut watcher =
+            notify::recommended_watcher(move |event: Result<Event, notify::Error>| {
+                if let Ok(event) = event {
+                    let payload = FsChange {
+                        paths: event
+                            .paths
+                            .iter()
+                            .map(|path| path.to_string_lossy().to_string())
+                            .collect(),
+                        kind: format!("{:?}", event.kind),
+                    };
+                    let _ = app_handle.emit("filesystem-change", payload);
+                }
+            })
+            .map_err(|error| format!("Could not start filesystem monitoring: {error}"))?;
         watcher
             .configure(Config::default())
-            .map_err(|error| format!("Não foi possível configurar o monitoramento: {error}"))?;
+            .map_err(|error| format!("Could not configure filesystem monitoring: {error}"))?;
         watcher
             .watch(root, RecursiveMode::Recursive)
-            .map_err(|error| format!("Não foi possível monitorar '{}': {error}", root.display()))?;
+            .map_err(|error| format!("Could not watch '{}': {error}", root.display()))?;
         next_watchers.push(watcher);
     }
 
-    *state.roots.lock().map_err(|_| "O monitoramento está indisponível.".to_string())? = unique_roots.clone();
-    *state.watchers.lock().map_err(|_| "O monitoramento está indisponível.".to_string())? = next_watchers;
-    Ok(unique_roots.iter().map(|root| root.to_string_lossy().to_string()).collect())
+    *state
+        .roots
+        .lock()
+        .map_err(|_| "Filesystem monitoring is unavailable.".to_string())? = unique_roots.clone();
+    *state
+        .watchers
+        .lock()
+        .map_err(|_| "Filesystem monitoring is unavailable.".to_string())? = next_watchers;
+    Ok(unique_roots
+        .iter()
+        .map(|root| root.to_string_lossy().to_string())
+        .collect())
 }
 
 #[tauri::command]
 fn read_image_data_url(path: String, state: State<WatchState>) -> Result<String, String> {
     let path = require_allowed(&path, &state)?;
-    let mime = match path.extension().and_then(|extension| extension.to_str()).map(|extension| extension.to_ascii_lowercase()) {
+    let mime = match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+    {
         Some(extension) if extension == "png" => "image/png",
         Some(extension) if extension == "jpg" || extension == "jpeg" => "image/jpeg",
         Some(extension) if extension == "gif" => "image/gif",
         Some(extension) if extension == "webp" => "image/webp",
         Some(extension) if extension == "svg" => "image/svg+xml",
-        _ => return Err("Este tipo de imagem não é suportado no Preview.".to_string()),
+        _ => return Err("This image type is not supported in Preview.".to_string()),
     };
-    let bytes = fs::read(&path).map_err(|error| format!("Não foi possível ler a imagem: {error}"))?;
+    let bytes = fs::read(&path).map_err(|error| format!("Could not read the image: {error}"))?;
     Ok(format!("data:{mime};base64,{}", BASE64.encode(bytes)))
 }
 
@@ -300,7 +363,7 @@ fn list_markdown_files(path: String, state: State<WatchState>) -> Result<Vec<Fil
         return Err("O Local não está disponível.".to_string());
     }
     if !is_allowed(&root, &state) {
-        return Err("A pasta não pertence aos Locais cadastrados.".to_string());
+        return Err("This folder is not inside a registered Location.".to_string());
     }
     collect_files(&root)
 }
@@ -309,12 +372,18 @@ fn list_markdown_files(path: String, state: State<WatchState>) -> Result<Vec<Fil
 fn read_markdown_file(path: String, state: State<WatchState>) -> Result<FileContent, String> {
     let path = require_allowed(&path, &state)?;
     if !is_markdown(&path) {
-        return Err("Somente arquivos Markdown são suportados nesta versão.".to_string());
+        return Err("Only Markdown files are supported in this version.".to_string());
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("Não foi possível ler o arquivo: {error}"))?;
-    let metadata = fs::metadata(&path).map_err(|error| format!("Não foi possível ler metadados: {error}"))?;
-    let line_ending = if content.contains("\r\n") { "CRLF" } else { "LF" }.to_string();
+    let content =
+        fs::read_to_string(&path).map_err(|error| format!("Could not read the file: {error}"))?;
+    let metadata =
+        fs::metadata(&path).map_err(|error| format!("Could not read file metadata: {error}"))?;
+    let line_ending = if content.contains("\r\n") {
+        "CRLF"
+    } else {
+        "LF"
+    }
+    .to_string();
     Ok(FileContent {
         content,
         line_ending,
@@ -326,21 +395,30 @@ fn read_markdown_file(path: String, state: State<WatchState>) -> Result<FileCont
 fn write_markdown_file(request: WriteFileRequest, state: State<WatchState>) -> Result<(), String> {
     let path = require_allowed(&request.path, &state)?;
     if !is_markdown(&path) {
-        return Err("Somente arquivos Markdown são suportados nesta versão.".to_string());
+        return Err("Only Markdown files are supported in this version.".to_string());
     }
-    let parent = path.parent().ok_or_else(|| "O arquivo não possui pasta pai.".to_string())?;
-    let temporary = parent.join(format!(".agent-context-{}.tmp", Utc::now().timestamp_nanos_opt().unwrap_or_default()));
+    let parent = path
+        .parent()
+        .ok_or_else(|| "The file does not have a parent folder.".to_string())?;
+    let temporary = parent.join(format!(
+        ".construct-{}.tmp",
+        Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
     fs::write(&temporary, request.content)
-        .map_err(|error| format!("Não foi possível gravar o arquivo temporário: {error}"))?;
-    fs::rename(&temporary, &path)
-        .map_err(|error| format!("Não foi possível salvar o arquivo: {error}"))
+        .map_err(|error| format!("Could not write the temporary file: {error}"))?;
+    fs::rename(&temporary, &path).map_err(|error| format!("Could not save the file: {error}"))
 }
 
 #[tauri::command]
 fn get_git_info(path: String, state: State<WatchState>) -> Result<GitInfo, String> {
     let path = require_allowed(&path, &state)?;
     let Ok(root) = git_root(&path) else {
-        return Ok(GitInfo { available: false, repo_root: None, status: None, has_head: false });
+        return Ok(GitInfo {
+            available: false,
+            repo_root: None,
+            status: None,
+            has_head: false,
+        });
     };
     Ok(GitInfo {
         available: true,
@@ -351,17 +429,42 @@ fn get_git_info(path: String, state: State<WatchState>) -> Result<GitInfo, Strin
 }
 
 #[tauri::command]
-fn get_git_diff(path: String, content: Option<String>, state: State<WatchState>) -> Result<GitDiff, String> {
+fn get_git_diff(
+    path: String,
+    content: Option<String>,
+    state: State<WatchState>,
+) -> Result<GitDiff, String> {
     let path = require_allowed(&path, &state)?;
     let root = match git_root(&path) {
         Ok(root) => root,
-        Err(_) => return Ok(GitDiff { available: false, diff: String::new(), message: Some("Este arquivo não pertence a um repositório Git.".to_string()) }),
+        Err(_) => {
+            return Ok(GitDiff {
+                available: false,
+                diff: String::new(),
+                message: Some("This file is not inside a Git repository.".to_string()),
+            })
+        }
     };
-    let relative = path.strip_prefix(&root).map_err(|error| format!("Falha ao calcular caminho Git: {error}"))?.to_string_lossy().to_string();
+    let relative = path
+        .strip_prefix(&root)
+        .map_err(|error| format!("Could not calculate the Git path: {error}"))?
+        .to_string_lossy()
+        .to_string();
     if !git_has_head(&root) {
         let current = content.unwrap_or_else(|| fs::read_to_string(&path).unwrap_or_default());
-        let diff = current.lines().map(|line| format!("+{line}")).collect::<Vec<_>>().join("\n");
-        return Ok(GitDiff { available: true, diff, message: Some("O repositório ainda não possui HEAD; o arquivo é exibido como adição.".to_string()) });
+        let diff = current
+            .lines()
+            .map(|line| format!("+{line}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Ok(GitDiff {
+            available: true,
+            diff,
+            message: Some(
+                "This repository does not have a HEAD yet; the file is shown as an addition."
+                    .to_string(),
+            ),
+        });
     }
     if let Some(buffer) = content {
         let head = Command::new("git")
@@ -369,35 +472,72 @@ fn get_git_diff(path: String, content: Option<String>, state: State<WatchState>)
             .args(["show", &format!("HEAD:{relative}")])
             .output();
         let baseline = if let Ok(output) = head {
-            if output.status.success() { String::from_utf8_lossy(&output.stdout).to_string() } else { String::new() }
-        } else { String::new() };
+            if output.status.success() {
+                String::from_utf8_lossy(&output.stdout).to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
         let temporary_dir = std::env::temp_dir();
         let stamp = Utc::now().timestamp_nanos_opt().unwrap_or_default();
-        let before = temporary_dir.join(format!("agent-context-before-{stamp}.md"));
-        let after = temporary_dir.join(format!("agent-context-after-{stamp}.md"));
-        fs::write(&before, baseline).map_err(|error| format!("Não foi possível preparar o diff: {error}"))?;
-        fs::write(&after, buffer).map_err(|error| format!("Não foi possível preparar o diff: {error}"))?;
-        let output = Command::new("git").args(["diff", "--no-index", "--no-color", "--", &before.to_string_lossy(), &after.to_string_lossy()]).output();
+        let before = temporary_dir.join(format!("construct-before-{stamp}.md"));
+        let after = temporary_dir.join(format!("construct-after-{stamp}.md"));
+        fs::write(&before, baseline)
+            .map_err(|error| format!("Could not prepare the diff: {error}"))?;
+        fs::write(&after, buffer)
+            .map_err(|error| format!("Could not prepare the diff: {error}"))?;
+        let output = Command::new("git")
+            .args([
+                "diff",
+                "--no-index",
+                "--no-color",
+                "--",
+                &before.to_string_lossy(),
+                &after.to_string_lossy(),
+            ])
+            .output();
         let _ = fs::remove_file(&before);
         let _ = fs::remove_file(&after);
-        let output = output.map_err(|error| format!("Não foi possível gerar o diff: {error}"))?;
-        return Ok(GitDiff { available: true, diff: String::from_utf8_lossy(&output.stdout).to_string(), message: Some("O diff inclui alterações ainda não salvas.".to_string()) });
+        let output = output.map_err(|error| format!("Could not generate the diff: {error}"))?;
+        return Ok(GitDiff {
+            available: true,
+            diff: String::from_utf8_lossy(&output.stdout).to_string(),
+            message: Some("The diff includes unsaved changes.".to_string()),
+        });
     }
     let output = Command::new("git")
         .current_dir(&root)
         .args(["diff", "--no-color", "HEAD", "--", &relative])
         .output()
-        .map_err(|error| format!("Não foi possível gerar o diff: {error}"))?;
+        .map_err(|error| format!("Could not generate the diff: {error}"))?;
     if output.status.success() {
         let diff = String::from_utf8_lossy(&output.stdout).to_string();
         if diff.is_empty() && git_status(&path, &root).is_some() {
             let current = fs::read_to_string(&path).unwrap_or_default();
-            let additions = current.lines().map(|line| format!("+{line}")).collect::<Vec<_>>().join("\n");
-            return Ok(GitDiff { available: true, diff: additions, message: Some("Arquivo não rastreado; exibido como adição.".to_string()) });
+            let additions = current
+                .lines()
+                .map(|line| format!("+{line}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Ok(GitDiff {
+                available: true,
+                diff: additions,
+                message: Some("Untracked file; shown as an addition.".to_string()),
+            });
         }
-        return Ok(GitDiff { available: true, diff, message: None });
+        return Ok(GitDiff {
+            available: true,
+            diff,
+            message: None,
+        });
     }
-    Ok(GitDiff { available: true, diff: String::new(), message: Some(String::from_utf8_lossy(&output.stderr).to_string()) })
+    Ok(GitDiff {
+        available: true,
+        diff: String::new(),
+        message: Some(String::from_utf8_lossy(&output.stderr).to_string()),
+    })
 }
 
 #[tauri::command]
@@ -408,15 +548,17 @@ fn reveal_in_file_manager(path: String, state: State<WatchState>) -> Result<(), 
     #[cfg(target_os = "windows")]
     let result = Command::new("explorer").arg("/select,").arg(&path).status();
     #[cfg(target_os = "linux")]
-    let result = Command::new("xdg-open").arg(path.parent().unwrap_or(&path)).status();
-    result.map_err(|error| format!("Não foi possível revelar o arquivo: {error}"))?;
+    let result = Command::new("xdg-open")
+        .arg(path.parent().unwrap_or(&path))
+        .status();
+    result.map_err(|error| format!("Could not reveal the file: {error}"))?;
     Ok(())
 }
 
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
-        return Err("Somente links HTTP e HTTPS podem ser abertos externamente.".to_string());
+        return Err("Only HTTP and HTTPS links can be opened externally.".to_string());
     }
     #[cfg(target_os = "macos")]
     let result = Command::new("open").arg(&url).status();
@@ -424,7 +566,7 @@ fn open_external_url(url: String) -> Result<(), String> {
     let result = Command::new("cmd").args(["/C", "start", "", &url]).status();
     #[cfg(target_os = "linux")]
     let result = Command::new("xdg-open").arg(&url).status();
-    result.map_err(|error| format!("Não foi possível abrir o link: {error}"))?;
+    result.map_err(|error| format!("Could not open the link: {error}"))?;
     Ok(())
 }
 
@@ -454,8 +596,11 @@ mod tests {
     use super::*;
 
     fn temporary_root() -> PathBuf {
-        let path = std::env::temp_dir().join(format!("agent-context-test-{}", Utc::now().timestamp_nanos_opt().unwrap_or_default()));
-        fs::create_dir_all(&path).expect("criar diretório temporário");
+        let path = std::env::temp_dir().join(format!(
+            "construct-test-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::create_dir_all(&path).expect("create temporary directory");
         path
     }
 
@@ -470,18 +615,23 @@ mod tests {
     #[test]
     fn discovery_includes_hidden_context_and_skips_generated_directories() {
         let root = temporary_root();
-        fs::create_dir_all(root.join(".agents")).expect("criar .agents");
-        fs::create_dir_all(root.join("node_modules/package")).expect("criar node_modules");
-        fs::create_dir_all(root.join("target/doc")).expect("criar target");
-        fs::write(root.join("README.md"), "# Contexto").expect("criar README");
-        fs::write(root.join(".agents/memory.md"), "# Memória").expect("criar memória");
-        fs::write(root.join("node_modules/package/readme.md"), "# Dependência").expect("criar dependência");
-        fs::write(root.join("target/doc/generated.md"), "# Gerado").expect("criar gerado");
+        fs::create_dir_all(root.join(".agents")).expect("create .agents");
+        fs::create_dir_all(root.join("node_modules/package")).expect("create node_modules");
+        fs::create_dir_all(root.join("target/doc")).expect("create target");
+        fs::write(root.join("README.md"), "# Context").expect("create README");
+        fs::write(root.join(".agents/memory.md"), "# Memory").expect("create memory");
+        fs::write(root.join("node_modules/package/readme.md"), "# Dependency")
+            .expect("create dependency");
+        fs::write(root.join("target/doc/generated.md"), "# Generated")
+            .expect("create generated file");
 
-        let files = collect_files(&root).expect("descobrir arquivos");
-        let paths = files.iter().map(|file| file.relative_path.as_str()).collect::<Vec<_>>();
+        let files = collect_files(&root).expect("discover files");
+        let paths = files
+            .iter()
+            .map(|file| file.relative_path.as_str())
+            .collect::<Vec<_>>();
         assert_eq!(paths, vec![".agents/memory.md", "README.md"]);
 
-        fs::remove_dir_all(root).expect("remover diretório temporário");
+        fs::remove_dir_all(root).expect("remove temporary directory");
     }
 }

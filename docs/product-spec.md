@@ -4,9 +4,9 @@
 
 | Campo | Valor |
 | --- | --- |
-| Status | Rascunho aprovado para início do desenvolvimento |
-| Versão | 0.1 |
-| Data | 17 de julho de 2026 |
+| Status | Preview funcional em fase de hardening |
+| Versão | 0.2 |
+| Data | 25 de julho de 2026 |
 | Plataforma inicial | macOS |
 | Plataformas futuras | Windows e Linux |
 | Nome do produto | **Construct** |
@@ -759,15 +759,9 @@ Possíveis etapas após o MVP, sem ordem definitiva:
 
 ## 22. Decisões ainda abertas
 
-Estas decisões não impedem a especificação funcional, mas devem ser resolvidas antes ou durante o design técnico:
+Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de uma distribuição pública estável:
 
-- nome definitivo e identidade visual;
-- stack desktop e modelo de distribuição;
-- tecnologia do editor Source;
-- estratégia de renderização Markdown e Mermaid;
-- armazenamento local do Histórico e workspace;
 - mecanismo multiplataforma de watcher;
-- representação visual do Diff Git: unificado, lado a lado ou ambos;
 - atalhos para Source/Preview e divisões;
 - política exata para carregamento de imagens remotas;
 - limite e degradação controlada para arquivos muito grandes;
@@ -791,9 +785,18 @@ Estas decisões não impedem a especificação funcional, mas devem ser resolvid
 | 2026-07-17 | Buscar apenas por nome e caminho no MVP. |
 | 2026-07-17 | Usar salvamento explícito com `⌘S`; sem autosave. |
 | 2026-07-17 | Ignorar diretórios comuns de dependências, caches e builds. |
+| 2026-07-18 | Adotar Tauri 2, React 19 e Rust para o aplicativo desktop. |
+| 2026-07-18 | Usar CodeMirror como editor Source e React Markdown com Mermaid no Preview. |
+| 2026-07-18 | Persistir workspace e Histórico localmente; arquivos continuam sendo a fonte da verdade. |
+| 2026-07-18 | Exibir Diff Git unificado e somente leitura. |
+| 2026-07-25 | Adotar **Construct** como nome e identidade do produto. |
+| 2026-07-25 | Tratar bundles OKF como espaços navegáveis por tipos, tags, links, backlinks, lista e grafo. |
+| 2026-07-25 | Manter uma única entrada por arquivo no Histórico, atualizada pelo evento mais recente. |
+| 2026-07-25 | Preparar o projeto para colaboração pública com validação automatizada e CI no macOS. |
 
 ## 24. Histórico do documento
 
 | Versão | Data | Alteração |
 | --- | --- | --- |
 | 0.1 | 2026-07-17 | Primeira especificação consolidada do MVP. |
+| 0.2 | 2026-07-25 | Estado do preview, identidade Construct, suporte OKF e decisões técnicas consolidados. |

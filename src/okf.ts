@@ -96,7 +96,7 @@ function parseFrontmatter(content: string): FrontmatterResult {
       const value = rawValue.trim();
       listKey = null;
       if (!value) { data[key] = []; listKey = key; continue; }
-      if (value === "|" || value === ">") { data[key] = ""; blockKey = key; blockIndent = line.search(/\S/) + 2; continue; }
+      if (/^[|>][+-]?$/.test(value)) { data[key] = ""; blockKey = key; blockIndent = line.search(/\S/) + 2; continue; }
       data[key] = value.startsWith("[") ? splitInlineList(value) : unquote(value);
     }
     return { hasFrontmatter: true, data };

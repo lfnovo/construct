@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelTop, Rows3, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./explore";
@@ -93,7 +93,7 @@ function FileTree({ entries, onOpen, onContext }: { entries: FileEntry[]; onOpen
       }
       const isOpen = expanded.has(key);
       return [
-        <button className="folder-row" style={{ paddingLeft: 7 + depth * 15 }} key={key} onClick={() => setExpanded((current) => { const next = new Set(current); isOpen ? next.delete(key) : next.add(key); return next; })}>
+        <button className="folder-row" style={{ paddingLeft: 7 + depth * 15 }} key={key} onClick={() => setExpanded((current) => { const next = new Set(current); if (isOpen) next.delete(key); else next.add(key); return next; })}>
           {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {isOpen ? <FolderOpen className="folder-icon" size={14} /> : <Folder className="folder-icon" size={14} />}<span>{name}</span>
         </button>,
         ...(isOpen ? render(child, key, depth + 1) : []),
@@ -300,7 +300,7 @@ export default function App() {
       reconcile(location, entries, source);
       const isOkfBundle = await detectOkfBundle(location, entries);
       if (isOkfBundle) void buildOkfIndex(location, entries);
-      else setOkfIndexes((current) => { const { [location.id]: _, ...rest } = current; return rest; });
+      else setOkfIndexes((current) => { const next = { ...current }; delete next[location.id]; return next; });
       const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
       const candidates = Object.values(panesRef.current).flatMap((pane) => pane.tabs.filter((tab) => tab.locationId === location.id).map((tab) => ({ paneId: pane.id, tab })));
       setPanes((current) => Object.fromEntries(Object.entries(current).map(([paneId, pane]) => [paneId, {
@@ -470,7 +470,7 @@ export default function App() {
     const next = locationsRef.current.filter((item) => item.id !== locationId);
     setLocations(next);
     setSelectedLocationId((current) => current === locationId ? next[0]?.id || null : current);
-    setFilesByLocation((current) => { const { [locationId]: _, ...rest } = current; return rest; });
+    setFilesByLocation((current) => { const nextFiles = { ...current }; delete nextFiles[locationId]; return nextFiles; });
     await configureLocations(next);
   }, [configureLocations]);
 
@@ -501,7 +501,7 @@ export default function App() {
             try {
               const [contents, git] = await Promise.all([api.readMarkdownFile(savedTab.path), api.getGitInfo(savedTab.path)]);
               tabs.push({ ...savedTab, content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, dirty: false, conflict: false, deleted: false, git });
-            } catch { /* arquivo ausente permanece fora da restauração */ }
+            } catch { /* Missing files remain excluded from workspace restoration. */ }
           }
           hydrated[savedPane.id] = { id: savedPane.id, tabs, activeTabId: tabs.some((tab) => tab.id === savedPane.activeTabId) ? savedPane.activeTabId : tabs.at(-1)?.id || null };
         }
@@ -668,13 +668,25 @@ export default function App() {
 }
 
 function DiffView({ tab }: { tab: DocumentTab }) {
-  const [loading, setLoading] = useState(true);
-  const [diff, setDiff] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const requestKey = `${tab.path}\0${tab.dirty ? tab.content : ""}`;
+  const [result, setResult] = useState<{ key: string; diff: string; message: string | null }>({
+    key: "",
+    diff: "",
+    message: null,
+  });
   useEffect(() => {
-    setLoading(true);
-    void api.getGitDiff(tab.path, tab.dirty ? tab.content : undefined).then((result) => { setDiff(result.diff); setMessage(result.message); }).catch((error) => setMessage(String(error))).finally(() => setLoading(false));
-  }, [tab.content, tab.dirty, tab.path]);
-  if (loading) return <div className="diff-view empty-pane">Generating diff…</div>;
-  return <div className="diff-view">{message && <p className="diff-message">{message}</p>}{diff ? <pre>{diff.split("\n").map((line, index) => <span key={index} className={line.startsWith("+") ? "addition" : line.startsWith("-") ? "removal" : line.startsWith("@@") ? "hunk" : ""}>{line}{"\n"}</span>)}</pre> : <div className="empty-pane"><p>No differences from HEAD.</p></div>}</div>;
+    let cancelled = false;
+    void api.getGitDiff(tab.path, tab.dirty ? tab.content : undefined)
+      .then((next) => {
+        if (!cancelled) setResult({ key: requestKey, diff: next.diff, message: next.message });
+      })
+      .catch((error) => {
+        if (!cancelled) setResult({ key: requestKey, diff: "", message: String(error) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [requestKey, tab.content, tab.dirty, tab.path]);
+  if (result.key !== requestKey) return <div className="diff-view empty-pane">Generating diff…</div>;
+  return <div className="diff-view">{result.message && <p className="diff-message">{result.message}</p>}{result.diff ? <pre>{result.diff.split("\n").map((line, index) => <span key={index} className={line.startsWith("+") ? "addition" : line.startsWith("-") ? "removal" : line.startsWith("@@") ? "hunk" : ""}>{line}{"\n"}</span>)}</pre> : <div className="empty-pane"><p>No differences from HEAD.</p></div>}</div>;
 }
