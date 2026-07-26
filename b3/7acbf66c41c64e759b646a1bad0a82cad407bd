@@ -1,0 +1,30 @@
+src/styles.css
+  s_954343fc536a43::t_9dfc6572e55131 100
+tests/explore.test.mjs
+  s_954343fc536a43::t_9dfc6572e55131 3,12-25
+src/explore.ts
+  s_954343fc536a43::t_9dfc6572e55131 6-18,24-30
+  s_954343fc536a43::t_4680d7667a14bb 31
+docs/product-spec.md
+  s_954343fc536a43::t_9dfc6572e55131 469
+src/App.tsx
+  s_954343fc536a43::t_9dfc6572e55131 1,7,130,134,136
+src/KnowledgeGraph.tsx
+  s_954343fc536a43::t_9dfc6572e55131 7,12,42,113-118,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b37acbf66c41c64e759b646a1bad0a82cad407bd",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
