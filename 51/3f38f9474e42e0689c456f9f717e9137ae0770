@@ -1,0 +1,87 @@
+src/api.ts
+  s_954343fc536a43::t_6721ce6fc787db 2,11-13
+tests/fixtures/okf/partial/index.md
+  s_954343fc536a43::t_6ce6f749f40823 1
+src/styles.css
+  s_954343fc536a43::t_75fc8b8a8c2125 98,261
+docs/product-spec.md
+  s_954343fc536a43::t_f0755e696015d7 478
+  s_954343fc536a43::t_75fc8b8a8c2125 476,480,496-501,842,852
+docs/architecture.md
+  s_954343fc536a43::t_75fc8b8a8c2125 3,10,12,34,55-68,115-123,133-134
+tests/fixtures/okf/future/concept.md
+  s_954343fc536a43::t_6ce6f749f40823 1-11
+tests/fixtures/okf/v01/concepts/construct.md
+  s_954343fc536a43::t_6ce6f749f40823 1-11
+tests/fixtures/okf/v02/index.md
+  s_954343fc536a43::t_6ce6f749f40823 1-7
+tests/fixtures/okf/v02/concepts/customer.md
+  s_954343fc536a43::t_6ce6f749f40823 1-11
+src-tauri/src/lib.rs
+  s_954343fc536a43::t_6ce6f749f40823 16-17,396-424,614-615
+docs/proposals/retrieval/README.md
+  s_954343fc536a43::t_75fc8b8a8c2125 3,46-53
+tests/okf.test.mjs
+  s_954343fc536a43::t_e6a8694a21b4c5 25
+  s_954343fc536a43::t_6721ce6fc787db 4,20-24,26-27
+src/App.tsx
+  s_954343fc536a43::t_e6a8694a21b4c5 280,598,601-607
+  s_954343fc536a43::t_b15e6a712a8441 11,138,191,255-259,261,265-279,281-285,288,297,324
+  s_954343fc536a43::t_ab16f2ce4793e8 664-667
+  s_954343fc536a43::t_6027d542e18809 545-581,597,656-657,659-663,671
+tests/fixtures/okf/partial/broken-link.md
+  s_954343fc536a43::t_6ce6f749f40823 1-6
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_66b66caa9614d8 25-26
+tests/fixtures/okf/partial/malformed.md
+  s_954343fc536a43::t_6ce6f749f40823 1-5
+tests/fixtures/okf/cases.json
+  s_954343fc536a43::t_2e05042d986ae2 1-49
+tests/fixtures/okf/partial/missing-type.md
+  s_954343fc536a43::t_6ce6f749f40823 1-6
+tests/fixtures/okf/README.md
+  s_954343fc536a43::t_2e05042d986ae2 8-10
+  s_954343fc536a43::t_6ce6f749f40823 1-7,11-30
+tests/fixtures/okf/v01/index.md
+  s_954343fc536a43::t_6ce6f749f40823 1-4
+docs/proposals/retrieval/01-okf-compatibility.md
+  s_954343fc536a43::t_75fc8b8a8c2125 3,28,162-188,192-194
+  s_954343fc536a43::t_f0755e696015d7 46-49
+src-tauri/src/okf.rs
+  s_954343fc536a43::t_7d26b7bc82a611 596-603,610,780,789-805
+  s_954343fc536a43::t_38d93740fc3321 586-592,609,911-913,1080-1081,1157,1224,1270,1441-1444
+  s_954343fc536a43::t_2e05042d986ae2 1191-1202,1220-1223,1225-1254,1256,1263
+  s_954343fc536a43::t_dc86be2a1a3a2e 1333-1369
+  s_954343fc536a43::t_e6a8694a21b4c5 20-22,183,345-347,349-351,356-357,1171,1173-1175,1181,1399-1402
+  s_954343fc536a43::t_30e81ecab7d807 5,654,685,689
+  s_954343fc536a43::t_4c532060e45dff 1083-1090
+  s_954343fc536a43::t_7e92a307621b50 1255,1257-1262
+  s_954343fc536a43::t_f0755e696015d7 1082,1091-1095,1409-1423
+  s_954343fc536a43::t_66b66caa9614d8 1-4,6-19,23-182,184-344,348,352-355,358-585,593-595,604-608,611-653,655-684,686-688,690-779,781-788,806-910,914-1079,1096-1111,1113-1156,1158-1170,1172,1176-1180,1182-1190,1203-1219,1264-1269,1271-1332,1370-1398,1403-1408,1424-1440,1445-1446
+  s_954343fc536a43::t_e3265f61937b9b 1112
+tests/fixtures/okf/v02/concepts/revenue.md
+  s_954343fc536a43::t_6ce6f749f40823 1-27
+tests/fixtures/okf/future/index.md
+  s_954343fc536a43::t_6ce6f749f40823 1-4
+src/okf.ts
+  s_954343fc536a43::t_6721ce6fc787db 4-6,10-19,27,29-58,63-64,66-67,84-88,90-92,97-99,104-110,120-128,132-135,138-141
+  s_954343fc536a43::t_e6a8694a21b4c5 7-9,89,100,111-118
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_fe1bb1f67b3833 343,346,1018-1026,2366-2384,2569-2574,2797-2809,3776-3781,3794-3805
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "513f38f9474e42e0689c456f9f717e9137ae0770",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
