@@ -1,4 +1,5 @@
 import { splitMarkdownDocument } from "./markdownDocument.ts";
+import { splitReviewDocument } from "./review.ts";
 
 export type OkfMetadata = {
   type?: string;
@@ -146,6 +147,8 @@ export function resolveOkfLink(sourcePath: string, bundleRoot: string | undefine
 }
 
 export function withoutFrontmatter(content: string) {
+  const review = splitReviewDocument(content);
+  if (!review.error) return review.body;
   const parts = splitMarkdownDocument(content);
   return parts.error ? content : parts.body;
 }

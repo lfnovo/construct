@@ -102,6 +102,7 @@ Os indicadores abaixo orientam validação qualitativa e telemetria futura; não
 | Workspace | Conjunto de Locais, abas, painéis, seleções e preferências restauráveis. |
 | Preview | Markdown renderizado. |
 | Edit | Edição visual do corpo Markdown, com comandos e formatação contextual. |
+| Review | Leitura renderizada com comentários persistentes destinados ao próximo ciclo com um agente. |
 | Source | Conteúdo Markdown bruto e editável. |
 | Mudança externa | Alteração no sistema de arquivos feita fora do aplicativo. |
 | Histórico | Linha do tempo local de eventos observados pelo aplicativo. |
@@ -160,7 +161,7 @@ A janela principal possui duas regiões:
 │  Projeto A           │ plano.md | notas.md          │ AGENTS.md    │
 │  Projeto B           ├──────────────────────────────┼──────────────┤
 ├──────────────────────┤                              │              │
-│ ARQUIVOS             │ Preview, Edit ou Source      │ Preview      │
+│ ARQUIVOS             │ Preview, Edit, Review ou Source │ Preview   │
 │  docs/               │                              │              │
 │    plano.md          │                              │              │
 │  AGENTS.md           │                              │              │
@@ -188,7 +189,7 @@ A área principal contém um ou mais Painéis. Cada Painel possui:
 - barra de abas;
 - indicação de arquivo ativo;
 - indicação de edição não salva;
-- seletor ou ação para alternar entre Preview, Edit e Source;
+- seletor ou ação para alternar entre Preview, Edit, Review e Source;
 - conteúdo do arquivo;
 - estados de carregamento, erro, conflito e arquivo indisponível.
 
@@ -274,7 +275,7 @@ coverage
 - **NAV-002:** Se o arquivo já estiver aberto nesse Painel, sua aba deve receber foco.
 - **NAV-003:** Se o arquivo estiver aberto em outro Painel, o comportamento padrão é focar a instância existente.
 - **NAV-004:** Deve existir uma ação explícita para abrir outra visualização do mesmo arquivo em outro Painel.
-- **NAV-005:** O aplicativo deve preservar a posição de rolagem separadamente para Preview, Edit e Source enquanto a aba estiver aberta.
+- **NAV-005:** O aplicativo deve preservar a posição de rolagem separadamente para Preview, Edit, Review e Source enquanto a aba estiver aberta.
 - **NAV-006:** Ao selecionar um evento no Histórico, o Local correspondente é selecionado, o arquivo é revelado na árvore e sua aba recebe foco.
 - **NAV-007:** O caminho relativo completo deve estar disponível na interface, mesmo que não permaneça visível o tempo todo.
 
@@ -296,7 +297,7 @@ coverage
 - **PANE-002:** A divisão cria um novo Painel ao lado do atual.
 - **PANE-003:** Os Painéis são redimensionáveis.
 - **PANE-004:** Cada Painel mantém suas próprias abas e aba ativa.
-- **PANE-005:** Cada aba mantém seu próprio modo Preview, Edit, Source ou Diff.
+- **PANE-005:** Cada aba mantém seu próprio modo Preview, Edit, Review, Source ou Diff.
 - **PANE-006:** O usuário pode fechar um Painel; suas abas devem ser movidas ou fechadas de maneira segura.
 - **PANE-007:** Não há limite funcional rígido de Painéis, embora a interface possa impedir divisões que resultem em áreas inutilizáveis.
 - **PANE-008:** Arrastar uma aba para uma borda pode criar uma divisão como aprimoramento, mas ações explícitas devem existir desde o MVP.
@@ -327,6 +328,21 @@ coverage
 - **EDIT-021:** Diagramas Mermaid permanecem editáveis como blocos de código em Edit e são renderizados em Preview.
 - **EDIT-022:** A primeira edição visual real pode serializar o corpo segundo a forma canônica do editor; o frontmatter permanece intacto e o Diff Git torna essa alteração explícita.
 
+### 10.7.1 Review
+
+- **REVIEW-001:** Review permite selecionar um trecho do documento renderizado e associar uma observação textual a essa seleção.
+- **REVIEW-002:** Comentários são armazenados no próprio Markdown em um bloco HTML `construct-review:v1` imediatamente depois do frontmatter, ou no início do documento quando não houver frontmatter.
+- **REVIEW-003:** O bloco de review é invisível em Preview, mas permanece legível em Source e para agentes que leem o arquivo.
+- **REVIEW-004:** O bloco contém identificador, trecho citado, comentário e instante de criação de cada observação aberta.
+- **REVIEW-005:** Adicionar, remover ou limpar comentários modifica apenas o buffer local e respeita o mesmo salvamento explícito de Edit e Source.
+- **REVIEW-006:** O usuário pode remover uma observação individual ou limpar toda a rodada. Limpar todas restaura exatamente o conteúdo que existia antes da criação do bloco.
+- **REVIEW-007:** Review oferece uma ação para copiar um prompt autocontido com o caminho relativo, trechos e comentários abertos, sem remover o tracking mantido no arquivo.
+- **REVIEW-008:** O prompt copiado orienta o agente a atualizar o documento, remover comentários resolvidos e preservar observações ainda não tratadas.
+- **REVIEW-009:** Edit preserva o bloco de review sem exibi-lo dentro do corpo visual.
+- **REVIEW-010:** Links Markdown citados dentro de comentários não participam da navegação, backlinks ou Graph do bundle OKF.
+- **REVIEW-011:** Um bloco de review malformado nunca deve ser reescrito automaticamente; o aplicativo mantém o documento acessível em Source e apresenta erro acionável.
+- **REVIEW-012:** Comentários guardam um snapshot textual da seleção. Alterações posteriores no trecho não apagam a observação silenciosamente.
+
 ### 10.8 Preview Markdown
 
 - **PREVIEW-001:** O Preview deve suportar CommonMark e extensões amplamente usadas no GitHub Flavored Markdown.
@@ -349,7 +365,7 @@ flowchart LR
     A[Coding agent] --> B[Cria ou atualiza Markdown]
     B --> C[Watcher local]
     C --> D[Construct]
-    D --> E[Preview, Edit, Source ou Diff Git]
+    D --> E[Preview, Edit, Review, Source ou Diff Git]
 ```
 
 ### 10.9 Links
@@ -432,7 +448,7 @@ flowchart LR
 - **STATE-003:** Deve persistir o layout e as dimensões da janela principal.
 - **STATE-004:** Deve persistir dimensões e recolhimento das seções da sidebar.
 - **STATE-005:** Deve persistir o layout dos Painéis.
-- **STATE-006:** Deve persistir abas abertas, sua ordem, Painel e modo Preview, Edit, Source ou Diff.
+- **STATE-006:** Deve persistir abas abertas, sua ordem, Painel e modo Preview, Edit, Review, Source ou Diff.
 - **STATE-007:** Deve persistir a aba ativa de cada Painel.
 - **STATE-008:** Deve restaurar apenas referências a arquivos; conteúdo não salvo não precisa sobreviver ao encerramento normal no MVP.
 - **STATE-009:** Ao encerrar com alterações não salvas, o aplicativo deve pedir que o usuário salve, descarte ou cancele.
@@ -449,7 +465,7 @@ Os atalhos abaixo usam a notação do macOS. A implementação futura deve mapea
 | Salvar arquivo | `⌘S` |
 | Fechar aba | `⌘W` |
 | Localizar dentro do arquivo | `⌘F` |
-| Alternar Preview/Edit/Source | A definir |
+| Alternar Preview/Edit/Review/Source | A definir |
 | Dividir verticalmente | A definir |
 | Dividir horizontalmente | A definir |
 | Focar próximo Painel | A definir |
@@ -531,7 +547,7 @@ Este modelo orienta o comportamento e não determina banco de dados ou tecnologi
 
 - Local e caminho relativo;
 - Painel e posição da aba;
-- modo Preview, Edit, Source ou Diff;
+- modo Preview, Edit, Review, Source ou Diff;
 - buffer local;
 - estado limpo, modificado, em conflito ou removido;
 - assinatura conhecida da versão no disco;
@@ -648,6 +664,7 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 - abas;
 - divisões verticais e horizontais;
 - Edit visual com comandos contextuais e salvamento explícito;
+- Review com comentários persistentes, cópia para agente e limpeza da rodada;
 - Source editável com salvamento explícito;
 - Preview com GFM, highlighting e Mermaid;
 - links internos;
@@ -699,6 +716,10 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 - Desfazer uma edição visual até o estado inicial restaura o conteúdo fonte exato e limpa o indicador de modificação.
 - Frontmatter YAML permanece idêntico após editar apenas o corpo em Edit.
 - Um frontmatter não fechado mantém o conteúdo acessível em Source e não inicia Edit.
+- Selecionar um trecho em Review permite registrar uma observação sem alterar o texto citado.
+- Comentários continuam presentes ao alternar entre Preview, Edit, Review e Source.
+- Copiar para o agente inclui todas as observações abertas e não altera o arquivo.
+- Remover a última observação elimina o bloco de review e restaura o conteúdo original.
 - `⌘S` grava o conteúdo e limpa o indicador.
 - Fechar uma aba modificada pede confirmação.
 - Uma falha de escrita mantém o conteúdo no editor.
@@ -777,7 +798,7 @@ Possíveis etapas após o MVP, sem ordem definitiva:
 Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de uma distribuição pública estável:
 
 - mecanismo multiplataforma de watcher;
-- atalhos para Preview/Edit/Source e divisões;
+- atalhos para Preview/Edit/Review/Source e divisões;
 - política exata para carregamento de imagens remotas;
 - estratégia local para inserir, copiar e resolver imagens dentro de Edit;
 - limite e degradação controlada para arquivos muito grandes;
@@ -811,6 +832,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-25 | Preparar o projeto para colaboração pública com validação automatizada e CI no macOS. |
 | 2026-07-26 | Adotar edição visual local com Milkdown/Crepe, mantendo Source como escape hatch e frontmatter YAML byte a byte. |
 | 2026-07-26 | Compartilhar um único buffer entre Preview, Edit e Source, preservar salvamento explícito e não oferecer upload de imagens no primeiro corte. |
+| 2026-07-26 | Armazenar comentários de Review no próprio Markdown em um bloco invisível `construct-review:v1`, com remoção exata e prompt copiável para novas sessões de agente. |
 
 ## 24. Histórico do documento
 
@@ -819,3 +841,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.1 | 2026-07-17 | Primeira especificação consolidada do MVP. |
 | 0.2 | 2026-07-25 | Estado do preview, identidade Construct, suporte OKF e decisões técnicas consolidados. |
 | 0.3 | 2026-07-26 | Edição visual Markdown, contrato de preservação de frontmatter e critérios de segurança do buffer. |
+| 0.4 | 2026-07-26 | Review persistente no documento, ciclo de comentários e handoff copiável para agentes. |
