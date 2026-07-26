@@ -557,6 +557,7 @@ no MVP.
 - **INDEX-011:** Consultas estruturadas normais identificam resultados por ID do Local e caminho relativo; caminhos absolutos permanecem no limite nativo.
 - **INDEX-012:** Nenhum conteúdo, caminho, query ou métrica do índice pode ser enviado a serviços remotos.
 - **INDEX-013:** O índice de cada Local deve manter seus próprios links derivados; nenhuma tabela ou consulta pode misturar relações de Locais diferentes.
+- **INDEX-014:** Reconciliações incrementais comuns devem manter o último índice saudável publicamente `ready` ou `degraded`; `indexing` fica reservado para builds sem geração ativa e rebuilds explícitos com `buildingGeneration`.
 
 ### 10.18 Acesso local para agentes
 
@@ -571,6 +572,7 @@ no MVP.
 - **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 06 e nunca são misturados silenciosamente ao conteúdo fonte.
 - **AGENT-010:** A interface deve permitir copiar uma configuração MCP pronta para o Local selecionado e explicar que o cliente externo controla o destino do conteúdo recuperado.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
+- **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
 
 ## 11. Estados e tratamento de erros
 

@@ -88,6 +88,13 @@ try {
     arguments: {},
   }));
   if (listed.locations[0].id !== "smoke-location") throw new Error("Location allowlist failed.");
+  if (
+    listed.locations[0].index.state !== "ready"
+    || listed.locations[0].index.complete !== true
+    || listed.locations[0].index.buildingGeneration !== null
+  ) {
+    throw new Error("A completed incremental index must remain publicly ready.");
+  }
 
   const denied = await request("tools/call", {
     name: "construct_get_location_overview",

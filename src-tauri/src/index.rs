@@ -97,6 +97,8 @@ pub(crate) struct SyncLocationRequest {
     pub(crate) okf_bundle: bool,
     #[serde(default)]
     pub(crate) rebuild: bool,
+    #[serde(default)]
+    pub(crate) minimum_reconcile_interval_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -729,6 +731,13 @@ impl IndexService {
     ) -> Result<IndexStatus, String> {
         let index = self.open(&request.location_id).await?;
         let _guard = index.write_lock.lock().await;
+        if !request.rebuild && request.minimum_reconcile_interval_ms > 0 {
+            if let Some(meta) = read_meta(&index.db).await? {
+                if can_skip_reconciliation(&meta, request.minimum_reconcile_interval_ms) {
+                    return Ok(IndexStatus::from_meta(meta, directory_size(&index.path)));
+                }
+            }
+        }
         let result = self.sync_locked(&index, &request, &root).await;
         if let Err(error) = &result {
             let previous = read_meta(&index.db).await.ok().flatten();
@@ -812,7 +821,9 @@ impl IndexService {
                 .and_then(|value| value.last_reconciled_at.clone()),
             error: None,
         };
-        write_meta(&index.db, &meta).await?;
+        if full_build {
+            write_meta(&index.db, &meta).await?;
+        }
 
         let existing = if full_build {
             HashMap::new()
@@ -875,9 +886,17 @@ impl IndexService {
             ));
         }
 
-        write_documents(&index.db, generation, &changed, &removed).await?;
-        refresh_link_resolutions(&index.db, generation, &discovered_paths).await?;
-        let indexed_documents = count_documents(&index.db, generation).await?;
+        let has_document_changes = full_build || !changed.is_empty() || !removed.is_empty();
+        let indexed_documents = if has_document_changes {
+            write_documents(&index.db, generation, &changed, &removed).await?;
+            refresh_link_resolutions(&index.db, generation, &discovered_paths).await?;
+            count_documents(&index.db, generation).await?
+        } else {
+            previous
+                .as_ref()
+                .map(|value| value.indexed_documents)
+                .unwrap_or_default()
+        };
         meta.state = if failed > 0 {
             IndexState::Degraded
         } else {
@@ -892,7 +911,7 @@ impl IndexService {
         write_meta(&index.db, &meta).await?;
         if full_build {
             delete_other_generations(&index.db, generation).await?;
-        } else {
+        } else if has_document_changes {
             let now = Utc::now().to_rfc3339();
             for document in &changed {
                 let created = !existing.contains_key(&document.relative_path);
@@ -1992,6 +2011,26 @@ fn freshness_for(stale_after: Option<&str>) -> String {
     }
 }
 
+fn can_skip_reconciliation(meta: &IndexMeta, minimum_interval_ms: u64) -> bool {
+    if meta.indexer_version != INDEXER_VERSION
+        || !meta.complete
+        || meta.active_generation.is_none()
+        || meta.state == IndexState::Indexing
+    {
+        return false;
+    }
+    let Some(last_reconciled_at) = meta.last_reconciled_at.as_deref() else {
+        return false;
+    };
+    let Ok(last_reconciled_at) = chrono::DateTime::parse_from_rfc3339(last_reconciled_at) else {
+        return false;
+    };
+    let elapsed_ms = Utc::now()
+        .signed_duration_since(last_reconciled_at.with_timezone(&Utc))
+        .num_milliseconds();
+    elapsed_ms >= 0 && elapsed_ms < minimum_interval_ms.min(i64::MAX as u64) as i64
+}
+
 fn exact_phrase(query: &str) -> Option<&str> {
     let trimmed = query.trim();
     (trimmed.len() >= 2 && trimmed.starts_with('"') && trimmed.ends_with('"'))
@@ -2933,6 +2972,7 @@ mod tests {
             display_name: location_id.to_string(),
             okf_bundle: false,
             rebuild: false,
+            minimum_reconcile_interval_ms: 0,
         }
     }
 
@@ -3164,6 +3204,14 @@ mod tests {
             .expect("incremental sync");
         assert_eq!(updated.changed_documents, 1);
         assert_eq!(updated.removed_documents, 0);
+        let unchanged = service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("no-op sync");
+        assert_eq!(unchanged.state, IndexState::Ready);
+        assert_eq!(unchanged.changed_documents, 0);
+        assert_eq!(unchanged.removed_documents, 0);
+        assert_eq!(unchanged.indexed_documents, 2);
 
         fs::remove_file(source.join("two.md")).expect("remove two");
         let removed = service
@@ -3190,6 +3238,53 @@ mod tests {
         assert_eq!(result.len(), 1);
 
         drop(reopened);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn coalesces_recent_background_reconciliations() {
+        let data = temporary_root("coalesce-data");
+        let source = temporary_root("coalesce-source");
+        fs::write(source.join("one.md"), "# One\nBefore").expect("write one");
+        let location_id = "coalesce-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("initial sync");
+
+        fs::write(source.join("one.md"), "# One\nAfter").expect("change one");
+        let mut background_request = request(location_id, &source);
+        background_request.minimum_reconcile_interval_ms = 60_000;
+        let coalesced = service
+            .sync(background_request, source.clone())
+            .await
+            .expect("coalesce recent sync");
+        assert_eq!(coalesced.state, IndexState::Ready);
+        assert!(coalesced.complete);
+        assert_eq!(coalesced.changed_documents, 0);
+        let unchanged = service
+            .get_document(location_id, "one.md")
+            .await
+            .expect("read coalesced document")
+            .expect("document exists");
+        assert!(unchanged.body.contains("Before"));
+
+        let refreshed = service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("force next sync");
+        assert_eq!(refreshed.state, IndexState::Ready);
+        assert_eq!(refreshed.changed_documents, 1);
+        let changed = service
+            .get_document(location_id, "one.md")
+            .await
+            .expect("read refreshed document")
+            .expect("document exists");
+        assert!(changed.body.contains("After"));
+
+        drop(service);
         fs::remove_dir_all(data).expect("remove data");
         fs::remove_dir_all(source).expect("remove source");
     }

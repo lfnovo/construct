@@ -97,7 +97,10 @@ without introducing a second installation artifact.
 The service token and socket are created with user-only permissions in the
 application data directory. No network listener is opened. MCP startup requires
 an explicit Location allowlist, reconciles those saved files, and periodically
-checks them while the client session is active.
+checks them while the client session is active. The central service coalesces
+recent background requests from multiple MCP clients per Location. Ordinary
+incremental reconciliation keeps the last healthy generation publicly ready or
+degraded; only initial builds and explicit rebuilds publish `indexing`.
 
 The retrieval database also contains a disposable 15-day daily activity cache.
 Real saved-file changes, documents successfully served through MCP, and

@@ -14,6 +14,7 @@ use std::{collections::HashSet, path::PathBuf, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
+const MCP_RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, PartialEq)]
 struct McpToolError {
@@ -180,9 +181,8 @@ async fn run_mcp(data_dir: PathBuf, allow_all: bool, requested: Vec<String>) -> 
         locations: locations.clone(),
     };
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(5));
         loop {
-            interval.tick().await;
+            tokio::time::sleep(MCP_RECONCILE_INTERVAL).await;
             for location in &locations {
                 let _ = sync_location(&client, location).await;
             }
@@ -232,6 +232,7 @@ async fn sync_location(
             display_name: location.name.clone(),
             okf_bundle: location.okf_bundle,
             rebuild: false,
+            minimum_reconcile_interval_ms: MCP_RECONCILE_INTERVAL.as_millis() as u64,
         })
         .await
         .map(|_| ())
