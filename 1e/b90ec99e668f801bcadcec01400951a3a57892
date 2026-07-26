@@ -1,0 +1,48 @@
+docs/architecture.md
+  s_954343fc536a43::t_3a053cffc3cf23 77
+  s_954343fc536a43::t_53a85b379a78e3 29,32,89-95
+  s_954343fc536a43::t_11dff27938f6d5 96
+docs/product-spec.md
+  s_954343fc536a43::t_3a053cffc3cf23 164,192,278,300,368,801
+  s_954343fc536a43::t_53a85b379a78e3 105,331-345,451,468,550,667,719-722,835,844
+src/review.ts
+  s_954343fc536a43::t_2054fa695cda64 1-133,140-141,143-160
+  s_954343fc536a43::t_2c4280a7cf5828 134-139,142
+tests/review.test.mjs
+  s_954343fc536a43::t_2054fa695cda64 1-7,9-56,58-60,62-63,73
+  s_954343fc536a43::t_7ec696544efdc9 8,64-72
+  s_954343fc536a43::t_2c4280a7cf5828 57,61
+src/App.tsx
+  s_954343fc536a43::t_99edc572e12579 12-13,20-26,578,610-614,644
+CHANGELOG.md
+  s_954343fc536a43::t_53a85b379a78e3 14
+README.md
+  s_954343fc536a43::t_53a85b379a78e3 25
+src/VisualEditor.tsx
+  s_954343fc536a43::t_69bee9fe0041ad 14-15,45-46,50,114,116,148-149,153
+src/ReviewEditor.tsx
+  s_954343fc536a43::t_99edc572e12579 1-75,82-171
+  s_954343fc536a43::t_2c4280a7cf5828 76-81
+src/types.ts
+  s_954343fc536a43::t_99edc572e12579 53
+src/styles.css
+  s_954343fc536a43::t_79c5757d470e19 181-220
+src/okf.ts
+  s_954343fc536a43::t_7ec696544efdc9 2,150-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1eb90ec99e668f801bcadcec01400951a3a57892",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
