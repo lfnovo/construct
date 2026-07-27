@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-27
+
 ### Changed
 
 - Made pull request CI path-aware so documentation-only changes avoid
