@@ -27,6 +27,7 @@
     "test:web": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:mcp": "node scripts/mcp-smoke.mjs",
+    "release:check": "node scripts/check-release-version.mjs",
     "validate": "npm run lint && npm run test && npm run format:check && npm run build:web"
   },
   "dependencies": {

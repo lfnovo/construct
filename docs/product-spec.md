@@ -732,6 +732,22 @@ Convenções específicas devem ser adaptadas por plataforma:
 
 O produto não deve armazenar caminhos usando suposições exclusivas de separadores ou case sensitivity.
 
+### 16.1 Distribuição
+
+- GitHub Releases é o canal canônico inicial para builds versionados.
+- Uma tag semântica `vX.Y.Z` deve corresponder às versões do frontend, lockfile,
+  crate Rust e configuração Tauri antes de qualquer bundle ser produzido.
+- A mesma tag e commit devem gerar a app e a CLI standalone para macOS Apple
+  Silicon, macOS Intel e Windows x64.
+- A release deve permanecer em draft até que todos os targets, checksums e smoke
+  tests sejam verificados.
+- Instaladores e artefatos CLI devem possuir um manifesto SHA-256; exemplos de
+  CI futuros devem fixar uma versão imutável e validar o checksum.
+- Um preview não assinado ou ad-hoc signed deve ser identificado explicitamente.
+  Uma release pública confiável exige notarização macOS e assinatura Windows.
+- Package managers e app stores podem espelhar artefatos futuramente, mas não
+  substituem GitHub Releases como origem versionada inicial.
+
 ## 17. Onboarding
 
 ### Primeira execução
@@ -931,6 +947,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Manter a inicialização interativa fora do caminho crítico da reconciliação e indexação completas. |
 | 2026-07-26 | Persistir links por Local, oferecer relações diretas explicáveis e montar context packs manuais com orçamento de caracteres antes de qualquer expansão automática ou LLM. |
 | 2026-07-26 | Oferecer um linter OKF CLI stateless, determinístico e somente leitura, reutilizando o parser nativo sem depender de Location, índice, serviço ou desktop. |
+| 2026-07-27 | Distribuir app e CLI pela mesma tag em GitHub Releases, com DMG macOS, NSIS Windows, arquivos CLI standalone, checksums e publicação inicial em draft. |
 
 ## 24. Histórico do documento
 

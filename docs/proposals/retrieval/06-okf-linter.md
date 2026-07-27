@@ -1,6 +1,7 @@
 # RFC 06 — Stateless OKF linter
 
-**Status:** CLI and desktop Health implemented; standalone CI packaging pending
+**Status:** CLI, desktop Health, and release pipeline implemented; first
+clean-runner release and oracle comparison pending
 
 **Decision owner:** Product, OKF compatibility, CLI, and release engineering
 
@@ -475,17 +476,15 @@ that OKF compatibility does not depend on the retrieval database.
 For local agents, the command can be exposed by the Construct executable that
 already ships inside the macOS application bundle.
 
-For CI and knowledge repositories, the project needs a supported way to install
-the same binary without installing or launching the desktop UI. Candidate
-distribution shapes:
+For CI and knowledge repositories, each tagged GitHub Release contains
+standalone `construct` CLI archives for macOS ARM, macOS Intel, and Windows x64.
+The tag-driven release workflow builds the app and CLI from the same commit,
+publishes platform-specific archives to a draft release, and assembles a
+`SHA256SUMS` manifest.
 
-- a standalone `construct` CLI asset attached to releases;
-- a GitHub Action that downloads a pinned release asset;
-- package-manager installation after signing and release automation mature;
-- source installation with Cargo for contributors.
-
-The first implementation should not publish a mutable “latest” CI dependency.
-Examples pin a released version or immutable action revision.
+CI examples must pin an explicit released version and verify its checksum. They
+must not download a mutable “latest” artifact. Package-manager installation is
+deferred until signed releases and release automation are proven.
 
 A dedicated GitHub Action is convenience packaging over the CLI, not a second
 validator.
@@ -621,8 +620,8 @@ Measure:
 - Schema-bearing profiles remain deferred. `.constructignore` is only a
   non-concept path policy and must not grow into a hidden taxonomy.
 - Whether SARIF is valuable after stable JSON exists.
-- The standalone CLI artifact and GitHub Action distribution design.
-- Whether release binaries are named `construct` uniformly across platforms.
+- Whether a dedicated installer Action is valuable after pinned release assets
+  have been exercised in real knowledge repositories.
 - The final performance budget and release gate for 1,000 and 10,000 documents.
 
 ## Implementation slices
@@ -652,10 +651,15 @@ Measure:
 
 ### Slice 3 — CI distribution
 
-- publish a pinned standalone CLI artifact;
-- document a minimal CI example;
-- validate on a clean runner;
-- compare behavior with the independent oracle corpus.
+- **Implemented:** tag-driven macOS ARM, macOS Intel, and Windows x64 build
+  matrix;
+- **Implemented:** draft GitHub Release with DMG/NSIS app bundles, standalone
+  CLI archives, and `SHA256SUMS`;
+- **Implemented:** release-tag consistency check across every version source;
+- **Implemented:** maintainer release and artifact-verification documentation;
+- **Pending:** run the first tagged candidate on clean hosted runners;
+- **Pending:** document a minimal pinned download/checksum CI example;
+- **Pending:** compare behavior with the independent oracle corpus.
 
 Profiles, SARIF, package-manager distribution, and any fix mode remain separate
 decisions.

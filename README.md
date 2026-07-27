@@ -10,7 +10,8 @@
 
 Construct watches the project folders where you work with coding agents and gives their Markdown output a dedicated place to live. Browse recent changes, read rendered documents, edit source, compare Git changes, arrange files in panes, and explore connected [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundles.
 
-> **Status:** early preview for macOS. Construct is useful today, but distribution, signing, and large-workspace hardening are still in progress.
+> **Status:** early preview. Construct is useful today, but trusted signing,
+> Windows hardening, and large-workspace validation are still in progress.
 
 ## Why Construct
 
@@ -54,6 +55,21 @@ cd construct
 npm ci
 npm run dev
 ```
+
+## Preview downloads
+
+Tagged builds produce draft candidates in
+[GitHub Releases](https://github.com/lfnovo/construct/releases):
+
+- DMG installers for macOS Apple Silicon and Intel;
+- an NSIS setup executable for Windows x64;
+- standalone `construct` CLI archives for the same targets;
+- a `SHA256SUMS` manifest for installer and CLI verification.
+
+Preview artifacts are not yet a trusted public distribution: macOS
+notarization and Windows code signing remain release gates. See the
+[release process](docs/releasing.md) for artifact names, verification, and the
+maintainer checklist.
 
 ## Validation
 
@@ -118,10 +134,10 @@ policy** applies `.constructignore`; **All Markdown** exposes the strict report.
 
 ## Roadmap
 
-The current priority is a reliable macOS preview release and a read-only local
-agent interface over the same retrieval core. Later candidates include Windows
-and Linux, YAML and JSON, configurable exclusions, file management, optional
-local semantic search, and signed automatic updates.
+The current priority is signed, reproducible macOS and Windows preview releases
+over the same local retrieval core. Later candidates include Linux, YAML and
+JSON, file management, optional local semantic search, package-manager mirrors,
+and signed automatic updates.
 
 ### Local MCP access
 

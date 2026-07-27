@@ -18,6 +18,7 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 - Stateless `construct okf lint` validation with deterministic text/JSON output and CI exit codes.
 - Explore Health view with lint summaries, scopes, filters, source navigation, explicit refresh, and agent handoff.
 - Repository-owned `.constructignore` rules that skip OKF conformance checks while preserving internal-link resolution.
+- Tag-driven GitHub Release candidates with macOS DMGs, a Windows NSIS installer, standalone CLI archives, and SHA-256 checksums.
 - Light and dark themes, keyboard shortcuts, Finder integration, and workspace restoration.
 
 ### Changed

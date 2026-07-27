@@ -9,7 +9,8 @@ used by people and coding agents.
   boundaries.
 - [Architecture](architecture.md) — current modules, persistence, filesystem
   authority, and security constraints.
-- [Release process](releasing.md) — packaging and release guidance.
+- [Release process](releasing.md) — tagged GitHub Releases, app/CLI artifacts,
+  checksums, signing gates, and maintainer checklist.
 
 ## Proposals
 
