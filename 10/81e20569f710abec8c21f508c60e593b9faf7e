@@ -1,0 +1,49 @@
+README.md
+  s_954343fc536a43::t_885533876cfb55 13-14,59-66,68-73,137-140
+  s_954343fc536a43::t_935aa48565eb82 67
+docs/proposals/retrieval/06-okf-linter.md
+  s_954343fc536a43::t_3aa5beccde1dcc 3-4,479-483,485-487,623-624,654-662
+.github/workflows/release.yml
+  s_954343fc536a43::t_2c1d694696b031 169
+  s_954343fc536a43::t_aa081249fd93ea 116-121,136-144
+  s_954343fc536a43::t_8439bf69662b40 1-55,57-61,63-67,69-91,93-115,122-134,146-168,170-181
+  s_954343fc536a43::t_a1ad3f8c7fd2a0 135,145
+  s_954343fc536a43::t_97c0bf8c059a81 56,62,68,92
+docs/README.md
+  s_954343fc536a43::t_dcae4aaedecbd6 12-13
+scripts/check-release-version.mjs
+  s_954343fc536a43::t_8439bf69662b40 1-8,16-33,35-62
+  s_954343fc536a43::t_97c0bf8c059a81 9-15
+  s_954343fc536a43::t_2ecc6af41a2582 34
+package.json
+  s_954343fc536a43::t_8439bf69662b40 30
+docs/releasing.md
+  s_954343fc536a43::t_885533876cfb55 3-21,25-27,31-39,43,49,51,54,56,60,62-63,65-67,70-85,87-94,96-108,110-111,113,115-118,120-129,132-139
+  s_954343fc536a43::t_aa081249fd93ea 22-24
+CHANGELOG.md
+  s_954343fc536a43::t_885533876cfb55 21
+tests/release-version.test.mjs
+  s_954343fc536a43::t_2ecc6af41a2582 9-12
+  s_954343fc536a43::t_8439bf69662b40 1-8,13-25
+docs/product-spec.md
+  s_954343fc536a43::t_3aa5beccde1dcc 735-743,746-750,950
+  s_954343fc536a43::t_935aa48565eb82 744-745
+docs/proposals/retrieval/README.md
+  s_954343fc536a43::t_3aa5beccde1dcc 53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1081e20569f710abec8c21f508c60e593b9faf7e",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
