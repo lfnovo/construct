@@ -1,0 +1,53 @@
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_b9e4b00541f3cd 33
+src-tauri/src/lib.rs
+  s_954343fc536a43::t_d72eba06747eae 20,747-748
+  s_954343fc536a43::t_681fbdfce0acf4 749-750
+src-tauri/src/main.rs
+  s_954343fc536a43::t_d72eba06747eae 3-11
+docs/proposals/retrieval/README.md
+  s_954343fc536a43::t_65f4456b9af428 3,53
+docs/proposals/retrieval/06-okf-linter.md
+  s_954343fc536a43::t_cbf3f5b5f5357b 590,592
+  s_954343fc536a43::t_4bbe769c89b6af 3,561-569,573,579-583,587-589,591,593
+docs/architecture.md
+  s_954343fc536a43::t_65f4456b9af428 19-20,75-89,110-113
+src-tauri/src/okf_lint.rs
+  s_954343fc536a43::t_b9e4b00541f3cd 5,263-270,284-294,297,313,315-316,340
+  s_954343fc536a43::t_4cb7117152dc5c 331-334,442,447-448
+  s_954343fc536a43::t_639b841511c152 646,776-804
+  s_954343fc536a43::t_d72eba06747eae 1-4,6-8,10-173,175-227,230-262,271-283,295-296,298-312,314,317-330,335-339,341-386,389-390,393-441,443-446,449-500,502-529,534-569,575-613,623-624,626-636,638-645,647-737,740-775,805-807
+  s_954343fc536a43::t_38ea054309ba9e 531
+  s_954343fc536a43::t_cbf3f5b5f5357b 9,387-388,391-392,614-622,625,637
+  s_954343fc536a43::t_4a2a67dd3bc450 530,532-533,570-574
+  s_954343fc536a43::t_be8735d53d8b2e 174,228-229,501,738-739
+src-tauri/src/okf.rs
+  s_954343fc536a43::t_d72eba06747eae 79-82,88-91,93,96,192-193,195,1094,1098-1107,1253,1257,1262
+docs/product-spec.md
+  s_954343fc536a43::t_65f4456b9af428 539-545,579,927,941
+docs/releasing.md
+  s_954343fc536a43::t_4bbe769c89b6af 25
+README.md
+  s_954343fc536a43::t_4bbe769c89b6af 33,70-88
+  s_954343fc536a43::t_19ab262ae8405d 89
+CHANGELOG.md
+  s_954343fc536a43::t_4bbe769c89b6af 18
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_099a4df14fd02a 819
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a5ed91c207a140edda9a0fc17e38abed3769b308",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
