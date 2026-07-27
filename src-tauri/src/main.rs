@@ -1,5 +1,14 @@
 fn main() {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().map(String::as_str) == Some("okf") {
+        match construct_lib::run_okf_command(&arguments[1..]) {
+            Ok(code) => std::process::exit(code),
+            Err(error) => {
+                eprintln!("construct okf: {error}");
+                std::process::exit(2);
+            }
+        }
+    }
     let result = match arguments.first().map(String::as_str) {
         Some("service") => Some(construct_lib::run_service_command(&arguments[1..])),
         Some("mcp") if arguments.get(1).map(String::as_str) == Some("serve") => {

@@ -17,6 +17,7 @@ mod index;
 mod knowledge;
 mod mcp;
 mod okf;
+mod okf_lint;
 
 const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
@@ -741,6 +742,10 @@ pub fn run_service_command(arguments: &[String]) -> Result<(), String> {
 
 pub fn run_mcp_command(arguments: &[String]) -> Result<(), String> {
     mcp::run_mcp_command(arguments)
+}
+
+pub fn run_okf_command(arguments: &[String]) -> Result<i32, String> {
+    okf_lint::run_command(arguments)
 }
 
 #[cfg(test)]

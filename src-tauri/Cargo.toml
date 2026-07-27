@@ -30,3 +30,4 @@ tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "proc
 uuid = { version = "1", features = ["v4"] }
 walkdir = "2"
 dirs = "6"
+glob = "0.3.3"

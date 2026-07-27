@@ -536,6 +536,13 @@ O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledg
 - **OKF-022:** Diagnósticos devem ter códigos estáveis, severidade, mensagem em inglês, identidade relativa do documento e range de origem quando disponível. Erros de conformidade não podem impedir que o Markdown legível seja aberto ou editado.
 - **OKF-023:** Links Markdown inline e de referência e campos OKF com contrato de path conhecido devem compartilhar resolução segura. Links quebrados geram findings; links que escapam da raiz registrada nunca entram no grafo.
 - **OKF-024:** A inspeção deve impor limites locais de tamanho e profundidade, excluir o bloco `construct-review:v1` de links e nunca reserializar ou salvar um documento.
+- **OKF-025:** O executável deve oferecer `construct okf lint [PATH]` para validar qualquer diretório explicitamente indicado sem exigir Local registrado, desktop, serviço, MCP, workspace ou índice.
+- **OKF-026:** O linter deve reutilizar o parser Rust compartilhado, operar somente em memória, nunca alterar arquivos e nunca criar estado persistente do Construct.
+- **OKF-027:** A saída de texto deve usar severidade, código estável, caminho relativo, range quando disponível, mensagem e resumo determinístico. A saída JSON deve ser um único objeto versionado em stdout.
+- **OKF-028:** Os códigos de saída públicos são `0` para scan concluído sem finding no threshold, `1` para lint failure e `2` para erro de invocação ou runtime. O threshold inicial pode ser `error`, `warning` ou `never`.
+- **OKF-029:** O linter deve aplicar as exclusões padrão de dependências e builds, aceitar `--exclude` repetível e não seguir symlinks.
+- **OKF-030:** `--max-findings` limita apenas findings materializados na saída; contagens, scan completo e exit code continuam considerando todos os findings. O default inicial é 1.000, com máximo configurável de 100.000.
+- **OKF-031:** O primeiro corte não inclui profile, SARIF, cache, watch ou reparo automático. Links quebrados e convenções de `index.md`/`log.md` permanecem findings não bloqueantes com o threshold padrão.
 
 ### 10.17 Índice local derivado
 
@@ -569,7 +576,7 @@ no MVP.
 - **AGENT-006:** O primeiro contrato MCP expõe listagem de Locais, overview, activity, busca, leitura de documento, documentos relacionados, context pack e status do índice.
 - **AGENT-007:** Cada Local mantém um cache derivado diário de 15 dias com contadores separados para mudanças reais, leituras servidas e inclusão em context packs. Hits de busca e rebuilds não contam como atividade.
 - **AGENT-008:** O overview deve combinar contagens por type, tag e role, saúde de links, findings, atividade recente e entradas recentes dos `log.md` reservados pelo OKF, inclusive em scopes aninhados.
-- **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 06 e nunca são misturados silenciosamente ao conteúdo fonte.
+- **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 07 e nunca são misturados silenciosamente ao conteúdo fonte.
 - **AGENT-010:** A interface deve permitir copiar uma configuração MCP pronta para o Local selecionado e explicar que o cliente externo controla o destino do conteúdo recuperado.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
 - **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
@@ -917,6 +924,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Adotar um SurrealDB/SurrealKV embedded por Local, possuído por um `IndexService` nativo, com corpo e frontmatter completos, projeção limpa de busca e arquivos como fonte da verdade. |
 | 2026-07-26 | Manter a inicialização interativa fora do caminho crítico da reconciliação e indexação completas. |
 | 2026-07-26 | Persistir links por Local, oferecer relações diretas explicáveis e montar context packs manuais com orçamento de caracteres antes de qualquer expansão automática ou LLM. |
+| 2026-07-26 | Oferecer um linter OKF CLI stateless, determinístico e somente leitura, reutilizando o parser nativo sem depender de Location, índice, serviço ou desktop. |
 
 ## 24. Histórico do documento
 
@@ -930,3 +938,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.6 | 2026-07-26 | Índice local persistente por Local, ownership nativo, gerações, retenção e controles de rebuild. |
 | 0.7 | 2026-07-26 | Search dedicado, filtros OKF, federação entre Locais e seleção efêmera de referências. |
 | 0.8 | 2026-07-26 | Startup progressivo, links persistidos, related documents e context packs manuais com orçamento. |
+| 0.9 | 2026-07-26 | Linter OKF stateless com texto/JSON, thresholds de CI, exclusões e exit codes públicos. |

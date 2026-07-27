@@ -76,24 +76,24 @@ pub(crate) struct OkfMetadata {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SourceRange {
-    start_line: usize,
-    start_column: usize,
-    end_line: usize,
-    end_column: usize,
+    pub(crate) start_line: usize,
+    pub(crate) start_column: usize,
+    pub(crate) end_line: usize,
+    pub(crate) end_column: usize,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OkfFinding {
-    code: String,
-    severity: FindingSeverity,
-    message: String,
-    relative_path: String,
+    pub(crate) code: String,
+    pub(crate) severity: FindingSeverity,
+    pub(crate) message: String,
+    pub(crate) relative_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    range: Option<SourceRange>,
+    pub(crate) range: Option<SourceRange>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum FindingSeverity {
     Error,
@@ -189,10 +189,10 @@ pub(crate) struct OkfConcept {
 pub(crate) struct OkfBundleSnapshot {
     detected: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    declared_version: Option<String>,
-    document_count: usize,
+    pub(crate) declared_version: Option<String>,
+    pub(crate) document_count: usize,
     finding_count: usize,
-    findings: Vec<OkfFinding>,
+    pub(crate) findings: Vec<OkfFinding>,
     concepts: Vec<OkfConcept>,
 }
 
@@ -1091,10 +1091,20 @@ pub(crate) fn inspect_bundle(
     files: Vec<BundleFile>,
 ) -> Result<OkfBundleSnapshot, String> {
     let mut documents = Vec::new();
+    let mut read_findings = Vec::new();
     for file in &files {
         let content = match fs::read_to_string(&file.path) {
             Ok(content) => content,
-            Err(_) => continue,
+            Err(error) => {
+                read_findings.push(finding(
+                    "OKF_FILE_UNREADABLE",
+                    FindingSeverity::Error,
+                    format!("Could not read this Markdown file: {error}"),
+                    &file.relative_path,
+                    None,
+                ));
+                continue;
+            }
         };
         documents.push((
             file,
@@ -1240,15 +1250,16 @@ pub(crate) fn inspect_bundle(
             .to_ascii_lowercase()
             .cmp(&right.relative_path.to_ascii_lowercase())
     });
-    let findings = documents
+    let mut findings = documents
         .iter()
         .flat_map(|(_, inspection)| inspection.findings.clone())
         .collect::<Vec<_>>();
+    findings.extend(read_findings);
     let finding_count = findings.len();
     Ok(OkfBundleSnapshot {
         detected,
         declared_version,
-        document_count: documents.len(),
+        document_count: files.len(),
         finding_count,
         findings,
         concepts,
