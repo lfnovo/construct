@@ -15,12 +15,12 @@ The preview currently has these platform boundaries:
 | --- | --- | --- |
 | Desktop Markdown workspace | Yes | Preview |
 | Stateless `construct okf lint` CLI | Yes | Yes |
-| Local full-text index | Yes | Not yet |
-| Local MCP server | Yes | Not yet |
+| Local full-text index | Yes | Yes |
+| Local MCP server | Yes | Yes |
 
 Linux is not currently part of the release matrix. The retrieval service and
-MCP rely on authenticated Unix-domain socket IPC; Windows support will require
-an equivalent native transport.
+MCP use authenticated Unix-domain socket IPC on macOS/Unix and local named
+pipes on Windows.
 
 Preview downloads are not yet a trusted public distribution. macOS artifacts
 use ad-hoc signing and are not notarized, and Windows artifacts are not yet
@@ -251,7 +251,7 @@ metadata, not files.
 
 ## Connect a coding agent
 
-On macOS and Unix:
+On macOS, Windows, and Unix:
 
 1. select a Location;
 2. use the clipboard button in the **Locations** header;
@@ -297,7 +297,7 @@ It includes:
   optional recent queries;
 - disposable per-Location indexes containing saved Markdown needed for local
   retrieval;
-- the user-only local service token, Unix socket, and derived activity cache.
+- the user-only local service token, local IPC endpoint, and derived activity cache.
 
 The registered Markdown files remain in their original folders and remain the
 source of truth. Removing or rebuilding an index does not change those files.
@@ -345,7 +345,7 @@ Confirm that:
 - the configuration contains `--allow <location-id>` or an intentional
   `--allow-all`;
 - the client was restarted or reloaded after configuration;
-- you are on macOS or another Unix system.
+- the installed Construct version supports local IPC on your operating system.
 
 ### A preview installer is blocked by the operating system
 

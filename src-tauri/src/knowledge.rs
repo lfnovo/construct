@@ -9,12 +9,16 @@ use serde_json::{json, Value};
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
 };
 
 #[cfg(unix)]
-use std::{io::ErrorKind, os::unix::fs::PermissionsExt, process::Stdio, time::Duration};
-#[cfg(unix)]
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use std::{io::ErrorKind, os::unix::fs::PermissionsExt};
+#[cfg(any(unix, windows))]
+use tokio::io::{split, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient, ServerOptions};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
@@ -181,7 +185,7 @@ impl KnowledgeClient {
             .await
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     async fn call<T: Serialize, R: DeserializeOwned>(
         &self,
         operation: &str,
@@ -233,19 +237,19 @@ impl KnowledgeClient {
             .map_err(|error| format!("Could not decode the local result: {error}"))
     }
 
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     async fn call<T: Serialize, R: DeserializeOwned>(
         &self,
         _operation: &str,
         _payload: T,
     ) -> Result<R, String> {
         Err(
-            "Local knowledge indexing and agent access are currently available on macOS and Unix systems."
+            "Local knowledge indexing and agent access are not available on this operating system."
                 .to_string(),
         )
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     fn start_service(&self) -> Result<(), String> {
         let executable = std::env::current_exe()
             .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
@@ -322,6 +326,8 @@ pub(crate) fn argument_value(arguments: &[String], flag: &str) -> Option<String>
 
 #[cfg(unix)]
 type LocalStream = UnixStream;
+#[cfg(windows)]
+type LocalStream = NamedPipeClient;
 
 #[cfg(unix)]
 async fn connect(data_dir: &Path) -> Result<LocalStream, String> {
@@ -330,7 +336,14 @@ async fn connect(data_dir: &Path) -> Result<LocalStream, String> {
         .map_err(|error| format!("Could not connect to Construct's local service: {error}"))
 }
 
-#[cfg(unix)]
+#[cfg(windows)]
+async fn connect(data_dir: &Path) -> Result<LocalStream, String> {
+    ClientOptions::new()
+        .open(pipe_name(data_dir))
+        .map_err(|error| format!("Could not connect to Construct's local service: {error}"))
+}
+
+#[cfg(any(unix, windows))]
 async fn connect_with_retry(data_dir: &Path) -> Result<LocalStream, String> {
     let mut last_error = String::new();
     for _ in 0..40 {
@@ -345,6 +358,13 @@ async fn connect_with_retry(data_dir: &Path) -> Result<LocalStream, String> {
     } else {
         last_error
     })
+}
+
+#[cfg(windows)]
+fn pipe_name(data_dir: &Path) -> String {
+    let identity = data_dir.to_string_lossy().replace('\\', "/").to_lowercase();
+    let digest = blake3::hash(identity.as_bytes()).to_hex().to_string();
+    format!(r"\\.\pipe\construct-knowledge-{}", &digest[..24])
 }
 
 fn ensure_token(data_dir: &Path) -> Result<String, String> {
@@ -398,18 +418,51 @@ async fn run_service(data_dir: PathBuf) -> Result<(), String> {
     }
 }
 
-#[cfg(not(unix))]
-async fn run_service(_data_dir: PathBuf) -> Result<(), String> {
-    Err("Independent agent access is currently available on macOS and Unix systems.".to_string())
+#[cfg(windows)]
+async fn run_service(data_dir: PathBuf) -> Result<(), String> {
+    fs::create_dir_all(&data_dir)
+        .map_err(|error| format!("Could not create Construct's local data directory: {error}"))?;
+    let token = ensure_token(&data_dir)?;
+    if connect(&data_dir).await.is_ok() {
+        return Ok(());
+    }
+
+    let name = pipe_name(&data_dir);
+    let service = index::IndexService::new(data_dir.join("indexes"))?;
+    let mut first_instance = true;
+    loop {
+        let server = ServerOptions::new()
+            .first_pipe_instance(first_instance)
+            .create(&name)
+            .map_err(|error| format!("Could not create Construct's local named pipe: {error}"))?;
+        first_instance = false;
+        server
+            .connect()
+            .await
+            .map_err(|error| format!("Could not accept a local service request: {error}"))?;
+        let service = service.clone();
+        let token = token.clone();
+        tokio::spawn(async move {
+            let _ = handle_connection(server, service, token).await;
+        });
+    }
 }
 
-#[cfg(unix)]
-async fn handle_connection(
-    stream: UnixStream,
+#[cfg(not(any(unix, windows)))]
+async fn run_service(_data_dir: PathBuf) -> Result<(), String> {
+    Err("Independent agent access is not available on this operating system.".to_string())
+}
+
+#[cfg(any(unix, windows))]
+async fn handle_connection<S>(
+    stream: S,
     service: index::IndexService,
     token: String,
-) -> Result<(), String> {
-    let (reader, mut writer) = stream.into_split();
+) -> Result<(), String>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let (reader, mut writer) = split(stream);
     let mut reader = BufReader::new(reader);
     let mut request = Vec::new();
     reader

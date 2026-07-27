@@ -12,6 +12,13 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
   dependency installation, Rust compilation, and desktop bundling.
 - Split web, native, Windows, and macOS bundle validation into focused jobs
   behind a stable aggregate CI gate.
+- Enabled the isolated local knowledge index and read-only MCP server on
+  Windows through authenticated local named-pipe IPC.
+
+### Fixed
+
+- Normalized Windows canonical path identities so files returned with the
+  `\\?\` prefix still open inside their registered Location.
 
 ### Documentation
 

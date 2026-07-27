@@ -69,7 +69,7 @@ Public preview builds are available in
 | --- | --- | --- | --- |
 | macOS Apple Silicon | DMG | `tar.gz` | Yes |
 | macOS Intel | DMG | `tar.gz` | Yes |
-| Windows x64 | NSIS installer | `.zip` | Not yet |
+| Windows x64 | NSIS installer | `.zip` | Yes |
 
 Every candidate includes a `SHA256SUMS` manifest. The current macOS builds use
 ad-hoc signing and Windows builds are not yet code-signed; trusted public
@@ -94,7 +94,7 @@ construct okf lint ./knowledge --fail-on warning --format json
 For registered Locations, the desktop also exposes the same findings in
 **Explore → Health**.
 
-On macOS and Unix, select a Location and use the clipboard button in the
+On macOS, Windows, and Unix, select a Location and use the clipboard button in the
 **Locations** header to copy a ready-to-paste MCP configuration. The generated
 server is read-only and limited to that Location. See:
 
