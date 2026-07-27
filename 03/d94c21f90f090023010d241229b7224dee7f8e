@@ -1,0 +1,36 @@
+.github/workflows/ci.yml
+  s_954343fc536a43::t_506388f0e94b46 18-95,97-167,191,199,203-212,215-228,230,232-235,237
+  s_954343fc536a43::t_ca1d396a5554ba 96,231
+  s_954343fc536a43::t_9121c08ac1cecf 200-202
+package.json
+  s_954343fc536a43::t_9121c08ac1cecf 24
+  s_954343fc536a43::t_ca1d396a5554ba 22,32
+CHANGELOG.md
+  s_954343fc536a43::t_ca1d396a5554ba 9-15
+docs/development.md
+  s_954343fc536a43::t_ca1d396a5554ba 112-127
+tests/ci-paths.test.mjs
+  s_954343fc536a43::t_06e15f2f3e9dfa 20-28
+  s_954343fc536a43::t_a80ab972ebeb98 1-19,29-73
+scripts/check-docs.mjs
+  s_954343fc536a43::t_a80ab972ebeb98 1-89
+scripts/classify-ci-changes.mjs
+  s_954343fc536a43::t_a80ab972ebeb98 1-157,159-165
+  s_954343fc536a43::t_06e15f2f3e9dfa 158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "03d94c21f90f090023010d241229b7224dee7f8e",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
