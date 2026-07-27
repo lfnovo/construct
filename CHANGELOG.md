@@ -15,6 +15,10 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ### Documentation
 
+- Clarified public pre-release installation on Windows, including the correct
+  NSIS asset, checksum verification, SmartScreen handling, and the distinction
+  between private draft URLs, desktop installers, CLI archives, and source
+  archives.
 - Reorganized the repository around clear user, CLI, MCP, contributor, product,
   architecture, security, and release journeys.
 - Added a complete first-run and workflow guide for Locations, Markdown

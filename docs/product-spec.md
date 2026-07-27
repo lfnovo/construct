@@ -743,8 +743,12 @@ O produto não deve armazenar caminhos usando suposições exclusivas de separad
   crate Rust e configuração Tauri antes de qualquer bundle ser produzido.
 - A mesma tag e commit devem gerar a app e a CLI standalone para macOS Apple
   Silicon, macOS Intel e Windows x64.
-- A release deve permanecer em draft até que todos os targets, checksums e smoke
-  tests sejam verificados.
+- A release deve permanecer em draft até que todos os targets e checksums sejam
+  verificados e os smoke tests disponíveis ao mantenedor passem.
+- Um preview não assinado que dependa de teste externo pode ser publicado
+  somente como pre-release, com limitações explícitas; promoção a release
+  estável exige smoke test em máquina limpa e identidade de assinatura
+  confiável.
 - Instaladores e artefatos CLI devem possuir um manifesto SHA-256; exemplos de
   CI futuros devem fixar uma versão imutável e validar o checksum.
 - Um preview não assinado ou ad-hoc signed deve ser identificado explicitamente.
@@ -1009,6 +1013,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Persistir links por Local, oferecer relações diretas explicáveis e montar context packs manuais com orçamento de caracteres antes de qualquer expansão automática ou LLM. |
 | 2026-07-26 | Oferecer um linter OKF CLI stateless, determinístico e somente leitura, reutilizando o parser nativo sem depender de Location, índice, serviço ou desktop. |
 | 2026-07-27 | Distribuir app e CLI pela mesma tag em GitHub Releases, com DMG macOS, NSIS Windows, arquivos CLI standalone, checksums e publicação inicial em draft. |
+| 2026-07-27 | Tornar drafts privados em pre-releases públicas somente depois de verificar targets e checksums; usar o estado pre-release para previews não assinados e smoke tests externos, sem apresentá-los como distribuição estável. |
 | 2026-07-27 | No preview Windows, oferecer workspace desktop e linter OKF stateless; manter índice local e MCP como macOS/Unix até existir um transporte IPC Windows autenticado. |
 | 2026-07-27 | Organizar a documentação pública pelas jornadas de usuário, CLI, MCP, desenvolvimento, produto e arquitetura, mantendo README como entrada curta. |
 
@@ -1027,3 +1032,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.9 | 2026-07-26 | Linter OKF stateless com texto/JSON, thresholds de CI, exclusões e exit codes públicos. |
 | 0.10 | 2026-07-26 | MCP local read-only, allowlist por Location, hot memory, overview, activity e tools compartilhadas com o índice. |
 | 0.11 | 2026-07-27 | Escopo atual reconciliado com busca, Health, CLI, MCP e preview Windows; documentação pública orientada por jornada. |
+| 0.12 | 2026-07-27 | Ciclo de distribuição distinguindo draft privado, pre-release pública não assinada e release estável confiável. |

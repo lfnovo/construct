@@ -11,6 +11,15 @@ The tag-driven workflow in `.github/workflows/release.yml` creates a **draft**
 release. A maintainer must inspect its assets and smoke-test them before
 publication.
 
+Release visibility has three distinct states:
+
+- **Draft:** private to repository collaborators; never share its
+  `untagged-...` URL with testers.
+- **Pre-release:** public and versioned, used for explicitly labeled unsigned
+  previews and external platform smoke tests.
+- **Release:** trusted stable distribution; reserved until signing,
+  notarization, and clean-machine verification gates are met.
+
 ## Release artifacts
 
 Each `vX.Y.Z` release candidate produces:
@@ -94,14 +103,41 @@ Before publishing:
 - confirm that every target and `SHA256SUMS` is present;
 - download artifacts from the draft rather than using local build output;
 - verify each checksum;
-- install and launch each available app target;
+- install and launch each app target available to the maintainer;
 - run `construct okf lint --help` and a real text/JSON lint;
 - run the MCP smoke path from the standalone CLI;
 - confirm the release notes and known limitations;
 - confirm that no unsigned artifact is described as trusted.
 
 Keep the release as a draft if any matrix job, signature, checksum, or smoke
-test is incomplete.
+test on an available platform is incomplete. When a target requires an external
+tester, publish only as a pre-release, identify that target as awaiting external
+smoke testing, and do not promote it to a stable release until the test passes.
+
+## Publish a public preview
+
+Update the draft notes with direct asset guidance, checksum verification,
+platform limitations, and unsigned-artifact warnings. Then publish the draft as
+a pre-release:
+
+```bash
+gh release edit vX.Y.Z \
+  --repo lfnovo/construct \
+  --verify-tag \
+  --prerelease \
+  --draft=false \
+  --notes-file /path/to/release-notes.md
+```
+
+Share the canonical public URL:
+
+```text
+https://github.com/lfnovo/construct/releases/tag/vX.Y.Z
+```
+
+Do not share a draft URL containing `untagged-...`. For Windows desktop users,
+link to the `_x64-setup.exe` asset; the `x86_64-pc-windows-msvc.zip` asset is
+the standalone CLI.
 
 ## Signing and trust
 
