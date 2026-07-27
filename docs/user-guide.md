@@ -57,13 +57,36 @@ open src-tauri/target/release/bundle/macos/Construct.app
 
 ### Install a tagged preview
 
-When a release candidate is published, download the installer for your platform
-and `SHA256SUMS` from
-[GitHub Releases](https://github.com/lfnovo/construct/releases). Verify the
-download before installing it. The exact artifact names and verification
-commands are documented in the [release guide](releasing.md).
+Published preview releases are public at
+[GitHub Releases](https://github.com/lfnovo/construct/releases) and carry a
+**Pre-release** label. A URL containing `untagged-...` points to a private draft
+for maintainers and will not work for other users.
 
-The GitHub-generated “Source code” archives are not desktop or CLI downloads.
+For Windows x64:
+
+1. Open the preview release and expand **Assets**.
+2. Download `Construct_<version>_x64-setup.exe` and `SHA256SUMS`.
+3. In PowerShell, calculate the installer checksum:
+
+   ```powershell
+   (Get-FileHash .\Construct_<version>_x64-setup.exe -Algorithm SHA256).Hash.ToLower()
+   ```
+
+4. Compare the result with the installer line in `SHA256SUMS`.
+5. Run the `.exe`. Node.js, Rust, Git, and the source repository are not
+   required.
+
+The separate `construct_<version>_x86_64-pc-windows-msvc.zip` contains the
+standalone CLI, not the desktop installer. GitHub's automatically generated
+“Source code” archives are not desktop or CLI downloads.
+
+Because the Windows preview is not yet code-signed, Microsoft Defender
+SmartScreen may display **Windows protected your PC**. After verifying that the
+file came from the Construct release and its checksum matches, choose
+**More info → Run anyway**. Do not disable SmartScreen globally.
+
+The exact artifact names for every platform and the maintainer verification
+process are documented in the [release guide](releasing.md).
 
 ## First five minutes
 
@@ -327,8 +350,11 @@ Confirm that:
 ### A preview installer is blocked by the operating system
 
 Do not disable platform security globally. Verify the artifact and checksum,
-then decide whether to trust the explicitly labeled preview, or build from the
-reviewed source. Trusted signing and notarization are not available yet.
+then decide whether to trust the explicitly labeled preview. On Windows, follow
+the [tagged preview instructions](#install-a-tagged-preview) to use SmartScreen's
+per-file **More info → Run anyway** path. Build from the reviewed source if you
+do not want to run an unsigned preview. Trusted signing and notarization are not
+available yet.
 
 ## More help
 

@@ -61,8 +61,9 @@ search, OKF exploration, keyboard shortcuts, and troubleshooting.
 
 ### Preview downloads
 
-Tagged builds create draft candidates in
-[GitHub Releases](https://github.com/lfnovo/construct/releases):
+Public preview builds are available in
+[GitHub Releases](https://github.com/lfnovo/construct/releases). Releases marked
+**Pre-release** are intentionally early and unsigned:
 
 | Platform | Desktop | Standalone CLI | Local index and MCP |
 | --- | --- | --- | --- |
@@ -74,6 +75,12 @@ Every candidate includes a `SHA256SUMS` manifest. The current macOS builds use
 ad-hoc signing and Windows builds are not yet code-signed; trusted public
 distribution is tracked in
 [issue #19](https://github.com/lfnovo/construct/issues/19).
+
+On Windows, download the asset ending in `_x64-setup.exe`. The
+`x86_64-pc-windows-msvc.zip` asset is the standalone CLI, and GitHub's
+automatically generated “Source code” archives are not installers. The
+[user guide](docs/user-guide.md#install-a-tagged-preview) includes checksum and
+Microsoft Defender SmartScreen instructions.
 
 ## CLI and agent access
 
