@@ -15,8 +15,156 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Validate macOS application
+  changes:
+    name: Detect affected areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs: ${{ steps.classify.outputs.docs }}
+      web: ${{ steps.classify.outputs.web }}
+      rust: ${{ steps.classify.outputs.rust }}
+      bundle: ${{ steps.classify.outputs.bundle }}
+      code: ${{ steps.classify.outputs.code }}
+
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" || -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
+            node scripts/classify-ci-changes.mjs --all --github-output >> "${GITHUB_OUTPUT}"
+          else
+            node scripts/classify-ci-changes.mjs \
+              --base "${BASE_SHA}" \
+              --head "${HEAD_SHA}" \
+              --github-output >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Summarize classification
+        run: |
+          {
+            echo "### Affected areas"
+            echo ""
+            echo "| Area | Run |"
+            echo "| --- | --- |"
+            echo "| Documentation | ${{ steps.classify.outputs.docs }} |"
+            echo "| Web | ${{ steps.classify.outputs.web }} |"
+            echo "| Rust | ${{ steps.classify.outputs.rust }} |"
+            echo "| PR bundle | ${{ steps.classify.outputs.bundle }} |"
+            echo ""
+            echo "Changed paths: ${{ steps.classify.outputs.changed_count }}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  docs:
+    name: Validate documentation
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check documentation links and index
+        run: node scripts/check-docs.mjs
+
+      - name: Parse GitHub YAML
+        run: >-
+          ruby -e 'require "yaml"; ARGV.each { |file| YAML.load_file(file) }'
+          .github/ISSUE_TEMPLATE/*.yml
+          .github/workflows/*.yml
+
+  web:
+    name: Validate web
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Lint web
+        run: npm run lint:web
+
+      - name: Test web
+        run: npm run test:web
+
+      - name: Build web
+        run: npm run build:web
+
+  rust_macos:
+    name: Validate Rust on macOS
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Lint Rust
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Test Rust
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  rust_windows:
+    name: Validate Rust on Windows
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Check Windows targets
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets
+
+  bundle_macos:
+    name: Build macOS bundle
+    needs: changes
+    if: >-
+      needs.changes.outputs.bundle == 'true' ||
+      (github.event_name == 'push' && needs.changes.outputs.code == 'true') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     timeout-minutes: 45
 
@@ -36,14 +184,11 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup show
 
-      - name: Validate source
-        run: npm run validate
-
       - name: Build macOS bundle
         run: npm run build
 
       - name: Upload preview bundle
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v7
         with:
           name: Construct-macOS-${{ github.sha }}
@@ -51,17 +196,42 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  validate-windows:
-    name: Validate Windows Rust
-    runs-on: windows-latest
-    timeout-minutes: 30
+  gate:
+    # Preserve the required status-check context configured on main. This job
+    # aggregates the focused checks and replaces the former monolithic build.
+    name: Validate macOS application
+    needs:
+      - changes
+      - docs
+      - web
+      - rust_macos
+      - rust_windows
+      - bundle_macos
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - name: Require every selected check to pass
+        shell: bash
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          DOCS: ${{ needs.docs.result }}
+          WEB: ${{ needs.web.result }}
+          RUST_MACOS: ${{ needs.rust_macos.result }}
+          RUST_WINDOWS: ${{ needs.rust_windows.result }}
+          BUNDLE_MACOS: ${{ needs.bundle_macos.result }}
+        run: |
+          if [[ "${CHANGES}" != "success" ]]; then
+            echo "Change detection did not succeed: ${CHANGES}"
+            exit 1
+          fi
 
-      - name: Install pinned Rust toolchain
-        run: rustup show
+          for result in "${DOCS}" "${WEB}" "${RUST_MACOS}" "${RUST_WINDOWS}" "${BUNDLE_MACOS}"; do
+            if [[ "${result}" != "success" && "${result}" != "skipped" ]]; then
+              echo "A selected CI job did not pass: ${result}"
+              exit 1
+            fi
+          done
 
-      - name: Check Windows targets
-        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets
+          echo "Every selected CI job passed; unneeded jobs were skipped."

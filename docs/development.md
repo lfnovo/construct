@@ -109,8 +109,22 @@ npm run validate
 npm run build
 ```
 
-`validate` runs web and Rust linting, TypeScript checking, Node and Rust tests,
-Rust formatting checks, and the production web build.
+`validate` checks the documentation index and local links, then runs web and
+Rust linting, TypeScript checking, Node and Rust tests, Rust formatting checks,
+and the production web build.
+
+For documentation-only work, run the lightweight check directly. It uses only
+Node.js and does not install application dependencies or compile Rust:
+
+```bash
+npm run check:docs
+```
+
+Pull request CI classifies changed paths before starting expensive jobs.
+Documentation-only changes run the documentation check; frontend changes run
+the web checks on Linux; native changes run Rust checks on macOS and Windows.
+The release-mode macOS bundle is reserved for bundle-critical pull request
+changes and code merged to `main`.
 
 ### Focused web checks
 
