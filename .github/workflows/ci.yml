@@ -50,3 +50,18 @@ jobs:
           path: src-tauri/target/release/bundle/macos/Construct.app
           if-no-files-found: error
           retention-days: 14
+
+  validate-windows:
+    name: Validate Windows Rust
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Check Windows targets
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets

@@ -948,6 +948,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Persistir links por Local, oferecer relações diretas explicáveis e montar context packs manuais com orçamento de caracteres antes de qualquer expansão automática ou LLM. |
 | 2026-07-26 | Oferecer um linter OKF CLI stateless, determinístico e somente leitura, reutilizando o parser nativo sem depender de Location, índice, serviço ou desktop. |
 | 2026-07-27 | Distribuir app e CLI pela mesma tag em GitHub Releases, com DMG macOS, NSIS Windows, arquivos CLI standalone, checksums e publicação inicial em draft. |
+| 2026-07-27 | No preview Windows, oferecer workspace desktop e linter OKF stateless; manter índice local e MCP como macOS/Unix até existir um transporte IPC Windows autenticado. |
 
 ## 24. Histórico do documento
 

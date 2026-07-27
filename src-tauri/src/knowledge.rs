@@ -8,15 +8,13 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     fs,
-    io::ErrorKind,
     path::{Path, PathBuf},
-    process::Stdio,
-    time::Duration,
 };
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::{io::ErrorKind, os::unix::fs::PermissionsExt, process::Stdio, time::Duration};
+#[cfg(unix)]
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
@@ -183,6 +181,7 @@ impl KnowledgeClient {
             .await
     }
 
+    #[cfg(unix)]
     async fn call<T: Serialize, R: DeserializeOwned>(
         &self,
         operation: &str,
@@ -234,6 +233,19 @@ impl KnowledgeClient {
             .map_err(|error| format!("Could not decode the local result: {error}"))
     }
 
+    #[cfg(not(unix))]
+    async fn call<T: Serialize, R: DeserializeOwned>(
+        &self,
+        _operation: &str,
+        _payload: T,
+    ) -> Result<R, String> {
+        Err(
+            "Local knowledge indexing and agent access are currently available on macOS and Unix systems."
+                .to_string(),
+        )
+    }
+
+    #[cfg(unix)]
     fn start_service(&self) -> Result<(), String> {
         let executable = std::env::current_exe()
             .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
@@ -318,11 +330,7 @@ async fn connect(data_dir: &Path) -> Result<LocalStream, String> {
         .map_err(|error| format!("Could not connect to Construct's local service: {error}"))
 }
 
-#[cfg(not(unix))]
-async fn connect(_data_dir: &Path) -> Result<LocalStream, String> {
-    Err("Independent agent access is currently available on macOS and Unix systems.".to_string())
-}
-
+#[cfg(unix)]
 async fn connect_with_retry(data_dir: &Path) -> Result<LocalStream, String> {
     let mut last_error = String::new();
     for _ in 0..40 {

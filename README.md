@@ -66,6 +66,10 @@ Tagged builds produce draft candidates in
 - standalone `construct` CLI archives for the same targets;
 - a `SHA256SUMS` manifest for installer and CLI verification.
 
+The Windows preview includes the desktop workspace and stateless
+`construct okf lint` CLI. Local knowledge indexing and MCP access currently
+require macOS or another Unix system while a Windows IPC transport is designed.
+
 Preview artifacts are not yet a trusted public distribution: macOS
 notarization and Windows code signing remain release gates. See the
 [release process](docs/releasing.md) for artifact names, verification, and the
