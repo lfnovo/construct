@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+### Fixed
+
+- Kept desktop and MCP knowledge search working when the embedded full-text
+  indexes are unavailable or return no candidates by falling back to a
+  batched, local lexical scan of the active Location generation.
+
 ## [0.1.2] - 2026-07-27
 
 ### Changed
