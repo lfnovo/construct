@@ -88,6 +88,7 @@ export type OkfBundleSnapshot = {
   findingCount: number;
   findings: OkfFinding[];
   concepts: OkfConcept[];
+  ignoredPaths: string[];
 };
 
 export type OkfBundleIndex = {
@@ -98,6 +99,7 @@ export type OkfBundleIndex = {
   documentCount?: number;
   findingCount?: number;
   findings?: OkfFinding[];
+  ignoredPaths?: string[];
   error?: string;
 };
 

@@ -191,9 +191,10 @@ pub(crate) struct OkfBundleSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) declared_version: Option<String>,
     pub(crate) document_count: usize,
-    finding_count: usize,
+    pub(crate) finding_count: usize,
     pub(crate) findings: Vec<OkfFinding>,
-    concepts: Vec<OkfConcept>,
+    pub(crate) concepts: Vec<OkfConcept>,
+    pub(crate) ignored_paths: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -211,6 +212,28 @@ pub(crate) struct InspectDocumentRequest {
 pub(crate) struct BundleFile {
     pub(crate) path: PathBuf,
     pub(crate) relative_path: String,
+}
+
+impl OkfBundleSnapshot {
+    pub(crate) fn apply_conformance_policy(
+        &mut self,
+        ignored_paths: Vec<String>,
+        retain_ignored_findings: bool,
+    ) {
+        let ignored = ignored_paths.iter().cloned().collect::<HashSet<_>>();
+        self.concepts
+            .retain(|concept| !ignored.contains(&concept.relative_path));
+        if !retain_ignored_findings {
+            self.findings
+                .retain(|finding| !ignored.contains(&finding.relative_path));
+        }
+        self.finding_count = self
+            .findings
+            .iter()
+            .filter(|finding| !ignored.contains(&finding.relative_path))
+            .count();
+        self.ignored_paths = ignored_paths;
+    }
 }
 
 #[derive(Debug)]
@@ -1263,6 +1286,7 @@ pub(crate) fn inspect_bundle(
         finding_count,
         findings,
         concepts,
+        ignored_paths: Vec::new(),
     })
 }
 

@@ -1,8 +1,8 @@
 use crate::{
     okf::{inspect_bundle, BundleFile, FindingSeverity, OkfFinding, SourceRange},
+    okf_policy::ConformancePolicy,
     IGNORED_DIRECTORIES,
 };
-use glob::{MatchOptions, Pattern};
 use serde::Serialize;
 use std::{
     cmp::Ordering,
@@ -33,6 +33,7 @@ struct CommandOptions {
     format: OutputFormat,
     fail_on: FailOn,
     excludes: Vec<String>,
+    use_ignore_file: bool,
     max_findings: usize,
     no_color: bool,
     quiet: bool,
@@ -77,6 +78,7 @@ struct LintReport {
     bundle_name: String,
     declared_okf_version: Option<String>,
     documents: usize,
+    ignored_documents: usize,
     findings: Vec<LintFinding>,
 }
 
@@ -105,6 +107,7 @@ struct JsonBundle<'a> {
 #[serde(rename_all = "camelCase")]
 struct JsonSummary {
     documents: usize,
+    ignored_documents: usize,
     errors: usize,
     warnings: usize,
     info: usize,
@@ -133,7 +136,8 @@ Options:\n\
   --format <text|json>       Output format (default: text)\n\
   --fail-on <error|warning|never>\n\
                              Finding threshold for exit code 1 (default: error)\n\
-  --exclude <GLOB>           Exclude a relative path pattern (repeatable)\n\
+  --exclude <GLOB>           Skip conformance checks for a path (repeatable)\n\
+  --no-ignore-file           Do not read .constructignore from the bundle root\n\
   --max-findings <COUNT>     Maximum findings included in output (default: 1000)\n\
   --no-color                 Disable terminal colors\n\
   --quiet                    Suppress individual findings\n\
@@ -193,6 +197,7 @@ fn parse_options(arguments: &[String]) -> Result<Option<CommandOptions>, String>
     let mut format = OutputFormat::Text;
     let mut fail_on = FailOn::Error;
     let mut excludes = Vec::new();
+    let mut use_ignore_file = true;
     let mut max_findings = DEFAULT_MAX_FINDINGS;
     let mut no_color = false;
     let mut quiet = false;
@@ -210,6 +215,8 @@ fn parse_options(arguments: &[String]) -> Result<Option<CommandOptions>, String>
             no_color = true;
         } else if argument == "--quiet" {
             quiet = true;
+        } else if argument == "--no-ignore-file" {
+            use_ignore_file = false;
         } else if let Some(value) = argument.strip_prefix("--format=") {
             format = parse_format(value)?;
         } else if argument == "--format" {
@@ -242,6 +249,7 @@ fn parse_options(arguments: &[String]) -> Result<Option<CommandOptions>, String>
         format,
         fail_on,
         excludes,
+        use_ignore_file,
         max_findings,
         no_color,
         quiet,
@@ -260,16 +268,6 @@ fn parse_max_findings(value: &str) -> Result<usize, String> {
     Ok(count)
 }
 
-fn compile_excludes(patterns: &[String]) -> Result<Vec<Pattern>, String> {
-    patterns
-        .iter()
-        .map(|pattern| {
-            Pattern::new(pattern)
-                .map_err(|error| format!("invalid --exclude pattern '{pattern}': {error}"))
-        })
-        .collect()
-}
-
 fn is_markdown(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -283,18 +281,7 @@ fn relative_path(root: &Path, path: &Path) -> Option<String> {
         .map(|relative| relative.to_string_lossy().replace('\\', "/"))
 }
 
-fn matches_exclusion(excludes: &[Pattern], candidate: &str) -> bool {
-    let options = MatchOptions {
-        case_sensitive: true,
-        require_literal_separator: true,
-        require_literal_leading_dot: false,
-    };
-    excludes
-        .iter()
-        .any(|pattern| pattern.matches_with(candidate, options))
-}
-
-fn excluded_entry(entry: &DirEntry, root: &Path, excludes: &[Pattern]) -> bool {
+fn excluded_entry(entry: &DirEntry) -> bool {
     if entry.depth() == 0 {
         return false;
     }
@@ -307,13 +294,7 @@ fn excluded_entry(entry: &DirEntry, root: &Path, excludes: &[Pattern]) -> bool {
     {
         return true;
     }
-    let Some(relative) = relative_path(root, entry.path()) else {
-        return true;
-    };
-    matches_exclusion(excludes, &relative)
-        || (entry.file_type().is_dir()
-            && (matches_exclusion(excludes, &format!("{relative}/"))
-                || matches_exclusion(excludes, &format!("{relative}/__construct_descendant__"))))
+    false
 }
 
 fn walk_error_finding(root: &Path, error: &walkdir::Error) -> LintFinding {
@@ -335,16 +316,13 @@ fn walk_error_finding(root: &Path, error: &walkdir::Error) -> LintFinding {
     }
 }
 
-fn discover_files(
-    root: &Path,
-    excludes: &[Pattern],
-) -> Result<(Vec<BundleFile>, Vec<LintFinding>), String> {
+fn discover_files(root: &Path) -> Result<(Vec<BundleFile>, Vec<LintFinding>), String> {
     let mut files = Vec::new();
     let mut findings = Vec::new();
     let walker = WalkDir::new(root)
         .follow_links(false)
         .into_iter()
-        .filter_entry(|entry| !excluded_entry(entry, root, excludes));
+        .filter_entry(|entry| !excluded_entry(entry));
     for entry in walker {
         let entry = match entry {
             Ok(entry) => entry,
@@ -452,16 +430,24 @@ fn compare_findings(left: &LintFinding, right: &LintFinding) -> Ordering {
         .then_with(|| left.message.cmp(&right.message))
 }
 
-fn lint_bundle(root: &Path, exclude_patterns: &[String]) -> Result<LintReport, String> {
+fn lint_bundle(
+    root: &Path,
+    exclude_patterns: &[String],
+    use_ignore_file: bool,
+) -> Result<LintReport, String> {
     let root = root
         .canonicalize()
         .map_err(|error| format!("could not access '{}': {error}", root.display()))?;
     if !root.is_dir() {
         return Err(format!("'{}' is not a directory", root.display()));
     }
-    let excludes = compile_excludes(exclude_patterns)?;
-    let (files, mut findings) = discover_files(&root, &excludes)?;
-    let snapshot = inspect_bundle(&root, files)?;
+    let policy = ConformancePolicy::load(&root, exclude_patterns, use_ignore_file)?;
+    let (files, mut findings) = discover_files(&root)?;
+    let ignored_paths = policy.ignored_paths(files.iter().map(|file| file.relative_path.as_str()));
+    let ignored_documents = ignored_paths.len();
+    findings.retain(|finding| !policy.is_ignored(&finding.relative_path));
+    let mut snapshot = inspect_bundle(&root, files)?;
+    snapshot.apply_conformance_policy(ignored_paths, false);
     findings.extend(snapshot.findings.into_iter().map(lint_finding));
     findings.sort_by(compare_findings);
     let bundle_name = root
@@ -473,7 +459,8 @@ fn lint_bundle(root: &Path, exclude_patterns: &[String]) -> Result<LintReport, S
     Ok(LintReport {
         bundle_name,
         declared_okf_version: snapshot.declared_version,
-        documents: snapshot.document_count,
+        documents: snapshot.document_count.saturating_sub(ignored_documents),
+        ignored_documents,
         findings,
     })
 }
@@ -566,9 +553,20 @@ fn render_text(execution: &LintExecution, options: &CommandOptions, color: bool)
         }
     }
     let (errors, warnings, info) = finding_counts(&report.findings);
+    let ignored = (report.ignored_documents > 0).then(|| {
+        format!(
+            " · {}",
+            counted(
+                report.ignored_documents,
+                "document ignored",
+                "documents ignored"
+            )
+        )
+    });
     output.push_str(&format!(
-        "\nSummary: {} · {} · {} · {}\nResult: {}\n",
+        "\nSummary: {}{} · {} · {} · {}\nResult: {}\n",
         counted(report.documents, "document", "documents"),
+        ignored.unwrap_or_default(),
         counted(errors, "error", "errors"),
         counted(warnings, "warning", "warnings"),
         counted(info, "info", "info"),
@@ -593,6 +591,7 @@ fn render_json(execution: &LintExecution, options: &CommandOptions) -> Result<St
         },
         summary: JsonSummary {
             documents: report.documents,
+            ignored_documents: report.ignored_documents,
             errors,
             warnings,
             info,
@@ -606,7 +605,7 @@ fn render_json(execution: &LintExecution, options: &CommandOptions) -> Result<St
 }
 
 fn execute(options: &CommandOptions) -> Result<LintExecution, String> {
-    let report = lint_bundle(&options.root, &options.excludes)?;
+    let report = lint_bundle(&options.root, &options.excludes, options.use_ignore_file)?;
     let failed = fails(&report, options.fail_on);
     Ok(LintExecution { report, failed })
 }
@@ -658,6 +657,7 @@ mod tests {
             format: OutputFormat::Text,
             fail_on: FailOn::Error,
             excludes: Vec::new(),
+            use_ignore_file: true,
             max_findings: DEFAULT_MAX_FINDINGS,
             no_color: true,
             quiet: false,
@@ -684,6 +684,7 @@ mod tests {
             "--format=json",
             "--exclude",
             "drafts/**",
+            "--no-ignore-file",
             ".",
             "--fail-on",
             "warning",
@@ -699,6 +700,7 @@ mod tests {
         assert_eq!(parsed.format, OutputFormat::Json);
         assert_eq!(parsed.fail_on, FailOn::Warning);
         assert_eq!(parsed.excludes, ["drafts/**"]);
+        assert!(!parsed.use_ignore_file);
         assert_eq!(parsed.max_findings, 25);
         assert!(parsed.no_color);
         assert!(parsed.quiet);
@@ -733,17 +735,59 @@ mod tests {
     }
 
     #[test]
-    fn explicit_globs_exclude_matching_subtrees() {
+    fn explicit_globs_skip_conformance_but_keep_link_targets_resolvable() {
         let root = temporary_directory("exclude");
-        fs::write(root.join("valid.md"), "---\ntype: Note\n---\n# Valid\n")
-            .expect("write valid file");
-        fs::create_dir_all(root.join("drafts")).expect("create drafts");
-        fs::write(root.join("drafts/invalid.md"), "# Missing frontmatter\n")
-            .expect("write invalid draft");
+        fs::write(
+            root.join("index.md"),
+            "---\nokf_version: \"0.1\"\n---\n# Bundle\n\n- [Agent instructions](AGENTS.md)\n",
+        )
+        .expect("write index");
+        fs::write(root.join("AGENTS.md"), "# Agent instructions\n").expect("write instructions");
 
-        let report = lint_bundle(&root, &["drafts/**".to_string()]).expect("lint bundle");
+        let report = lint_bundle(&root, &["AGENTS.md".to_string()], true).expect("lint bundle");
         assert_eq!(report.documents, 1);
+        assert_eq!(report.ignored_documents, 1);
         assert!(report.findings.is_empty());
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn repository_ignore_file_is_applied_unless_explicitly_disabled() {
+        let root = temporary_directory("ignore-file");
+        fs::create_dir_all(root.join("skills/example")).expect("create skills");
+        fs::write(
+            root.join("index.md"),
+            "---\nokf_version: \"0.1\"\n---\n# Bundle\n\n- [Instructions](AGENTS.md)\n- [Skill](skills/example/SKILL.md)\n",
+        )
+        .expect("write index");
+        fs::write(root.join("AGENTS.md"), "# Agent instructions\n").expect("write instructions");
+        fs::write(
+            root.join("skills/example/SKILL.md"),
+            "---\nname: example\ndescription: Example skill\n---\n# Skill\n",
+        )
+        .expect("write skill");
+        fs::write(
+            root.join(crate::okf_policy::IGNORE_FILE_NAME),
+            "AGENTS.md\n**/SKILL.md\n",
+        )
+        .expect("write ignore file");
+
+        let report = lint_bundle(&root, &[], true).expect("lint with policy");
+        assert_eq!(report.documents, 1);
+        assert_eq!(report.ignored_documents, 2);
+        assert!(report.findings.is_empty());
+
+        let strict = lint_bundle(&root, &[], false).expect("lint without policy");
+        assert_eq!(strict.documents, 3);
+        assert_eq!(strict.ignored_documents, 0);
+        assert!(strict
+            .findings
+            .iter()
+            .any(|finding| finding.relative_path == "AGENTS.md"));
+        assert!(strict
+            .findings
+            .iter()
+            .any(|finding| finding.relative_path == "skills/example/SKILL.md"));
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
 
@@ -795,7 +839,7 @@ mod tests {
             .expect("write concept");
         }
         let started = Instant::now();
-        let report = lint_bundle(&root, &[]).expect("lint synthetic bundle");
+        let report = lint_bundle(&root, &[], true).expect("lint synthetic bundle");
         assert_eq!(report.documents, 10_000);
         assert!(report.findings.is_empty());
         eprintln!(

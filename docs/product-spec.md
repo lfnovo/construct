@@ -540,9 +540,15 @@ O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledg
 - **OKF-026:** O linter deve reutilizar o parser Rust compartilhado, operar somente em memória, nunca alterar arquivos e nunca criar estado persistente do Construct.
 - **OKF-027:** A saída de texto deve usar severidade, código estável, caminho relativo, range quando disponível, mensagem e resumo determinístico. A saída JSON deve ser um único objeto versionado em stdout.
 - **OKF-028:** Os códigos de saída públicos são `0` para scan concluído sem finding no threshold, `1` para lint failure e `2` para erro de invocação ou runtime. O threshold inicial pode ser `error`, `warning` ou `never`.
-- **OKF-029:** O linter deve aplicar as exclusões padrão de dependências e builds, aceitar `--exclude` repetível e não seguir symlinks.
+- **OKF-029:** O linter deve aplicar exclusões de traversal para dependências e builds, aceitar `--exclude` repetível como regra de conformidade e não seguir symlinks. Um Markdown omitido da conformidade permanece resolvível como destino de links internos.
 - **OKF-030:** `--max-findings` limita apenas findings materializados na saída; contagens, scan completo e exit code continuam considerando todos os findings. O default inicial é 1.000, com máximo configurável de 100.000.
 - **OKF-031:** O primeiro corte não inclui profile, SARIF, cache, watch ou reparo automático. Links quebrados e convenções de `index.md`/`log.md` permanecem findings não bloqueantes com o threshold padrão.
+- **OKF-032:** Explore deve oferecer uma visão Health ao lado de List e Graph, reutilizando os findings produzidos pelo mesmo parser Rust do inspector e do CLI, sem executar um segundo parser ou subprocesso.
+- **OKF-033:** Health deve resumir errors, warnings, infos e documentos inspecionados, permitir filtro por severidade, path, código ou mensagem e agrupar findings por código estável.
+- **OKF-034:** O escopo padrão `Repository policy` deve aplicar apenas exclusões declaradas pelo próprio repositório em `.constructignore`, informar documentos/findings omitidos e permitir recuperar a inspeção estrita em `All Markdown`. `AGENTS.md`, `CLAUDE.md`, `SKILL.md` ou qualquer outro nome não são exceções universais implícitas da OKF.
+- **OKF-035:** O usuário deve poder executar novamente o lint sobre os arquivos salvos, abrir o documento afetado em Source e copiar um handoff autocontido para um agente. Essas ações não podem reparar, salvar ou reserializar arquivos automaticamente.
+- **OKF-036:** Um bundle pode declarar em `.constructignore` padrões versionáveis para arquivos Markdown que não são conceitos OKF. Linhas vazias e comentários são permitidos, padrões são avaliados em ordem e `!` pode reintroduzir um caminho.
+- **OKF-037:** `.constructignore` e `--exclude` compõem a mesma política de conformidade: documentos correspondentes não produzem findings próprios nem aparecem como conceitos OKF, mas continuam disponíveis no filesystem, na busca Markdown geral e na resolução de links. `--no-ignore-file` deve oferecer auditoria estrita no CLI.
 
 ### 10.17 Índice local derivado
 

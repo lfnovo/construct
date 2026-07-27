@@ -50,7 +50,7 @@ evidence and low-risk experiments behind these RFCs.
 | [03 — Knowledge search experience](03-knowledge-search-experience.md) | Implemented | How should people search content without weakening quick file navigation? | RFC 02 |
 | [04 — Graph and context retrieval](04-graph-context-retrieval.md) | First delivery implemented; advanced expansion deferred | How should links improve discovery and produce bounded context packs? | RFCs 01–03 |
 | [05 — Local agent access](05-local-agent-access.md) | First delivery implemented | How should agents use the same retrieval core through CLI and MCP? | RFCs 02 and 04 |
-| [06 — Stateless OKF linter](06-okf-linter.md) | First delivery implemented; CI packaging pending | How should agents and CI validate an OKF bundle on demand without persisting state? | RFC 01 and safe Markdown discovery |
+| [06 — Stateless OKF linter](06-okf-linter.md) | CLI and desktop Health implemented; CI packaging pending | How should agents and CI validate an OKF bundle on demand without persisting state? | RFC 01 and safe Markdown discovery |
 | [07 — Review integration](07-review-integration.md) | Proposed | How should persisted review comments participate without polluting knowledge? | RFCs 02, 04, and 05 |
 
 ## Shared invariants

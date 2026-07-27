@@ -33,6 +33,7 @@ The frontend lives in `src/`.
 | `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
 | `ReviewEditor.tsx` | Rendered text selection, review composer, comment list, and clipboard handoff |
 | `SearchWorkspace.tsx` | Dedicated local knowledge search, visible scope and filters, result selection, direct-link pivots, context-pack clipboard actions, recent-query controls, and pane navigation |
+| `HealthWorkspace.tsx` | Interactive OKF health summary, finding filters, source navigation, explicit refresh, and agent handoff |
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
 | `markdownDocument.ts` | Lossless frontmatter/body boundaries and visual-editor serialization |
 | `review.ts` | Pure parsing, lossless review-block updates, and agent prompt serialization |
@@ -40,6 +41,7 @@ The frontend lives in `src/`.
 | `KnowledgeGraph.tsx` | Deterministic local graph layout and interactions |
 | `history.ts` | File identity across repeated changes and renames |
 | `explore.ts` | OKF filters and stable visual type assignment |
+| `health.ts` | Pure health scopes, summaries, finding grouping, filtering, and agent-report serialization |
 | `search.ts` | Pure search-filter, recent-query, identity, and relative-reference serialization helpers |
 | `api.ts` | Typed Tauri command facade |
 | `types.ts` | Persisted and runtime domain types |
@@ -79,13 +81,34 @@ behind this module so they can be replaced without changing the Tauri contract.
 - deterministic text and versioned JSON formatters expose relative paths only;
 - exit codes distinguish a clean scan, a configured lint failure, and an
   invocation or runtime failure;
-- explicit glob exclusions and the standard generated-directory exclusions
-  apply without consulting workspace state;
+- repository-owned `.constructignore` rules and repeated `--exclude` globs
+  suppress conformance checks without removing those paths from link
+  resolution;
+- standard generated-directory exclusions remain traversal exclusions;
 - output limiting affects presentation only, never the complete scan, counts,
   or exit decision.
 
+`src-tauri/src/okf_policy.rs` owns the shared, read-only conformance policy:
+
+- `.constructignore` is read only from the lint or Location root;
+- blank lines and comments are ignored, common glob patterns and ordered `!`
+  negation are supported, and invalid or oversized policy files fail clearly;
+- CLI patterns compose after repository rules;
+- a matched Markdown file remains present for internal-link resolution while
+  its own findings and OKF concept projection are omitted.
+
 The linter never opens `IndexService`, SurrealDB, workspace persistence, MCP, or
 the desktop runtime. It has no source mutation path.
+
+Explore's Health view uses the registered Location's in-memory bundle snapshot,
+which is produced by the same `inspect_bundle` parser boundary as the CLI. An
+explicit **Run lint** action refreshes that saved-file snapshot directly; it
+does not launch the CLI as a subprocess, open the retrieval index, or modify
+the bundle. Its default **Repository policy** scope applies `.constructignore`;
+**All Markdown** bypasses that presentation policy for a strict inspection.
+Changing `.constructignore` invalidates the in-memory OKF snapshot through the
+filesystem watcher. The general Markdown retrieval index remains independent:
+declaring a file as non-concept does not make it unsearchable.
 
 `src-tauri/src/index.rs` owns the first persistent retrieval boundary:
 
