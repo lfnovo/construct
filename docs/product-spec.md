@@ -5,10 +5,11 @@
 | Campo | Valor |
 | --- | --- |
 | Status | Preview funcional em fase de hardening |
-| Versão | 0.2 |
-| Data | 25 de julho de 2026 |
-| Plataforma inicial | macOS |
-| Plataformas futuras | Windows e Linux |
+| Versão | 0.11 |
+| Data | 27 de julho de 2026 |
+| Plataforma principal | macOS |
+| Preview adicional | Windows x64 sem índice local ou MCP |
+| Plataforma futura | Linux |
 | Nome do produto | **Construct** |
 
 ## 1. Resumo
@@ -42,7 +43,7 @@ O produto deve transmitir a sensação de uma mesa de leitura dedicada: projetos
 
 ## 4. Objetivos
 
-### 4.1 Objetivos do MVP
+### 4.1 Objetivos do produto atual
 
 - Permitir que o usuário cadastre uma ou mais pastas locais.
 - Descobrir recursivamente arquivos Markdown dentro dessas pastas.
@@ -58,7 +59,8 @@ O produto deve transmitir a sensação de uma mesa de leitura dedicada: projetos
 
 ### 4.2 Indicadores de sucesso iniciais
 
-Os indicadores abaixo orientam validação qualitativa e telemetria futura; não exigem coleta de dados no MVP.
+Os indicadores abaixo orientam validação qualitativa e telemetria futura; não
+exigem coleta de dados no preview.
 
 - O usuário consegue adicionar um projeto e abrir um arquivo Markdown em menos de um minuto.
 - Um arquivo criado por um agente aparece no aplicativo sem ação manual de atualização.
@@ -67,7 +69,7 @@ Os indicadores abaixo orientam validação qualitativa e telemetria futura; não
 - O aplicativo pode ser reaberto e retomar o workspace anterior.
 - Nenhuma edição local é perdida silenciosamente por causa de uma mudança externa.
 
-## 5. Não objetivos do MVP
+## 5. Não objetivos do produto atual
 
 - Substituir uma IDE ou editor de código completo.
 - Executar coding agents ou hospedar terminais.
@@ -76,10 +78,12 @@ Os indicadores abaixo orientam validação qualitativa e telemetria futura; não
 - Colaborar em tempo real com outras pessoas.
 - Guardar versões históricas completas dos arquivos.
 - Visualizar ou editar formatos além de Markdown.
-- Fazer busca textual no conteúdo dos arquivos.
-- Oferecer configuração personalizada de diretórios ignorados.
 - Gerenciar arquivos de maneira completa, incluindo criar pastas, copiar, mover e excluir.
 - Instalar plugins ou executar extensões de terceiros.
+- Executar reparos OKF automáticos ou reescrever frontmatter.
+- Usar LLMs, embeddings remotos ou serviços hospedados para busca.
+- Oferecer índice local ou MCP no preview Windows antes de existir IPC nativo
+  autenticado.
 
 ## 6. Princípios de produto
 
@@ -213,7 +217,7 @@ A área principal contém um ou mais Painéis. Cada Painel possui:
 ### 10.2 Descoberta e árvore de arquivos
 
 - **FILE-001:** A descoberta deve ser recursiva a partir da raiz do Local.
-- **FILE-002:** O MVP reconhece extensões `.md` e `.markdown`, sem diferenciar maiúsculas de minúsculas.
+- **FILE-002:** O preview reconhece extensões `.md` e `.markdown`, sem diferenciar maiúsculas de minúsculas.
 - **FILE-003:** Arquivos e diretórios ocultos devem aparecer normalmente, exceto quando estiverem na lista de exclusão padrão.
 - **FILE-004:** A árvore deve representar a hierarquia relativa ao Local.
 - **FILE-005:** Diretórios vazios, considerando os filtros ativos, não precisam aparecer.
@@ -222,7 +226,7 @@ A área principal contém um ou mais Painéis. Cada Painel possui:
 - **FILE-008:** A árvore deve ter atualização incremental, evitando reconstruções visuais completas a cada evento.
 - **FILE-009:** Arquivos com o mesmo nome devem ser distinguíveis pelo caminho relativo.
 - **FILE-010:** O menu de contexto do arquivo deve oferecer ao menos Abrir, Abrir à direita, Revelar no Finder e Copiar caminho.
-- **FILE-011:** Links simbólicos não devem ser percorridos recursivamente no MVP, evitando ciclos e fuga acidental do Local.
+- **FILE-011:** Links simbólicos não devem ser percorridos recursivamente no preview, evitando ciclos e fuga acidental do Local.
 - **FILE-012:** Arquivos acessados por link simbólico podem ser marcados como não suportados até uma decisão futura.
 
 ### 10.3 Exclusões padrão
@@ -265,9 +269,9 @@ coverage
 
 - **IGNORE-001:** As exclusões são aplicadas em qualquer profundidade.
 - **IGNORE-002:** O diretório `.git` pode ser consultado indiretamente por operações Git, mas nunca aparece na árvore.
-- **IGNORE-003:** Não haverá interface para editar a lista no MVP.
+- **IGNORE-003:** O preview não oferece interface para editar a lista.
 - **IGNORE-004:** A arquitetura deve permitir exclusões globais e por Local em uma versão futura.
-- **IGNORE-005:** O aplicativo não precisa respeitar `.gitignore` no MVP, pois arquivos de contexto ignorados pelo Git ainda podem ser relevantes.
+- **IGNORE-005:** O aplicativo não precisa respeitar `.gitignore`, pois arquivos de contexto ignorados pelo Git ainda podem ser relevantes.
 
 ### 10.4 Abertura e navegação
 
@@ -300,20 +304,20 @@ coverage
 - **PANE-005:** Cada aba mantém seu próprio modo Preview, Edit, Review, Source ou Diff.
 - **PANE-006:** O usuário pode fechar um Painel; suas abas devem ser movidas ou fechadas de maneira segura.
 - **PANE-007:** Não há limite funcional rígido de Painéis, embora a interface possa impedir divisões que resultem em áreas inutilizáveis.
-- **PANE-008:** Arrastar uma aba para uma borda pode criar uma divisão como aprimoramento, mas ações explícitas devem existir desde o MVP.
+- **PANE-008:** Arrastar uma aba para uma borda pode criar uma divisão como aprimoramento, mas ações explícitas devem existir no preview.
 - **PANE-009:** O layout dos Painéis deve ser restaurado entre execuções.
 
 ### 10.7 Edição visual e Source
 
 - **EDIT-001:** Source exibe o conteúdo Markdown bruto em um editor de texto monoespaçado.
 - **EDIT-002:** O editor deve oferecer numeração de linhas e destaque de sintaxe Markdown.
-- **EDIT-003:** O MVP usa salvamento explícito; não há autosave.
+- **EDIT-003:** O produto usa salvamento explícito; não há autosave.
 - **EDIT-004:** `⌘S` salva o arquivo ativo.
 - **EDIT-005:** O salvamento deve minimizar risco de corrupção e evitar deixar arquivos parcialmente escritos.
 - **EDIT-006:** Depois do salvamento bem-sucedido, a aba deixa o estado não salvo.
 - **EDIT-007:** Uma falha de salvamento preserva o buffer e mostra uma mensagem acionável.
 - **EDIT-008:** O aplicativo deve preservar o tipo de quebra de linha existente quando possível.
-- **EDIT-009:** UTF-8 é a codificação suportada pelo MVP. Arquivos inválidos devem abrir em estado de erro sem tentativa silenciosa de conversão.
+- **EDIT-009:** UTF-8 é a codificação suportada no preview. Arquivos inválidos devem abrir em estado de erro sem tentativa silenciosa de conversão.
 - **EDIT-010:** Desfazer e refazer devem funcionar enquanto a aba permanecer aberta.
 - **EDIT-011:** O aplicativo deve fornecer operações básicas de seleção, copiar, recortar, colar e localizar dentro do arquivo aberto.
 - **EDIT-012:** A alternância para Preview não salva automaticamente o arquivo.
@@ -347,7 +351,7 @@ coverage
 
 - **PREVIEW-001:** O Preview deve suportar CommonMark e extensões amplamente usadas no GitHub Flavored Markdown.
 - **PREVIEW-002:** Deve renderizar títulos, listas, citações, links, imagens, tabelas, separadores e blocos de código.
-- **PREVIEW-003:** Checklists devem ser renderizadas; sua interação pode ser apenas visual no MVP.
+- **PREVIEW-003:** Checklists devem ser renderizadas; sua interação pode ser apenas visual no preview.
 - **PREVIEW-004:** Blocos de código devem ter syntax highlighting quando a linguagem for reconhecida.
 - **PREVIEW-005:** Diagramas Mermaid devem ser renderizados.
 - **PREVIEW-006:** Erros em um diagrama Mermaid devem ser isolados e não impedir a renderização do restante do documento.
@@ -390,7 +394,7 @@ flowchart LR
 - **WATCH-009:** No conflito acima, a aba exibe um aviso persistente com as ações Recarregar versão externa e Manter minhas alterações.
 - **WATCH-010:** Recarregar descarta o buffer somente após confirmação explícita.
 - **WATCH-011:** Manter minhas alterações conserva o buffer; um salvamento posterior deve exigir confirmação de que substituirá a versão externa.
-- **WATCH-012:** Comparação visual de conflito fora do Git não faz parte do MVP.
+- **WATCH-012:** Comparação visual de conflito fora do Git não faz parte do preview.
 - **WATCH-013:** Se um arquivo aberto e limpo for removido, a aba é fechada automaticamente e o usuário recebe feedback discreto.
 - **WATCH-014:** Se um arquivo aberto e modificado for removido, a aba permanece aberta e sinaliza que o caminho deixou de existir.
 - **WATCH-015:** O usuário pode salvar novamente um arquivo removido no mesmo caminho, desde que o Local esteja disponível e permita escrita.
@@ -485,7 +489,7 @@ flowchart LR
 - **STATE-005:** Deve persistir o layout dos Painéis.
 - **STATE-006:** Deve persistir abas abertas, sua ordem, Painel e modo Preview, Edit, Review, Source ou Diff.
 - **STATE-007:** Deve persistir a aba ativa de cada Painel.
-- **STATE-008:** Deve restaurar apenas referências a arquivos; conteúdo não salvo não precisa sobreviver ao encerramento normal no MVP.
+- **STATE-008:** Deve restaurar apenas referências a arquivos; conteúdo não salvo não precisa sobreviver ao encerramento normal no preview.
 - **STATE-009:** Ao encerrar com alterações não salvas, o aplicativo deve pedir que o usuário salve, descarte ou cancele.
 - **STATE-010:** Arquivos ausentes durante a restauração devem ser ignorados ou apresentados como indisponíveis sem impedir a abertura do aplicativo.
 - **STATE-011:** Dados de estado corrompidos devem ser recuperados com defaults seguros, preservando os arquivos do usuário.
@@ -554,8 +558,8 @@ O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledg
 
 O aplicativo mantém uma fundação local de retrieval para todo Markdown salvo,
 independentemente de o Local ser OKF. Este índice ainda não substitui o
-localizador por nome e caminho nem implica uma interface de busca de conteúdo
-no MVP.
+localizador por nome e caminho; ele alimenta a busca de conhecimento dedicada,
+relações diretas, context packs e o acesso MCP.
 
 - **INDEX-001:** Cada Local deve possuir um banco embedded fisicamente separado, identificado pelo ID estável do Local e armazenado no diretório privado de dados do aplicativo.
 - **INDEX-002:** Arquivos Markdown continuam sendo a única fonte de verdade. O índice é descartável, reconstruível e nunca pode salvar, reserializar ou alterar um documento.
@@ -668,7 +672,7 @@ O Histórico não armazena o conteúdo do arquivo.
 
 ## 13. Privacidade e segurança
 
-- Todo processamento de arquivos deve acontecer localmente no MVP.
+- Todo processamento de arquivos deve acontecer localmente.
 - Nenhum conteúdo deve ser enviado a serviços remotos pelo aplicativo.
 - Telemetria, se adicionada futuramente, deve ser documentada e nunca incluir conteúdo, nomes de arquivos ou caminhos sem consentimento explícito.
 - O Preview deve sanitizar HTML e impedir execução arbitrária de JavaScript.
@@ -714,7 +718,7 @@ Para testes de escala, considerar ao menos:
 
 ## 16. Portabilidade
 
-O MVP pode usar integrações nativas do macOS, mas o núcleo deve separar:
+O preview principal pode usar integrações nativas do macOS, mas o núcleo deve separar:
 
 - seleção e persistência de acesso a pastas;
 - monitoramento do sistema de arquivos;
@@ -758,13 +762,15 @@ O produto não deve armazenar caminhos usando suposições exclusivas de separad
 4. Após a escolha, mostrar o Local imediatamente e iniciar descoberta progressiva.
 5. Quando houver arquivos, selecionar o Local e permitir que o usuário escolha o primeiro documento.
 
-Não é necessário tutorial em múltiplas etapas no MVP. A própria interface deve ensinar o fluxo.
+Não é necessário tutorial em múltiplas etapas no preview. A própria interface
+deve ensinar o fluxo, apoiada pelo guia de usuário.
 
-## 18. Escopo de entrega do MVP
+## 18. Escopo atual do preview
 
 ### Incluído
 
 - aplicativo macOS;
+- aplicativo Windows x64 com workspace Markdown e linter stateless;
 - cadastro e persistência de múltiplos Locais;
 - descoberta recursiva de Markdown;
 - exclusões padrão;
@@ -782,23 +788,34 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 - Diff Git somente leitura;
 - restauração de workspace;
 - atalhos essenciais;
-- estados vazios e erros recuperáveis.
+- estados vazios e erros recuperáveis;
+- índice local derivado e fisicamente isolado por Local no macOS/Unix;
+- busca de conhecimento em conteúdo e frontmatter, com filtros e fan-out entre
+  Locais;
+- links diretos, backlinks e context packs manuais com orçamento;
+- consumo tolerante de OKF v0.1 e v0.2, inspector, List, Graph e Health;
+- `.constructignore` versionável para política de conformidade OKF;
+- linter OKF CLI stateless com texto, JSON e thresholds de CI;
+- MCP stdio local, read-only e allowlisted no macOS/Unix;
+- overview e atividade local de 15 dias para orientar agentes.
 
 ### Adiado
 
-- Windows e Linux;
+- Linux;
+- índice local e MCP no Windows;
 - YAML, JSON, texto, imagens e PDF;
-- busca pelo conteúdo;
-- configuração de exclusões;
+- configuração visual de exclusões globais ou por Local;
 - diff e snapshots fora do Git;
 - histórico de versões;
 - autosave;
 - terminal integrado;
-- integração direta com agentes;
+- mutação de arquivos por agentes;
 - sincronização e colaboração;
 - extensões e plugins;
 - gerenciamento completo de arquivos;
-- múltiplas janelas independentes.
+- múltiplas janelas independentes;
+- busca vetorial e embeddings locais opcionais;
+- assinatura confiável, notarização e atualização automática.
 
 ## 19. Critérios de aceite por jornada
 
@@ -860,9 +877,49 @@ Não é necessário tutorial em múltiplas etapas no MVP. A própria interface d
 - Um arquivo fora de Git não oferece diff.
 - Nenhuma ação Git de escrita é executada pelo aplicativo.
 
+### 19.7 Buscar e montar contexto
+
+- `⌘⇧F` abre a busca de conhecimento sem substituir o localizador `⌘P`.
+- O usuário escolhe um ou vários Locais e pode filtrar resultados por metadados
+  OKF e caminho.
+- Uma consulta entre Locais combina resultados sem criar um índice físico
+  global.
+- Cada resultado identifica Local, caminho relativo, snippet e razão do match.
+- Documentos relacionados mostram links diretos de saída e backlinks.
+- `Copy references` não inclui conteúdo ou caminho absoluto.
+- `Copy context` usa apenas documentos explicitamente selecionados, preserva
+  fronteiras e respeita o orçamento configurado.
+- Um documento grande não monopoliza o context pack quando outros selecionados
+  ainda podem contribuir.
+
+### 19.8 Inspecionar e validar OKF
+
+- O mesmo bundle produz metadados e findings coerentes no inspector, Explore,
+  Health e CLI.
+- Health aplica `.constructignore` em `Repository policy` e o ignora em
+  `All Markdown`.
+- Executar novamente o lint atualiza findings de arquivos salvos sem alterar
+  documentos.
+- O linter stateless funciona sem desktop, Location, índice ou MCP.
+- Texto e JSON usam caminhos relativos e findings determinísticos.
+- Os exit codes públicos distinguem sucesso, lint failure e erro de execução.
+
+### 19.9 Conectar um agente local
+
+- A configuração copiada para o MCP aponta ao executável e profile atuais e
+  permite apenas o Local selecionado.
+- O servidor recusa iniciar sem allowlist explícita ou `--allow-all`.
+- O agente pode consultar Locations, overview, activity, busca, documento,
+  relações, context pack e status do índice.
+- Respostas normais não expõem caminhos absolutos.
+- O MCP não oferece mutação de arquivos, Git write, shell, SQL ou leitura
+  arbitrária do filesystem.
+- Mudanças, leituras servidas e inclusão em context packs permanecem contadores
+  separados na atividade local.
+
 ## 20. Estratégia de validação
 
-Antes de considerar o MVP pronto, validar:
+Antes de considerar o preview estável, validar:
 
 - fluxo real com Codex e outros agentes escrevendo arquivos;
 - pastas locais, repositórios Git, worktrees e submódulos;
@@ -886,21 +943,23 @@ Automação recomendada:
 
 ## 21. Evolução posterior
 
-Possíveis etapas após o MVP, sem ordem definitiva:
+Possíveis etapas após o preview atual, sem ordem definitiva:
 
-1. Suporte a Windows e Linux.
-2. Visualização e edição de YAML, JSON e texto.
-3. Busca textual indexada.
-4. Exclusões globais e por Local.
-5. Quick Look para imagens e PDFs.
-6. Histórico de snapshots opcional fora do Git.
-7. Diff de conflitos locais.
-8. Criação, renomeação e exclusão de arquivos.
-9. Múltiplas janelas e workspaces nomeados.
-10. Integrações opcionais com agentes e multiplexadores.
+1. Assinatura confiável, notarização e atualização segura.
+2. IPC autenticado para índice local e MCP no Windows.
+3. Suporte a Linux.
+4. Visualização e edição de YAML, JSON e texto.
+5. Exclusões globais e por Local configuráveis na interface.
+6. Quick Look para imagens e PDFs.
+7. Histórico de snapshots opcional fora do Git.
+8. Diff de conflitos locais.
+9. Criação, renomeação e exclusão de arquivos.
+10. Múltiplas janelas e workspaces nomeados.
 11. Temas e customização avançada do Preview e Edit.
 12. Imagens locais em Edit, com inserção e cópia para uma pasta estável do projeto.
-13. Ações contextuais, como copiar Markdown renderizado ou caminho para o terminal.
+13. Busca vetorial local opcional, apenas se avaliação demonstrar ganho sobre
+    texto e grafo.
+14. Ações contextuais, como copiar Markdown renderizado ou caminho para o terminal.
 
 ## 22. Decisões ainda abertas
 
@@ -912,7 +971,9 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 - estratégia local para inserir, copiar e resolver imagens dentro de Edit;
 - limite e degradação controlada para arquivos muito grandes;
 - comportamento de sobreposição entre Locais;
-- política de assinatura, atualizações automáticas e distribuição no macOS.
+- política de assinatura, atualizações automáticas e distribuição no macOS;
+- transporte IPC autenticado equivalente para Windows;
+- critérios e backend de busca semântica local opcional.
 
 ## 23. Registro de decisões
 
@@ -949,6 +1010,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-26 | Oferecer um linter OKF CLI stateless, determinístico e somente leitura, reutilizando o parser nativo sem depender de Location, índice, serviço ou desktop. |
 | 2026-07-27 | Distribuir app e CLI pela mesma tag em GitHub Releases, com DMG macOS, NSIS Windows, arquivos CLI standalone, checksums e publicação inicial em draft. |
 | 2026-07-27 | No preview Windows, oferecer workspace desktop e linter OKF stateless; manter índice local e MCP como macOS/Unix até existir um transporte IPC Windows autenticado. |
+| 2026-07-27 | Organizar a documentação pública pelas jornadas de usuário, CLI, MCP, desenvolvimento, produto e arquitetura, mantendo README como entrada curta. |
 
 ## 24. Histórico do documento
 
@@ -963,3 +1025,5 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.7 | 2026-07-26 | Search dedicado, filtros OKF, federação entre Locais e seleção efêmera de referências. |
 | 0.8 | 2026-07-26 | Startup progressivo, links persistidos, related documents e context packs manuais com orçamento. |
 | 0.9 | 2026-07-26 | Linter OKF stateless com texto/JSON, thresholds de CI, exclusões e exit codes públicos. |
+| 0.10 | 2026-07-26 | MCP local read-only, allowlist por Location, hot memory, overview, activity e tools compartilhadas com o índice. |
+| 0.11 | 2026-07-27 | Escopo atual reconciliado com busca, Health, CLI, MCP e preview Windows; documentação pública orientada por jornada. |

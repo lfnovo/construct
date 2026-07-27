@@ -12,6 +12,7 @@ Describe the user-visible result.
 - [ ] `npm run build`
 - [ ] Manual macOS smoke test, when user-facing
 - [ ] Product documentation updated, when behavior changed
+- [ ] User, CLI, MCP, or development guide updated, when its workflow changed
 
 ## Privacy and security
 

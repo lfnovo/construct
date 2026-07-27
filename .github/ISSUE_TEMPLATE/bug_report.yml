@@ -15,10 +15,29 @@ body:
     validations:
       required: true
   - type: input
-    id: macos
+    id: operating_system
     attributes:
-      label: macOS version
-      placeholder: macOS 15.5
+      label: Operating system
+      description: Include the version and architecture when known.
+      placeholder: macOS 15.5 (Apple Silicon) or Windows 11 x64
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Startup and Locations
+        - Markdown Preview or Edit
+        - Review
+        - Search and local index
+        - OKF Explore or Health
+        - CLI linter
+        - Local MCP
+        - Filesystem and history
+        - Git Diff
+        - Distribution and installation
+        - Other
     validations:
       required: true
   - type: textarea
