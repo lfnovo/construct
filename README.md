@@ -30,6 +30,7 @@ Terminal-first agent workflows are excellent for conversation and execution, but
 - Direct related-document navigation and budgeted context packs for agents.
 - OKF bundle detection, metadata inspection, types, tags, links, and backlinks.
 - OKF List and Graph views with multi-type filtering and stable type colors.
+- Stateless OKF linting for coding agents and CI, with text and JSON output.
 
 ## Privacy
 
@@ -65,6 +66,26 @@ The macOS bundle is written to:
 ```text
 src-tauri/target/release/bundle/macos/Construct.app
 ```
+
+## OKF linter
+
+Validate any local OKF bundle without registering it in Construct or starting
+the desktop application:
+
+```bash
+cargo run --manifest-path src-tauri/Cargo.toml -- okf lint ./knowledge
+```
+
+After a release build, use the executable inside the application bundle:
+
+```bash
+src-tauri/target/release/bundle/macos/Construct.app/Contents/MacOS/construct \
+  okf lint ./knowledge
+```
+
+The default threshold fails only on conformance errors. Use
+`--fail-on warning` for a strict repository gate, or `--format json` for agents
+and CI. The linter is read-only and creates no workspace or index state.
 
 ## Project documentation
 

@@ -816,6 +816,7 @@ dependencies = [
  "blake3",
  "chrono",
  "dirs",
+ "glob",
  "notify",
  "pulldown-cmark",
  "serde",

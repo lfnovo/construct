@@ -15,6 +15,7 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 - Filesystem monitoring with deduplicated recent history.
 - Read-only Git status and diff.
 - Open Knowledge Format detection, metadata inspection, navigation, filtering, and graph exploration.
+- Stateless `construct okf lint` validation with deterministic text/JSON output and CI exit codes.
 - Light and dark themes, keyboard shortcuts, Finder integration, and workspace restoration.
 
 ### Changed

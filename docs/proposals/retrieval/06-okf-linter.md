@@ -1,6 +1,6 @@
 # RFC 06 — Stateless OKF linter
 
-**Status:** Proposed
+**Status:** First delivery implemented; standalone CI packaging pending
 
 **Decision owner:** Product, OKF compatibility, CLI, and release engineering
 
@@ -558,34 +558,39 @@ Measure:
 
 ## Open decisions
 
-- The exact minimum hygiene rules in the first release.
-- Whether `--max-findings` truncates only display or also stops scanning after
-  preserving an explicit incomplete result.
-- The default maximum finding count.
-- Whether the first release accepts a profile or defers profiles completely.
-- Whether profile syntax should align with an `okflint` manifest.
+- The first release reports the shared parser's existing hygiene findings for
+  reserved-document conventions and internal links. Additional recommended
+  metadata rules require an explicit follow-up.
+- `--max-findings` limits output only. The scan, summary counts, and exit
+  decision always use the complete finding set.
+- The default output limit is 1,000 findings; callers may configure up to
+  100,000.
+- Profiles are deferred completely from the first release. Alignment with an
+  `okflint` manifest remains a future design question.
 - Whether SARIF is valuable after stable JSON exists.
 - The standalone CLI artifact and GitHub Action distribution design.
 - Whether release binaries are named `construct` uniformly across platforms.
-- The exact performance budget for 1,000 and 10,000 documents.
+- The final performance budget and release gate for 1,000 and 10,000 documents.
 
 ## Implementation slices
 
 ### Slice 1 — Pure lint report
 
-- expose safe directory discovery without registered-Location state;
-- reuse the RFC 01 parser for a complete in-memory bundle inspection;
-- define tiered, deterministically ordered `LintReport`;
-- add text and JSON formatter tests;
-- add exit-code tests.
+- **Implemented:** safe directory discovery without registered-Location state;
+- **Implemented:** RFC 01 parser reuse for complete in-memory bundle inspection;
+- **Implemented:** tiered, deterministically ordered `LintReport`;
+- **Implemented:** text and JSON formatter tests;
+- **Implemented:** threshold and exit-decision tests.
 
 ### Slice 2 — CLI and local agent trial
 
-- add `construct okf lint`;
-- test from inside and outside the desktop application bundle;
-- run it against `knowledge` and older repositories;
-- have coding agents repair bounded finding batches;
-- document the local workflow.
+- **Implemented:** `construct okf lint`, including text/JSON, thresholds,
+  exclusions, output limits, color control, and quiet output;
+- **Implemented:** source-build invocation and bundled-executable smoke path;
+- **Implemented:** initial field validation against `knowledge` and two older
+  repositories;
+- **Pending workflow trial:** have coding agents repair bounded finding batches;
+- **Implemented:** local workflow documentation.
 
 ### Slice 3 — CI distribution
 

@@ -22,6 +22,7 @@ git status --short
    - explicit save and an external-edit conflict;
    - Git Diff availability;
    - OKF Explore List and Graph;
+   - `construct okf lint` in text and JSON modes;
    - dark and light themes;
    - Finder and Dock icon.
 

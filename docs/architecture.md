@@ -16,6 +16,8 @@ flowchart LR
     T --> G[Read-only Git commands]
     T --> S[Local workspace state]
     F --> R
+    C["construct okf lint"] --> O
+    C --> F
 ```
 
 No remote service is required for the core application.
@@ -70,6 +72,21 @@ bundle snapshots or an in-memory tab buffer for the inspector and never
 serializes YAML back into a document. YAML and CommonMark dependencies stay
 behind this module so they can be replaced without changing the Tauri contract.
 
+`src-tauri/src/okf_lint.rs` owns the stateless CLI validation boundary:
+
+- `construct okf lint [PATH]` discovers Markdown without Location registration;
+- the shared native parser produces the document and bundle findings;
+- deterministic text and versioned JSON formatters expose relative paths only;
+- exit codes distinguish a clean scan, a configured lint failure, and an
+  invocation or runtime failure;
+- explicit glob exclusions and the standard generated-directory exclusions
+  apply without consulting workspace state;
+- output limiting affects presentation only, never the complete scan, counts,
+  or exit decision.
+
+The linter never opens `IndexService`, SurrealDB, workspace persistence, MCP, or
+the desktop runtime. It has no source mutation path.
+
 `src-tauri/src/index.rs` owns the first persistent retrieval boundary:
 
 - one embedded SurrealDB/SurrealKV directory per stable Location ID;
@@ -90,9 +107,10 @@ behind this module so they can be replaced without changing the Tauri contract.
 the embedded databases. It runs behind a local authenticated Unix socket on
 macOS and Unix systems. The desktop's typed Tauri commands and the MCP stdio
 adapter call a `KnowledgeClient` over that socket; they never open SurrealKV
-directly. The same Construct executable has desktop, `service`, and `mcp serve`
-modes, so independent access keeps working when the desktop window is closed
-without introducing a second installation artifact.
+directly. The same Construct executable has desktop, `service`, `mcp serve`,
+and `okf lint` modes. Agent retrieval keeps working when the desktop window is
+closed, while validation can run without starting the service or reading any
+application data.
 
 The service token and socket are created with user-only permissions in the
 application data directory. No network listener is opened. MCP startup requires
