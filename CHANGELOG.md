@@ -6,6 +6,13 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+### Changed
+
+- Made pull request CI path-aware so documentation-only changes avoid
+  dependency installation, Rust compilation, and desktop bundling.
+- Split web, native, Windows, and macOS bundle validation into focused jobs
+  behind a stable aggregate CI gate.
+
 ### Documentation
 
 - Reorganized the repository around clear user, CLI, MCP, contributor, product,
