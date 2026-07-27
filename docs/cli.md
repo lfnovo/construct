@@ -285,5 +285,5 @@ The first linter release intentionally has no:
 - network access;
 - dependency on the desktop workspace, local index, or MCP server.
 
-Windows supports the stateless linter even though local indexing and MCP are not
-yet available there.
+Windows supports the same stateless linter, local indexing, and MCP executable
+as the desktop preview.

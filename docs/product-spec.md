@@ -5,10 +5,10 @@
 | Campo | Valor |
 | --- | --- |
 | Status | Preview funcional em fase de hardening |
-| Versão | 0.11 |
+| Versão | 0.13 |
 | Data | 27 de julho de 2026 |
 | Plataforma principal | macOS |
-| Preview adicional | Windows x64 sem índice local ou MCP |
+| Preview adicional | Windows x64 com índice local e MCP |
 | Plataforma futura | Linux |
 | Nome do produto | **Construct** |
 
@@ -82,8 +82,6 @@ exigem coleta de dados no preview.
 - Instalar plugins ou executar extensões de terceiros.
 - Executar reparos OKF automáticos ou reescrever frontmatter.
 - Usar LLMs, embeddings remotos ou serviços hospedados para busca.
-- Oferecer índice local ou MCP no preview Windows antes de existir IPC nativo
-  autenticado.
 
 ## 6. Princípios de produto
 
@@ -590,6 +588,7 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-010:** A interface deve permitir copiar uma configuração MCP pronta para o Local selecionado e explicar que o cliente externo controla o destino do conteúdo recuperado.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
 - **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
+- **AGENT-013:** O serviço usa socket Unix no macOS/Unix e named pipe no Windows, sempre com token por profile, sem listener de rede.
 
 ## 11. Estados e tratamento de erros
 
@@ -774,7 +773,7 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 ### Incluído
 
 - aplicativo macOS;
-- aplicativo Windows x64 com workspace Markdown e linter stateless;
+- aplicativo Windows x64 com workspace Markdown, índice local, linter stateless e MCP;
 - cadastro e persistência de múltiplos Locais;
 - descoberta recursiva de Markdown;
 - exclusões padrão;
@@ -793,20 +792,19 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 - restauração de workspace;
 - atalhos essenciais;
 - estados vazios e erros recuperáveis;
-- índice local derivado e fisicamente isolado por Local no macOS/Unix;
+- índice local derivado e fisicamente isolado por Local no macOS, Windows e Unix;
 - busca de conhecimento em conteúdo e frontmatter, com filtros e fan-out entre
   Locais;
 - links diretos, backlinks e context packs manuais com orçamento;
 - consumo tolerante de OKF v0.1 e v0.2, inspector, List, Graph e Health;
 - `.constructignore` versionável para política de conformidade OKF;
 - linter OKF CLI stateless com texto, JSON e thresholds de CI;
-- MCP stdio local, read-only e allowlisted no macOS/Unix;
+- MCP stdio local, read-only e allowlisted no macOS, Windows e Unix;
 - overview e atividade local de 15 dias para orientar agentes.
 
 ### Adiado
 
 - Linux;
-- índice local e MCP no Windows;
 - YAML, JSON, texto, imagens e PDF;
 - configuração visual de exclusões globais ou por Local;
 - diff e snapshots fora do Git;
@@ -950,20 +948,19 @@ Automação recomendada:
 Possíveis etapas após o preview atual, sem ordem definitiva:
 
 1. Assinatura confiável, notarização e atualização segura.
-2. IPC autenticado para índice local e MCP no Windows.
-3. Suporte a Linux.
-4. Visualização e edição de YAML, JSON e texto.
-5. Exclusões globais e por Local configuráveis na interface.
-6. Quick Look para imagens e PDFs.
-7. Histórico de snapshots opcional fora do Git.
-8. Diff de conflitos locais.
-9. Criação, renomeação e exclusão de arquivos.
-10. Múltiplas janelas e workspaces nomeados.
-11. Temas e customização avançada do Preview e Edit.
-12. Imagens locais em Edit, com inserção e cópia para uma pasta estável do projeto.
-13. Busca vetorial local opcional, apenas se avaliação demonstrar ganho sobre
+2. Suporte a Linux.
+3. Visualização e edição de YAML, JSON e texto.
+4. Exclusões globais e por Local configuráveis na interface.
+5. Quick Look para imagens e PDFs.
+6. Histórico de snapshots opcional fora do Git.
+7. Diff de conflitos locais.
+8. Criação, renomeação e exclusão de arquivos.
+9. Múltiplas janelas e workspaces nomeados.
+10. Temas e customização avançada do Preview e Edit.
+11. Imagens locais em Edit, com inserção e cópia para uma pasta estável do projeto.
+12. Busca vetorial local opcional, apenas se avaliação demonstrar ganho sobre
     texto e grafo.
-14. Ações contextuais, como copiar Markdown renderizado ou caminho para o terminal.
+13. Ações contextuais, como copiar Markdown renderizado ou caminho para o terminal.
 
 ## 22. Decisões ainda abertas
 
@@ -976,7 +973,6 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 - limite e degradação controlada para arquivos muito grandes;
 - comportamento de sobreposição entre Locais;
 - política de assinatura, atualizações automáticas e distribuição no macOS;
-- transporte IPC autenticado equivalente para Windows;
 - critérios e backend de busca semântica local opcional.
 
 ## 23. Registro de decisões
@@ -1015,6 +1011,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-27 | Distribuir app e CLI pela mesma tag em GitHub Releases, com DMG macOS, NSIS Windows, arquivos CLI standalone, checksums e publicação inicial em draft. |
 | 2026-07-27 | Tornar drafts privados em pre-releases públicas somente depois de verificar targets e checksums; usar o estado pre-release para previews não assinados e smoke tests externos, sem apresentá-los como distribuição estável. |
 | 2026-07-27 | No preview Windows, oferecer workspace desktop e linter OKF stateless; manter índice local e MCP como macOS/Unix até existir um transporte IPC Windows autenticado. |
+| 2026-07-27 | Habilitar índice local e MCP no Windows com named pipe autenticado por token, sem listener de rede; normalizar identidades canônicas `\\?\` no frontend. |
 | 2026-07-27 | Organizar a documentação pública pelas jornadas de usuário, CLI, MCP, desenvolvimento, produto e arquitetura, mantendo README como entrada curta. |
 
 ## 24. Histórico do documento
@@ -1033,3 +1030,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.10 | 2026-07-26 | MCP local read-only, allowlist por Location, hot memory, overview, activity e tools compartilhadas com o índice. |
 | 0.11 | 2026-07-27 | Escopo atual reconciliado com busca, Health, CLI, MCP e preview Windows; documentação pública orientada por jornada. |
 | 0.12 | 2026-07-27 | Ciclo de distribuição distinguindo draft privado, pre-release pública não assinada e release estável confiável. |
+| 0.13 | 2026-07-27 | Índice local e MCP no Windows via named pipe autenticado, incluindo compatibilidade com caminhos canônicos Windows. |

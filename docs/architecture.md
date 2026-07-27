@@ -135,26 +135,21 @@ declaring a file as non-concept does not make it unsearchable.
   delete operations.
 
 `IndexService` is transport-neutral and is the only component allowed to open
-the embedded databases. It runs behind a local authenticated Unix socket on
-macOS and Unix systems. The desktop's typed Tauri commands and the MCP stdio
-adapter call a `KnowledgeClient` over that socket; they never open SurrealKV
-directly. The same Construct executable has desktop, `service`, `mcp serve`,
-and `okf lint` modes. Agent retrieval keeps working when the desktop window is
-closed, while validation can run without starting the service or reading any
-application data.
+the embedded databases. It runs behind authenticated local IPC: a Unix-domain
+socket on macOS/Unix and a named pipe on Windows. The desktop's typed Tauri
+commands and the MCP stdio adapter call a `KnowledgeClient` over that transport;
+they never open SurrealKV directly. The same Construct executable has desktop,
+`service`, `mcp serve`, and `okf lint` modes. Agent retrieval keeps working when
+the desktop window is closed, while validation can run without starting the
+service or reading any application data.
 
-The service token and socket are created with user-only permissions in the
-application data directory. No network listener is opened. MCP startup requires
-an explicit Location allowlist, reconciles those saved files, and periodically
-checks them while the client session is active. The central service coalesces
-recent background requests from multiple MCP clients per Location. Ordinary
+The service token and IPC endpoint are scoped to the local user and application
+profile. No network listener is opened. MCP startup requires an explicit
+Location allowlist, reconciles those saved files, and periodically checks them
+while the client session is active. The central service coalesces recent
+background requests from multiple MCP clients per Location. Ordinary
 incremental reconciliation keeps the last healthy generation publicly ready or
 degraded; only initial builds and explicit rebuilds publish `indexing`.
-
-On Windows, the desktop workspace and stateless OKF linter compile and run, but
-the knowledge client returns a clear unsupported-platform error. Retrieval and
-MCP remain unavailable until a native authenticated Windows IPC transport
-replaces the Unix-socket boundary without introducing a network listener.
 
 The retrieval database also contains a disposable 15-day daily activity cache.
 Real saved-file changes, documents successfully served through MCP, and
@@ -176,7 +171,7 @@ the application data `indexes/` directory. Those indexes contain document
 bodies and metadata for local retrieval, are never placed inside a repository,
 and can be deleted or rebuilt without changing source files. Workspace state
 and retrieval indexes have separate schemas and lifecycles. The local service
-token, Unix socket, and daily activity cache are application data, never
+token, IPC endpoint, and daily activity cache are application data, never
 repository data. Activity identities use relative paths only.
 
 Changing the Tauri identifier or persisted schema requires a migration. Construct currently imports the former `com.luisnovo.agent-context` workspace on first launch.

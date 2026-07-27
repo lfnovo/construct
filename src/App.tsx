@@ -15,6 +15,7 @@ import { splitReviewDocument } from "./review";
 import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
 import { moveQuickOpenSelection } from "./quickOpen";
+import { pathBelongsToLocation, pathIdentity, pathsEqual } from "./paths";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationRecord,
@@ -353,25 +354,25 @@ export default function App() {
           .then((indexStatus) => setIndexStatuses((current) => ({ ...current, [location.id]: indexStatus })))
           .catch(() => undefined);
       }
-      const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
+      const entriesByPath = new Map(entries.map((entry) => [pathIdentity(entry.path), entry]));
       const candidates = Object.values(panesRef.current).flatMap((pane) => pane.tabs.filter((tab) => tab.locationId === location.id).map((tab) => ({ paneId: pane.id, tab })));
       setPanes((current) => Object.fromEntries(Object.entries(current).map(([paneId, pane]) => [paneId, {
         ...pane,
         tabs: pane.tabs.flatMap((tab) => {
           if (tab.locationId !== location.id) return [tab];
-          const entry = entriesByPath.get(tab.path);
-          if (entry) return [tab];
+          const entry = entriesByPath.get(pathIdentity(tab.path));
+          if (entry) return [{ ...tab, path: entry.path, relativePath: entry.relativePath }];
           return tab.dirty ? [{ ...tab, deleted: true }] : [];
         }),
-        activeTabId: pane.tabs.some((tab) => tab.id === pane.activeTabId && (tab.locationId !== location.id || entriesByPath.has(tab.path) || tab.dirty)) ? pane.activeTabId : pane.tabs.find((tab) => tab.locationId !== location.id || entriesByPath.has(tab.path) || tab.dirty)?.id || null,
+        activeTabId: pane.tabs.some((tab) => tab.id === pane.activeTabId && (tab.locationId !== location.id || entriesByPath.has(pathIdentity(tab.path)) || tab.dirty)) ? pane.activeTabId : pane.tabs.find((tab) => tab.locationId !== location.id || entriesByPath.has(pathIdentity(tab.path)) || tab.dirty)?.id || null,
       }])) as Record<string, Pane>);
       for (const { paneId, tab } of candidates) {
-        const entry = entriesByPath.get(tab.path);
+        const entry = entriesByPath.get(pathIdentity(tab.path));
         if (!entry || entry.modifiedAtMs === tab.diskModifiedAtMs) continue;
-        void api.readMarkdownFile(tab.path).then((contents) => setPanes((current) => ({ ...current, [paneId]: {
+        void api.readMarkdownFile(entry.path).then((contents) => setPanes((current) => ({ ...current, [paneId]: {
           ...current[paneId], tabs: current[paneId].tabs.map((currentTab) => currentTab.id !== tab.id ? currentTab : currentTab.dirty
             ? { ...currentTab, conflict: true, diskModifiedAtMs: contents.modifiedAtMs }
-            : { ...currentTab, content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, conflict: false, deleted: false }),
+            : { ...currentTab, path: entry.path, relativePath: entry.relativePath, content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, conflict: false, deleted: false }),
         } })));
       }
       setLocations((current) => current.map((item) => item.id === location.id ? { ...item, available: true } : item));
@@ -394,7 +395,10 @@ export default function App() {
   const configureLocations = useCallback(async (next: LocationRecord[]) => {
     try {
       const watched = await api.setWatchedLocations(next.map((location) => location.path));
-      setLocations((current) => current.map((location) => ({ ...location, available: watched.includes(location.path) })));
+      setLocations((current) => current.map((location) => ({
+        ...location,
+        available: watched.some((path) => pathsEqual(path, location.path)),
+      })));
       return watched;
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error));
@@ -463,7 +467,7 @@ export default function App() {
       setActivePaneId(nextId);
     }
     const pane = panes[targetId];
-    const existing = pane?.tabs.find((tab) => tab.path === file.path);
+    const existing = pane?.tabs.find((tab) => pathsEqual(tab.path, file.path));
     if (existing) {
       setPane(targetId, (current) => ({
         ...current,
@@ -472,7 +476,7 @@ export default function App() {
       }));
       return;
     }
-    const location = locationsRef.current.find((item) => file.path.startsWith(item.path));
+    const location = locationsRef.current.find((item) => pathBelongsToLocation(file.path, item.path));
     if (!location) return notify("This file does not belong to an available location.");
     try {
       const [contents, git] = await Promise.all([api.readMarkdownFile(file.path), api.getGitInfo(file.path)]);
@@ -482,13 +486,13 @@ export default function App() {
   }, [activePaneId, notify, panes, setPane]);
 
   const openPath = useCallback((path: string) => {
-    const file = Object.values(filesRef.current).flat().find((item) => item.path === path);
+    const file = Object.values(filesRef.current).flat().find((item) => pathsEqual(item.path, path));
     if (file) void openFile(file);
     else notify("The linked file does not exist in an available Location.");
   }, [notify, openFile]);
 
   const openExploreConcept = useCallback((path: string) => {
-    const file = Object.values(filesRef.current).flat().find((item) => item.path === path);
+    const file = Object.values(filesRef.current).flat().find((item) => pathsEqual(item.path, path));
     if (!file) return notify("The selected concept is no longer available.");
     setExploreLocationId(null);
     setSearchSession(null);
@@ -610,7 +614,7 @@ export default function App() {
   const addLocation = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false, title: "Add folder to watch" });
     if (typeof selected !== "string") return;
-    if (locationsRef.current.some((location) => location.path === selected)) return notify("This folder has already been added.");
+    if (locationsRef.current.some((location) => pathsEqual(location.path, selected))) return notify("This folder has already been added.");
     const location: LocationRecord = { id: crypto.randomUUID(), path: selected, name: basename(selected), available: true };
     const next = [...locationsRef.current, location];
     setLocations(next);
@@ -817,9 +821,9 @@ export default function App() {
       ...bufferInspection,
       findings: [...bufferInspection.findings, ...savedFindings.filter((saved) => !bufferInspection.findings.some((item) => item.code === saved.code && item.message === saved.message))],
     } : null;
-    const concept = tab && bundleIndex?.status === "ready" ? bundleIndex.concepts.find((item) => item.path === tab.path) : undefined;
-    const outgoingConcepts = concept ? concept.outgoingPaths.map((path) => bundleIndex?.concepts.find((item) => item.path === path)).filter((item): item is OkfConcept => Boolean(item)) : [];
-    const incomingConcepts = concept ? concept.incomingPaths.map((path) => bundleIndex?.concepts.find((item) => item.path === path)).filter((item): item is OkfConcept => Boolean(item)) : [];
+    const concept = tab && bundleIndex?.status === "ready" ? bundleIndex.concepts.find((item) => pathsEqual(item.path, tab.path)) : undefined;
+    const outgoingConcepts = concept ? concept.outgoingPaths.map((path) => bundleIndex?.concepts.find((item) => pathsEqual(item.path, path))).filter((item): item is OkfConcept => Boolean(item)) : [];
+    const incomingConcepts = concept ? concept.incomingPaths.map((path) => bundleIndex?.concepts.find((item) => pathsEqual(item.path, path))).filter((item): item is OkfConcept => Boolean(item)) : [];
     const changeContent = (content: string) => tab && updateTab(pane.id, tab.id, (current) => ({ ...current, content, dirty: content !== current.baseContent }));
     const reloadExternal = () => { if (tab) void reloadTab(pane.id, tab.id); };
     return <section className={`editor-pane ${active ? "active" : ""}`}>

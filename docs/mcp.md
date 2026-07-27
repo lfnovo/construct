@@ -1,14 +1,11 @@
 # Local MCP access
 
-**Status:** Current preview behavior on macOS and Unix
+**Status:** Current preview behavior on macOS, Windows, and Unix
 
 Construct can expose registered Locations to coding agents through a local
 Model Context Protocol stdio server. The server uses the same per-Location
 indexes as the desktop and gives agents read-only knowledge tools without
 granting arbitrary filesystem, Git, shell, SQL, or mutation access.
-
-The MCP server is not currently available on Windows because the knowledge
-service uses authenticated Unix-domain socket IPC.
 
 ## How it works
 
