@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Check release version
+        run: npm run release:check -- "${GITHUB_REF_NAME}"
+
+      - name: Validate source
+        run: npm run validate
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: validate
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Apple Silicon
+            platform: macos-latest
+            target: aarch64-apple-darwin
+            bundle: dmg
+            cli_extension: tar.gz
+            apple_signing_identity: "-"
+          - label: macOS Intel
+            platform: macos-latest
+            target: x86_64-apple-darwin
+            bundle: dmg
+            cli_extension: tar.gz
+            apple_signing_identity: "-"
+          - label: Windows x64
+            platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle: nsis
+            cli_extension: zip
+            apple_signing_identity: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build app and create draft release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.apple_signing_identity }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Construct ${{ github.ref_name }}
+          releaseBody: |
+            Download the installer for the desktop application or the standalone
+            `construct` CLI archive for your platform. Verify CLI downloads with
+            `SHA256SUMS` before installation.
+          releaseDraft: true
+          prerelease: false
+          generateReleaseNotes: true
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundle }}
+
+      - name: Package macOS CLI
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          archive="construct_${version}_${{ matrix.target }}.${{ matrix.cli_extension }}"
+          mkdir -p release-assets
+          tar -C "src-tauri/target/${{ matrix.target }}/release" -czf "release-assets/${archive}" construct
+          cd release-assets
+          shasum -a 256 "${archive}" > "${archive}.sha256"
+          app_bundle="../src-tauri/target/${{ matrix.target }}/release/bundle/dmg"
+          app_name="$(basename "${app_bundle}"/*.dmg)"
+          (
+            cd "${app_bundle}"
+            shasum -a 256 "${app_name}"
+          ) > "${{ matrix.target }}-app.sha256"
+
+      - name: Package Windows CLI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $archive = "construct_${version}_${{ matrix.target }}.${{ matrix.cli_extension }}"
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          Compress-Archive `
+            -Path "src-tauri/target/${{ matrix.target }}/release/construct.exe" `
+            -DestinationPath "release-assets/$archive"
+          $hash = (Get-FileHash "release-assets/$archive" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "release-assets/$archive.sha256" -Value "$hash  $archive"
+          $installer = Get-ChildItem `
+            "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe" |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw "NSIS installer was not generated"
+          }
+          $installerHash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          Set-Content `
+            -Path "release-assets/${{ matrix.target }}-app.sha256" `
+            -Value "$installerHash  $($installer.Name)"
+
+      - name: Upload CLI archive to draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" release-assets/*.${{ matrix.cli_extension }} --clobber
+
+      - name: Retain checksum fragment
+        uses: actions/upload-artifact@v7
+        with:
+          name: checksum-${{ matrix.target }}
+          path: release-assets/*.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  checksums:
+    name: Publish checksums
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download checksum fragments
+        uses: actions/download-artifact@v8
+        with:
+          pattern: checksum-*
+          path: checksums
+          merge-multiple: true
+
+      - name: Assemble SHA256SUMS
+        run: cat checksums/*.sha256 | sort > SHA256SUMS
+
+      - name: Upload checksums to draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" SHA256SUMS --clobber
