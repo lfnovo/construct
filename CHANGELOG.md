@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-27
+
 ### Added
 
 - Local-first macOS workspace for recursively discovered Markdown files.
@@ -24,6 +26,11 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 ### Changed
 
 - Renamed the application from Agent Context to Construct.
+
+### Fixed
+
+- Windows release compilation now excludes the Unix-only local knowledge
+  transport and reports its unsupported-platform boundary explicitly.
 
 ### Security
 

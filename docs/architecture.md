@@ -143,6 +143,11 @@ recent background requests from multiple MCP clients per Location. Ordinary
 incremental reconciliation keeps the last healthy generation publicly ready or
 degraded; only initial builds and explicit rebuilds publish `indexing`.
 
+On Windows, the desktop workspace and stateless OKF linter compile and run, but
+the knowledge client returns a clear unsupported-platform error. Retrieval and
+MCP remain unavailable until a native authenticated Windows IPC transport
+replaces the Unix-socket boundary without introducing a network listener.
+
 The retrieval database also contains a disposable 15-day daily activity cache.
 Real saved-file changes, documents successfully served through MCP, and
 documents included in MCP context packs use separate counters. Search results

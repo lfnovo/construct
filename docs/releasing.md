@@ -23,6 +23,11 @@ The release also contains `SHA256SUMS` for every generated installer and CLI
 archive. The app and CLI are built from the same commit and Rust executable;
 CLI subcommands exit before the Tauri desktop runtime starts.
 
+The Windows preview supports the desktop workspace and stateless OKF linter.
+Local knowledge indexing and MCP depend on the authenticated Unix-socket
+service and are not yet available on Windows. This limitation must remain in
+the release notes until a Windows IPC transport is implemented and tested.
+
 The GitHub-generated source `.zip` and `.tar.gz` files are source archives, not
 application or CLI downloads.
 
