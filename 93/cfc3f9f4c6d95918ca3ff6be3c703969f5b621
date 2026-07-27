@@ -1,0 +1,77 @@
+.github/ISSUE_TEMPLATE/bug_report.yml
+  s_954343fc536a43::t_f5c21010d66c7b 18,20-40
+CONTRIBUTING.md
+  s_954343fc536a43::t_607cf5ff195d41 5-6,8,10-18,20-26,29-30,35-67,69,74,79-102,104-109,111-112,114,116-125,127,129-131
+README.md
+  s_954343fc536a43::t_c162d32fe46806 8,11-14,16-18,20,22-32,34-36,38,40,42-43,52,54-57,59-60,62,64-65,67-71,73-76,78,80,83-84,87-88,90-92,94-95,97,99,101-102,108,110-114,116-117,119-121
+CHANGELOG.md
+  s_954343fc536a43::t_6fc48a24b24083 16-25,28
+  s_954343fc536a43::t_6b030034343dce 26-27
+  s_954343fc536a43::t_ca1d396a5554ba 9-15
+docs/architecture.md
+  s_954343fc536a43::t_a4d796a94de2e7 25
+  s_954343fc536a43::t_9d864391886d2b 18-21
+  s_954343fc536a43::t_3112e48f24cdd7 3-4,7-8,242,264-271
+  s_954343fc536a43::t_ee29320136445c 9
+docs/development.md
+  s_954343fc536a43::t_aa60903b23f06c 1-111,128-166,168-169,171-256
+  s_954343fc536a43::t_325f02dfc8de6f 167,170
+  s_954343fc536a43::t_ca1d396a5554ba 112-127
+docs/cli.md
+  s_954343fc536a43::t_0bacac79bffdba 1-226,233,236-237,240-243,245-246,251-289
+  s_954343fc536a43::t_e585d867920933 231,247-250
+  s_954343fc536a43::t_9810d502f6e45d 244
+  s_954343fc536a43::t_e87a12cfb734f1 227-230,232,234-235,238-239
+.github/ISSUE_TEMPLATE/feature_request.yml
+  s_954343fc536a43::t_f5c21010d66c7b 26-32,34,37
+.github/pull_request_template.md
+  s_954343fc536a43::t_f5c21010d66c7b 15
+docs/releasing.md
+  s_954343fc536a43::t_53455a4678be43 20-22,131-132
+  s_954343fc536a43::t_9091a36feeb037 3-4
+  s_954343fc536a43::t_a9e1427d972f3e 133
+docs/mcp.md
+  s_954343fc536a43::t_5aa92a8ceed358 1-290
+docs/README.md
+  s_954343fc536a43::t_6814be9561309f 6,8-27,29-34,36,38-40,42-44
+SECURITY.md
+  s_954343fc536a43::t_329b3db51b149c 3-6,18,21,34-51
+docs/product-spec.md
+  s_954343fc536a43::t_ecd144f42266b7 46,62-63,220,229,272,274,307,314,320,354,397,492,675,721,765-766,791,880-919,922,946
+  s_954343fc536a43::t_99f857f6c067b2 8-12,72,83-86,561-562,768,773,792-800,804-805,807,812,816-818,948-957,960-962,974-976,1013,1028-1029
+  s_954343fc536a43::t_c22027b0c44f30 947
+docs/user-guide.md
+  s_954343fc536a43::t_52c55c0dbd616b 1-338
+.github/workflows/ci.yml
+  s_954343fc536a43::t_75735de6ac529e 169
+  s_954343fc536a43::t_506388f0e94b46 18-95,97-167,191,199,203-212,215-228,230,232-235,237
+  s_954343fc536a43::t_ca1d396a5554ba 96,231
+  s_954343fc536a43::t_9121c08ac1cecf 200-202
+package.json
+  s_954343fc536a43::t_9121c08ac1cecf 24
+  s_954343fc536a43::t_ca1d396a5554ba 22,32
+tests/ci-paths.test.mjs
+  s_954343fc536a43::t_06e15f2f3e9dfa 20-28
+  s_954343fc536a43::t_a80ab972ebeb98 1-19,29-73
+scripts/check-docs.mjs
+  s_954343fc536a43::t_a80ab972ebeb98 1-89
+scripts/classify-ci-changes.mjs
+  s_954343fc536a43::t_a80ab972ebeb98 1-157,159-165
+  s_954343fc536a43::t_06e15f2f3e9dfa 158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "93cfc3f9f4c6d95918ca3ff6be3c703969f5b621",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
