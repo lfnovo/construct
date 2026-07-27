@@ -6,6 +6,19 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+### Documentation
+
+- Reorganized the repository around clear user, CLI, MCP, contributor, product,
+  architecture, security, and release journeys.
+- Added a complete first-run and workflow guide for Locations, Markdown
+  editing, Review, search, OKF Health, local data, and troubleshooting.
+- Added standalone CLI and local MCP guides with CI, allowlist, privacy, and
+  tool-reference examples.
+- Reconciled the product specification with the implemented search, indexing,
+  OKF lint, MCP, and Windows preview boundaries.
+- Updated issue and pull request templates for the current product areas and
+  cross-platform preview.
+
 ## [0.1.1] - 2026-07-27
 
 ### Added

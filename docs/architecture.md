@@ -1,6 +1,11 @@
 # Architecture
 
+**Status:** Current
+
 Construct is a local-first desktop application built with Tauri, React, TypeScript, and Rust. Presentation and lossless editing remain in the webview. Filesystem authority and retrieval-critical OKF interpretation live in the Rust process so future UI, index, CLI, and MCP consumers share one contract.
+
+For product behavior, start with the [product specification](product-spec.md).
+For setup and validation, use the [development guide](development.md).
 
 ## System shape
 
@@ -10,11 +15,14 @@ flowchart LR
     R --> P[Lossless Markdown editor boundary]
     R --> T[Tauri command boundary]
     T --> O[Native OKF parser]
-    T --> I[IndexService]
+    T --> K[KnowledgeClient]
+    M["MCP stdio adapter"] --> K
+    K --> S["Authenticated local IPC service"]
+    S --> I[IndexService]
     I --> D[(One SurrealDB per Location)]
     T --> F[Filesystem and watcher]
     T --> G[Read-only Git commands]
-    T --> S[Local workspace state]
+    T --> W[Local workspace state]
     F --> R
     C["construct okf lint"] --> O
     C --> F
@@ -231,8 +239,7 @@ OKF support is derived and non-destructive:
   compatibility behavior, broken links, and unsafe paths;
 - bundle detection, the inspector, Explore, and Graph consume the same native
   interpretation;
-- Explore and Graph still consume the in-memory bundle snapshot while the new
-  visual graph consumes the in-memory bundle snapshot;
+- Explore List, Graph, and Health consume the in-memory bundle snapshot;
 - all registered Markdown is now maintained in a per-Location persistent
   derived index, with OKF enrichment when applicable;
 - direct internal links are also persisted in that Location index so backlinks,
@@ -254,3 +261,11 @@ OKF support is derived and non-destructive:
 ## Known pressure points
 
 `App.tsx` still coordinates several domains and should shrink through small extractions, not a broad rewrite. Large trees and history lists are not virtualized yet. Signing, notarization, updater design, and filesystem permission recovery remain release-readiness work.
+
+## Related documentation
+
+- [User guide](user-guide.md)
+- [CLI and OKF lint](cli.md)
+- [Local MCP access](mcp.md)
+- [Development guide](development.md)
+- [Retrieval and agent-access RFCs](proposals/retrieval/README.md)

@@ -23,12 +23,18 @@ body:
     attributes:
       label: Area
       options:
-        - Markdown workspace
-        - OKF Explore
+        - Startup and Locations
+        - Markdown Preview or Edit
+        - Review
+        - Search and local index
+        - OKF Explore or Health
+        - CLI linter
+        - Local MCP
         - Filesystem and history
-        - Git
+        - Git Diff
         - Accessibility
         - Distribution
+        - Documentation
         - Other
     validations:
       required: true

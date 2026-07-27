@@ -1,5 +1,7 @@
 # Release process
 
+**Status:** Current maintainer process
+
 Construct uses one semantic version for the desktop application and standalone
 CLI. GitHub Releases is the initial canonical distribution channel. Package
 managers and app stores may mirror a release later but must not rebuild or
@@ -15,9 +17,9 @@ Each `vX.Y.Z` release candidate produces:
 
 | Platform | Desktop application | Standalone CLI |
 | --- | --- | --- |
-| macOS Apple Silicon | signed-preview DMG | `construct_X.Y.Z_aarch64-apple-darwin.tar.gz` |
-| macOS Intel | signed-preview DMG | `construct_X.Y.Z_x86_64-apple-darwin.tar.gz` |
-| Windows x64 | NSIS setup executable | `construct_X.Y.Z_x86_64-pc-windows-msvc.zip` |
+| macOS Apple Silicon | ad-hoc-signed preview DMG | `construct_X.Y.Z_aarch64-apple-darwin.tar.gz` |
+| macOS Intel | ad-hoc-signed preview DMG | `construct_X.Y.Z_x86_64-apple-darwin.tar.gz` |
+| Windows x64 | unsigned preview NSIS setup | `construct_X.Y.Z_x86_64-pc-windows-msvc.zip` |
 
 The release also contains `SHA256SUMS` for every generated installer and CLI
 archive. The app and CLI are built from the same commit and Rust executable;
@@ -125,6 +127,9 @@ A trusted public Windows release requires:
 Until those gates are configured, publish only clearly labeled preview
 releases. Do not enable automatic updates before signed release identity and
 rollback behavior are stable.
+
+The implementation activity and required credentials are tracked in
+[issue #19](https://github.com/lfnovo/construct/issues/19).
 
 ## Local build output
 
