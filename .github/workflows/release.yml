@@ -178,4 +178,5 @@ jobs:
       - name: Upload checksums to draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: gh release upload "${GITHUB_REF_NAME}" SHA256SUMS --clobber
