@@ -29,7 +29,8 @@ Terminal-first agent workflows are excellent for conversation and execution, but
 - Local full-text knowledge search across isolated per-folder indexes.
 - Direct related-document navigation and budgeted context packs for agents.
 - OKF bundle detection, metadata inspection, types, tags, links, and backlinks.
-- OKF List and Graph views with multi-type filtering and stable type colors.
+- OKF List, Graph, and Health views with multi-type filtering, stable type
+  colors, actionable findings, and agent-ready lint handoffs.
 - Stateless OKF linting for coding agents and CI, with text and JSON output.
 
 ## Privacy
@@ -86,6 +87,25 @@ src-tauri/target/release/bundle/macos/Construct.app/Contents/MacOS/construct \
 The default threshold fails only on conformance errors. Use
 `--fail-on warning` for a strict repository gate, or `--format json` for agents
 and CI. The linter is read-only and creates no workspace or index state.
+
+Repositories that contain Markdown which is not an OKF concept can commit a
+`.constructignore` at the lint root:
+
+```gitignore
+# Agent instructions and Agent Skills remain valid link targets.
+AGENTS.md
+CLAUDE.md
+**/SKILL.md
+```
+
+These files skip OKF conformance checks but remain resolvable by internal
+Markdown links. Repeated `--exclude <GLOB>` rules compose with the file;
+`--no-ignore-file` performs a strict run without it.
+
+For registered OKF Locations, open **Explore → Health** to inspect the same
+native findings in the desktop application, rerun the scan, open affected
+documents, or copy a bounded repair handoff for a coding agent. **Repository
+policy** applies `.constructignore`; **All Markdown** exposes the strict report.
 
 ## Project documentation
 

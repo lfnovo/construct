@@ -1,6 +1,6 @@
 # RFC 06 — Stateless OKF linter
 
-**Status:** First delivery implemented; standalone CI packaging pending
+**Status:** CLI and desktop Health implemented; standalone CI packaging pending
 
 **Decision owner:** Product, OKF compatibility, CLI, and release engineering
 
@@ -61,6 +61,22 @@ process:
 
 The result is derived in memory and discarded when the command ends.
 
+The registered-Location experience now also presents the same native findings
+inside Explore's **Health** view. This desktop adapter does not weaken the
+stateless CLI boundary: it reads the saved-file bundle snapshot already used by
+Explore and can explicitly refresh that snapshot without spawning the CLI,
+opening SurrealDB, or changing project files.
+
+Health adds human-oriented presentation:
+
+- error, warning, info, and document counts;
+- grouping by stable rule code;
+- filtering by severity, path, rule, or message;
+- navigation to the affected saved document in Source;
+- a self-contained clipboard handoff for a coding agent;
+- a `Repository policy` scope that applies `.constructignore`, plus
+  `All Markdown` for an explicit strict inspection.
+
 ## Inspiration and boundary
 
 The Obsidian community plugin
@@ -120,6 +136,7 @@ Initial options:
 --format text|json
 --fail-on error|warning|never
 --exclude <GLOB>
+--no-ignore-file
 --max-findings <COUNT>
 --no-color
 --quiet
@@ -130,6 +147,7 @@ Proposed defaults:
 - `--format text`;
 - `--fail-on error`;
 - standard Construct directory exclusions;
+- `.constructignore` loaded from the supplied bundle root;
 - color only when stdout is an interactive terminal;
 - all findings printed up to a safe maximum;
 - summary printed even when there are no findings.
@@ -160,8 +178,38 @@ CI:
 construct okf lint . --no-color --fail-on error
 ```
 
-The first delivery does not require a configuration file. Repeatable repository
-profiles and shared exclusions are a follow-up decision.
+### Repository conformance policy
+
+A bundle may commit `.constructignore` at its root. It contains one glob-like
+path pattern per line:
+
+```gitignore
+# Agent infrastructure lives beside knowledge but is not an OKF concept.
+AGENTS.md
+CLAUDE.md
+**/SKILL.md
+```
+
+The policy is intentionally narrower than an OKF validation profile. It does
+not declare required metadata, a type vocabulary, or organization-specific
+schema. It only identifies Markdown that does not participate in OKF
+conformance.
+
+Rules:
+
+- blank lines and lines beginning with `#` are ignored;
+- a basename-only pattern applies at any depth;
+- `/` anchors a pattern to the bundle root;
+- a trailing `/` applies to descendants of a directory;
+- patterns are evaluated in order and `!` reintroduces a path;
+- repeated `--exclude` patterns are evaluated after repository rules;
+- `--no-ignore-file` bypasses `.constructignore` for a strict diagnostic run;
+- invalid or oversized policy files fail with exit code `2`.
+
+Crucially, a matched Markdown path is still discovered and remains a valid
+internal-link target. Construct suppresses findings originating from that
+document and removes it from OKF concept projections; it does not pretend the
+file is absent. The general Markdown retrieval index remains independent.
 
 ## Output
 
@@ -252,9 +300,11 @@ change.
 
 ### Agent usability
 
-No separate “agent prompt” format is required initially. Stable text output is
-already actionable in a coding-agent terminal, while JSON lets an agent group,
-filter, or batch findings programmatically.
+Stable text output is actionable in a coding-agent terminal, while JSON lets an
+agent group, filter, or batch findings programmatically. The desktop Health
+view additionally serializes its currently visible scope into a self-contained
+clipboard handoff. That handoff is a presentation convenience over the same
+findings, not another output schema or validator.
 
 Agents should be able to run:
 
@@ -356,7 +406,9 @@ The linter reuses Construct's safe Markdown discovery rules where appropriate:
 - normalize relative paths without escaping the root;
 - exclude generated and dependency directories such as `.git`,
   `node_modules`, `target`, vendor caches, and platform build output;
-- allow repeated explicit `--exclude` patterns;
+- load `.constructignore` from the explicit lint root;
+- allow repeated explicit `--exclude` patterns that compose with it;
+- retain policy-matched Markdown paths for internal-link resolution;
 - continue after an unreadable individual file when safe and report it;
 - bound document size, frontmatter size, YAML nesting, link count, and total
   findings.
@@ -383,8 +435,8 @@ Specifically, the command does not create or update:
 - user configuration;
 - repository files.
 
-The command may read an explicit future repository profile if the user passes
-one, but it never creates or updates that profile.
+The command may read `.constructignore` and an explicit future repository
+profile, but it never creates or updates either.
 
 Temporary operating-system files should be avoided. If a future implementation
 needs them for bounded external sorting, they must be removed on normal and
@@ -496,7 +548,6 @@ caller-owned cache may be proposed separately. No cache is part of this RFC.
 ## Non-goals
 
 - Persisting findings or health history.
-- Adding a Health screen to the desktop.
 - Exposing findings through MCP.
 - Registering a Location.
 - Starting or querying the local index service.
@@ -527,8 +578,10 @@ caller-owned cache may be proposed separately. No cache is part of this RFC.
 - Broken links remain non-fatal unless an explicit future profile says
   otherwise.
 - Findings are deterministically ordered.
-- Standard exclusions and explicit exclusions prevent scanning generated
-  dependency trees.
+- Standard traversal exclusions prevent scanning generated dependency trees.
+- `.constructignore` and explicit `--exclude` rules suppress conformance checks
+  while retaining matched Markdown as link-resolvable paths.
+- `--no-ignore-file` exposes a strict run that bypasses repository policy.
 - The linter and desktop inspector use the same parser and stable finding codes.
 - A 10,000-document stateless scan stays within the accepted time and memory
   budgets.
@@ -565,8 +618,8 @@ Measure:
   decision always use the complete finding set.
 - The default output limit is 1,000 findings; callers may configure up to
   100,000.
-- Profiles are deferred completely from the first release. Alignment with an
-  `okflint` manifest remains a future design question.
+- Schema-bearing profiles remain deferred. `.constructignore` is only a
+  non-concept path policy and must not grow into a hidden taxonomy.
 - Whether SARIF is valuable after stable JSON exists.
 - The standalone CLI artifact and GitHub Action distribution design.
 - Whether release binaries are named `construct` uniformly across platforms.
@@ -586,9 +639,14 @@ Measure:
 
 - **Implemented:** `construct okf lint`, including text/JSON, thresholds,
   exclusions, output limits, color control, and quiet output;
+- **Implemented:** repository-owned `.constructignore`, ordered negation,
+  composition with CLI exclusions, strict bypass, and link-resolvable ignored
+  paths;
 - **Implemented:** source-build invocation and bundled-executable smoke path;
 - **Implemented:** initial field validation against `knowledge` and two older
   repositories;
+- **Implemented:** Explore Health view with summaries, scopes, filters, source
+  navigation, explicit refresh, and agent clipboard handoff;
 - **Pending workflow trial:** have coding agents repair bounded finding batches;
 - **Implemented:** local workflow documentation.
 

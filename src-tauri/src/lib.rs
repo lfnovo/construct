@@ -18,6 +18,7 @@ mod knowledge;
 mod mcp;
 mod okf;
 mod okf_lint;
+mod okf_policy;
 
 const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
@@ -420,10 +421,16 @@ async fn inspect_okf_bundle(
             path: PathBuf::from(entry.path),
             relative_path: entry.relative_path,
         })
-        .collect();
-    tauri::async_runtime::spawn_blocking(move || okf::inspect_bundle(&root, files))
-        .await
-        .map_err(|error| format!("The OKF inspection task failed: {error}"))?
+        .collect::<Vec<_>>();
+    let policy = okf_policy::ConformancePolicy::load(&root, &[], true)?;
+    let ignored_paths = policy.ignored_paths(files.iter().map(|file| file.relative_path.as_str()));
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut snapshot = okf::inspect_bundle(&root, files)?;
+        snapshot.apply_conformance_policy(ignored_paths, true);
+        Ok(snapshot)
+    })
+    .await
+    .map_err(|error| format!("The OKF inspection task failed: {error}"))?
 }
 
 #[tauri::command]

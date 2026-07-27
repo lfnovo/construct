@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, ShieldCheck, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./explore";
+import { HealthWorkspace } from "./HealthWorkspace";
 import { deduplicateHistory } from "./history";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -129,15 +130,18 @@ function FileTree({ entries, onOpen, onContext }: { entries: FileEntry[]; onOpen
   return <div className="file-tree">{entries.length ? render(tree, "") : <p className="empty-sidebar">No Markdown files found.</p>}</div>;
 }
 
-function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }: {
+function BundleExplorer({ location, index, filters, onFilters, onOpen, onOpenFinding, onRefreshHealth, onNotify, onClose }: {
   location: LocationRecord;
   index: OkfBundleIndex | undefined;
   filters: ExploreFilters;
   onFilters: (filters: ExploreFilters) => void;
   onOpen: (path: string) => void;
+  onOpenFinding: (relativePath: string) => void;
+  onRefreshHealth: () => Promise<void>;
+  onNotify: (message: string) => void;
   onClose: () => void;
 }) {
-  const [view, setView] = useState<"list" | "graph">("list");
+  const [view, setView] = useState<"list" | "graph" | "health">("list");
   if (!index || index.status === "scanning") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Building the local knowledge index…</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
   if (index.status === "error") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Could not build the knowledge index.</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
   const typeCounts = new Map<string, number>();
@@ -151,10 +155,20 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onClose }
   const typeColors = buildTypeColorMap(types.map(([type]) => type));
   const tags = [...tagCounts.entries()].sort(([leftName, leftCount], [rightName, rightCount]) => rightCount - leftCount || leftName.localeCompare(rightName));
   return <section className="bundle-explorer">
-    <header><div><h1>{location.name}</h1><p>{index.declaredVersion ? `OKF ${index.declaredVersion}` : "OKF"} bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags{index.findingCount ? ` · ${index.findingCount} findings` : ""}</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
-    <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list types">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} style={{ "--type-color": typeColors[type] } as CSSProperties} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}><i className="type-color-dot" />{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
-    <div className="explore-results-heading"><h2>{filters.types.length || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.types.length || filters.tag) && <button onClick={() => onFilters({ types: [] })}>Clear filters</button>}</div>
-    {view === "graph" ? <KnowledgeGraph concepts={concepts} typeColors={typeColors} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span className="concept-type" style={{ "--type-color": typeColors[concept.type] } as CSSProperties}>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
+    <header><div><h1>{location.name}</h1><p>{index.declaredVersion ? `OKF ${index.declaredVersion}` : "OKF"} bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags{index.findingCount ? ` · ${index.findingCount} findings` : ""}</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button><button className={view === "health" ? "selected" : ""} onClick={() => setView("health")}><ShieldCheck size={13} /> Health{index.findingCount ? <span>{index.findingCount}</span> : null}</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
+    {view === "health" ? <HealthWorkspace
+      locationName={location.name}
+      documents={index.documentCount || 0}
+      findings={index.findings || []}
+      ignoredPaths={index.ignoredPaths || []}
+      onOpen={onOpenFinding}
+      onRefresh={onRefreshHealth}
+      onNotify={onNotify}
+    /> : <>
+      <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list types">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} style={{ "--type-color": typeColors[type] } as CSSProperties} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}><i className="type-color-dot" />{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
+      <div className="explore-results-heading"><h2>{filters.types.length || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.types.length || filters.tag) && <button onClick={() => onFilters({ types: [] })}>Clear filters</button>}</div>
+      {view === "graph" ? <KnowledgeGraph concepts={concepts} typeColors={typeColors} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span className="concept-type" style={{ "--type-color": typeColors[concept.type] } as CSSProperties}>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
+    </>}
   </section>;
 }
 
@@ -226,6 +240,7 @@ export default function App() {
   const filesRef = useRef(filesByLocation);
   const panesRef = useRef(panes);
   const refreshTimer = useRef<number | undefined>(undefined);
+  const policyRefreshRequested = useRef(false);
   const okfIndexSignatures = useRef<Record<string, string>>({});
   const quickOpenResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
   locationsRef.current = locations;
@@ -274,15 +289,17 @@ export default function App() {
     });
   }, [addHistory]);
 
-  const refreshOkfIndex = useCallback(async (location: LocationRecord, entries: FileEntry[]) => {
+  const refreshOkfIndex = useCallback(async (location: LocationRecord, entries: FileEntry[], force = false) => {
     if (location.okfMode === "disabled" || (location.okfMode === "manual" && !location.okfBundle)) {
       setOkfIndexes((current) => { const next = { ...current }; delete next[location.id]; return next; });
       return false;
     }
     const signature = entries.map((entry) => `${entry.path}:${entry.modifiedAtMs}:${entry.size}`).join("|");
-    if (okfIndexSignatures.current[location.id] === signature) return Boolean(location.okfBundle);
+    if (!force && okfIndexSignatures.current[location.id] === signature) return Boolean(location.okfBundle);
     okfIndexSignatures.current[location.id] = signature;
-    setOkfIndexes((current) => ({ ...current, [location.id]: { status: "scanning", concepts: current[location.id]?.concepts || [], signature } }));
+    if (!force) {
+      setOkfIndexes((current) => ({ ...current, [location.id]: { status: "scanning", concepts: current[location.id]?.concepts || [], signature } }));
+    }
     try {
       const snapshot = await api.inspectOkfBundle(location.path);
       const enabled = location.okfMode === "manual" ? Boolean(location.okfBundle) : snapshot.detected;
@@ -300,6 +317,7 @@ export default function App() {
           documentCount: snapshot.documentCount,
           findingCount: snapshot.findingCount,
           findings: snapshot.findings,
+          ignoredPaths: snapshot.ignoredPaths,
         } }));
       } else {
         setOkfIndexes((current) => { const next = { ...current }; delete next[location.id]; return next; });
@@ -307,16 +325,21 @@ export default function App() {
       return enabled;
     } catch (error) {
       setOkfIndexes((current) => ({ ...current, [location.id]: { status: "error", concepts: [], signature, error: error instanceof Error ? error.message : String(error) } }));
+      if (force) throw error;
       return Boolean(location.okfBundle);
     }
   }, []);
 
-  const refreshLocation = useCallback(async (location: LocationRecord, source: HistoryEvent["source"] = "external") => {
+  const refreshLocation = useCallback(async (
+    location: LocationRecord,
+    source: HistoryEvent["source"] = "external",
+    forceOkf = false,
+  ) => {
     try {
       const entries = await api.listMarkdownFiles(location.path);
       setFilesByLocation((current) => ({ ...current, [location.id]: entries }));
       reconcile(location, entries, source);
-      const okfBundle = await refreshOkfIndex(location, entries);
+      const okfBundle = await refreshOkfIndex(location, entries, forceOkf);
       try {
         const indexStatus = await api.syncLocationIndex({
           locationId: location.id,
@@ -361,7 +384,12 @@ export default function App() {
     }
   }, [reconcile, refreshOkfIndex]);
 
-  const refreshAll = useCallback((source: HistoryEvent["source"] = "external") => Promise.all(locationsRef.current.map((location) => refreshLocation(location, source))), [refreshLocation]);
+  const refreshAll = useCallback((
+    source: HistoryEvent["source"] = "external",
+    forceOkf = false,
+  ) => Promise.all(
+    locationsRef.current.map((location) => refreshLocation(location, source, forceOkf)),
+  ), [refreshLocation]);
 
   const configureLocations = useCallback(async (next: LocationRecord[]) => {
     try {
@@ -423,7 +451,7 @@ export default function App() {
     return pane?.tabs.find((tab) => tab.id === pane.activeTabId) || null;
   }, [activePaneId, panes]);
 
-  const openFile = useCallback(async (file: FileEntry, newPane = false) => {
+  const openFile = useCallback(async (file: FileEntry, newPane = false, initialMode?: TabMode) => {
     setExploreLocationId(null);
     setSearchSession(null);
     let targetId = activePaneId;
@@ -436,12 +464,19 @@ export default function App() {
     }
     const pane = panes[targetId];
     const existing = pane?.tabs.find((tab) => tab.path === file.path);
-    if (existing) { setPane(targetId, (current) => ({ ...current, activeTabId: existing.id })); return; }
+    if (existing) {
+      setPane(targetId, (current) => ({
+        ...current,
+        activeTabId: existing.id,
+        tabs: current.tabs.map((tab) => tab.id === existing.id && initialMode ? { ...tab, mode: initialMode } : tab),
+      }));
+      return;
+    }
     const location = locationsRef.current.find((item) => file.path.startsWith(item.path));
     if (!location) return notify("This file does not belong to an available location.");
     try {
       const [contents, git] = await Promise.all([api.readMarkdownFile(file.path), api.getGitInfo(file.path)]);
-      const tab: DocumentTab = { id: crypto.randomUUID(), path: file.path, locationId: location.id, title: file.name, relativePath: file.relativePath, mode: "preview", content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, dirty: false, conflict: false, deleted: false, git };
+      const tab: DocumentTab = { id: crypto.randomUUID(), path: file.path, locationId: location.id, title: file.name, relativePath: file.relativePath, mode: initialMode || "preview", content: contents.content, baseContent: contents.content, lineEnding: contents.lineEnding, diskModifiedAtMs: contents.modifiedAtMs, dirty: false, conflict: false, deleted: false, git };
       setPane(targetId, (current) => ({ ...current, tabs: [...current.tabs, tab], activeTabId: tab.id }));
     } catch (error) { notify(error instanceof Error ? error.message : String(error)); }
   }, [activePaneId, notify, panes, setPane]);
@@ -459,6 +494,25 @@ export default function App() {
     setSearchSession(null);
     void openFile(file);
   }, [notify, openFile]);
+
+  const openExploreFinding = useCallback((relativePath: string) => {
+    if (!exploreLocationId) return;
+    const file = (filesRef.current[exploreLocationId] || [])
+      .find((entry) => entry.relativePath.replace(/\\/g, "/") === relativePath.replace(/\\/g, "/"));
+    if (!file) return notify("The document referenced by this finding is no longer available.");
+    setExploreLocationId(null);
+    setSearchSession(null);
+    void openFile(file, false, "source");
+  }, [exploreLocationId, notify, openFile]);
+
+  const refreshExploreHealth = useCallback(async () => {
+    const location = locationsRef.current.find((item) => item.id === exploreLocationId);
+    if (!location) throw new Error("This Location is no longer available.");
+    const entries = await api.listMarkdownFiles(location.path);
+    setFilesByLocation((current) => ({ ...current, [location.id]: entries }));
+    await refreshOkfIndex(location, entries, true);
+    notify(`Linted “${location.name}”. No project files were changed.`);
+  }, [exploreLocationId, notify, refreshOkfIndex]);
 
   const openKnowledgeSearch = useCallback(() => {
     setExploreLocationId(null);
@@ -633,9 +687,17 @@ export default function App() {
   }, [configureLocations, notify, refreshLocation]);
 
   useEffect(() => {
-    const unlisten = listen<FileSystemChange>("filesystem-change", () => {
+    const unlisten = listen<FileSystemChange>("filesystem-change", (event) => {
+      const policyChanged = event.payload.paths.some((path) => (
+        path.replace(/\\/g, "/").split("/").at(-1) === ".constructignore"
+      ));
+      policyRefreshRequested.current ||= policyChanged;
       window.clearTimeout(refreshTimer.current);
-      refreshTimer.current = window.setTimeout(() => { void refreshAll("external"); }, 450);
+      refreshTimer.current = window.setTimeout(() => {
+        const forceOkf = policyRefreshRequested.current;
+        policyRefreshRequested.current = false;
+        void refreshAll("external", forceOkf);
+      }, 450);
     });
     return () => { void unlisten.then((dispose) => dispose()); };
   }, [refreshAll]);
@@ -870,7 +932,7 @@ export default function App() {
       onOpen={openKnowledgeResult}
       onClose={() => setSearchSession(null)}
       onNotify={notify}
-    /> : exploreLocation ? <BundleExplorer location={exploreLocation} index={okfIndexes[exploreLocation.id]} filters={exploreFilters} onFilters={setExploreFilters} onOpen={openExploreConcept} onClose={() => setExploreLocationId(null)} /> : <SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView>}</section>
+    /> : exploreLocation ? <BundleExplorer location={exploreLocation} index={okfIndexes[exploreLocation.id]} filters={exploreFilters} onFilters={setExploreFilters} onOpen={openExploreConcept} onOpenFinding={openExploreFinding} onRefreshHealth={refreshExploreHealth} onNotify={notify} onClose={() => setExploreLocationId(null)} /> : <SplitView node={layout} panes={panes} activePaneId={activePaneId} onActivate={setActivePaneId} onRatio={(node, ratio) => setLayout((current) => updateSplitRatio(current, node, ratio))}>{renderPane}</SplitView>}</section>
     {quickOpen && <div className="quick-open-backdrop" onMouseDown={() => setQuickOpen(false)}><div className="quick-open" onMouseDown={(event) => event.stopPropagation()}><input
       autoFocus
       placeholder="Open file…"
