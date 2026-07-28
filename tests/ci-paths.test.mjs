@@ -34,6 +34,26 @@ test("frontend changes run only the web validation on pull requests", () => {
   assert.equal(result.code, true);
 });
 
+test("GitHub Action changes use JavaScript and lightweight YAML validation", () => {
+  assert.deepEqual(
+    classifyCiPaths([
+      "okf-lint-action/action.yml",
+      "okf-lint-action/run.mjs",
+    ]),
+    {
+      docs: true,
+      web: true,
+      rust: false,
+      bundle: false,
+      code: true,
+      paths: [
+        "okf-lint-action/action.yml",
+        "okf-lint-action/run.mjs",
+      ],
+    },
+  );
+});
+
 test("native source changes run Rust validation without a PR bundle", () => {
   const result = classifyCiPaths(["src-tauri/src/index.rs"]);
   assert.equal(result.web, false);

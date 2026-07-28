@@ -58,7 +58,7 @@ Pure domain logic should stay outside `App.tsx` so it can be tested without a we
 
 ## Native core
 
-`src-tauri/src/lib.rs` owns privileged operations:
+`src-tauri/src/desktop.rs` owns privileged desktop operations:
 
 - recursive Markdown discovery;
 - default directory exclusions;
@@ -107,6 +107,19 @@ behind this module so they can be replaced without changing the Tauri contract.
 
 The linter never opens `IndexService`, SurrealDB, workspace persistence, MCP, or
 the desktop runtime. It has no source mutation path.
+
+`src-tauri/src/lib.rs` is the native feature boundary. Default builds enable
+`desktop` and expose the Tauri application, local service, MCP, and linter.
+Release and CI builds for Linux use `--no-default-features --features okf-cli`;
+that target compiles only the shared OKF parser, conformance policy, CLI
+formatter, and their lightweight dependencies. Desktop commands live in
+`src-tauri/src/desktop.rs` and are not present in the CLI-only binary.
+
+`okf-lint-action/` is a presentation and distribution adapter. It resolves an
+explicit Construct release, verifies the selected archive against
+`SHA256SUMS`, invokes the CLI in JSON mode, and translates version-1 findings
+into a GitHub job summary and annotations. It has no OKF validation rules and
+fails instead of guessing when the CLI JSON schema is unknown.
 
 Explore's Health view uses the registered Location's in-memory bundle snapshot,
 which is produced by the same `inspect_bundle` parser boundary as the CLI. An

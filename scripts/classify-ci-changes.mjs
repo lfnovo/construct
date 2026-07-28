@@ -63,12 +63,14 @@ export function classifyCiPaths(inputPaths) {
 
     const docs = ROOT_DOCUMENTS.has(file)
       || startsWith(file, "docs")
+      || file === "okf-lint-action/action.yml"
       || startsWith(file, ".github/ISSUE_TEMPLATE")
       || file === ".github/pull_request_template.md"
       || file === ".github/dependabot.yml"
       || file === "scripts/check-docs.mjs";
     const fixtures = startsWith(file, "tests/fixtures");
     const web = startsWith(file, "src")
+      || startsWith(file, "okf-lint-action")
       || fixtures
       || /^tests\/[^/]+\.test\.mjs$/.test(file)
       || WEB_CONFIG.has(file)

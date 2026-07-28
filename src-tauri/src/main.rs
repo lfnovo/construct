@@ -9,19 +9,32 @@ fn main() {
             }
         }
     }
-    let result = match arguments.first().map(String::as_str) {
-        Some("service") => Some(construct_lib::run_service_command(&arguments[1..])),
-        Some("mcp") if arguments.get(1).map(String::as_str) == Some("serve") => {
-            Some(construct_lib::run_mcp_command(&arguments[2..]))
-        }
-        _ => None,
-    };
-    if let Some(result) = result {
-        if let Err(error) = result {
-            eprintln!("{error}");
-            std::process::exit(1);
-        }
-        return;
+
+    #[cfg(not(feature = "desktop"))]
+    {
+        eprintln!(
+            "This standalone Construct build only supports `construct okf lint`; \
+             run `construct okf lint --help` for usage."
+        );
+        std::process::exit(2);
     }
-    construct_lib::run();
+
+    #[cfg(feature = "desktop")]
+    {
+        let result = match arguments.first().map(String::as_str) {
+            Some("service") => Some(construct_lib::run_service_command(&arguments[1..])),
+            Some("mcp") if arguments.get(1).map(String::as_str) == Some("serve") => {
+                Some(construct_lib::run_mcp_command(&arguments[2..]))
+            }
+            _ => None,
+        };
+        if let Some(result) = result {
+            if let Err(error) = result {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+            return;
+        }
+        construct_lib::run();
+    }
 }

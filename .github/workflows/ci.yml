@@ -88,6 +88,7 @@ jobs:
           ruby -e 'require "yaml"; ARGV.each { |file| YAML.load_file(file) }'
           .github/ISSUE_TEMPLATE/*.yml
           .github/workflows/*.yml
+          okf-lint-action/action.yml
 
   web:
     name: Validate web
@@ -158,6 +159,64 @@ jobs:
       - name: Check Windows targets
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets
 
+  rust_linux_cli:
+    name: Validate standalone Linux CLI
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Lint CLI-only feature boundary
+        run: >-
+          cargo clippy
+          --manifest-path src-tauri/Cargo.toml
+          --locked
+          --no-default-features
+          --features okf-cli
+          --all-targets
+          -- -D warnings
+
+      - name: Build Linux x64 CLI
+        run: >-
+          cargo build
+          --manifest-path src-tauri/Cargo.toml
+          --locked
+          --release
+          --no-default-features
+          --features okf-cli
+
+      - name: Verify JSON and public exit codes
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="src-tauri/target/release/construct"
+
+          "${binary}" okf lint tests/fixtures/okf/v02 \
+            --format json --fail-on never > report.json
+          node -e '
+            const report = require("./report.json");
+            if (report.schemaVersion !== 1 || !Array.isArray(report.findings)) process.exit(1);
+          '
+
+          set +e
+          "${binary}" okf lint tests/fixtures/okf/v02 \
+            --format json --fail-on warning > /dev/null
+          lint_status="$?"
+          "${binary}" okf lint tests/fixtures/okf/v02 \
+            --fail-on invalid > /dev/null 2>&1
+          invocation_status="$?"
+          set -e
+
+          test "${lint_status}" -eq 1
+          test "${invocation_status}" -eq 2
+
   bundle_macos:
     name: Build macOS bundle
     needs: changes
@@ -206,6 +265,7 @@ jobs:
       - web
       - rust_macos
       - rust_windows
+      - rust_linux_cli
       - bundle_macos
     if: always()
     runs-on: ubuntu-latest
@@ -220,6 +280,7 @@ jobs:
           WEB: ${{ needs.web.result }}
           RUST_MACOS: ${{ needs.rust_macos.result }}
           RUST_WINDOWS: ${{ needs.rust_windows.result }}
+          RUST_LINUX_CLI: ${{ needs.rust_linux_cli.result }}
           BUNDLE_MACOS: ${{ needs.bundle_macos.result }}
         run: |
           if [[ "${CHANGES}" != "success" ]]; then
@@ -227,7 +288,7 @@ jobs:
             exit 1
           fi
 
-          for result in "${DOCS}" "${WEB}" "${RUST_MACOS}" "${RUST_WINDOWS}" "${BUNDLE_MACOS}"; do
+          for result in "${DOCS}" "${WEB}" "${RUST_MACOS}" "${RUST_WINDOWS}" "${RUST_LINUX_CLI}" "${BUNDLE_MACOS}"; do
             if [[ "${result}" != "success" && "${result}" != "skipped" ]]; then
               echo "A selected CI job did not pass: ${result}"
               exit 1

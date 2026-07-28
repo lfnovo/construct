@@ -552,6 +552,8 @@ O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledg
 - **OKF-035:** O usuário deve poder executar novamente o lint sobre os arquivos salvos, abrir o documento afetado em Source e copiar um handoff autocontido para um agente. Essas ações não podem reparar, salvar ou reserializar arquivos automaticamente.
 - **OKF-036:** Um bundle pode declarar em `.constructignore` padrões versionáveis para arquivos Markdown que não são conceitos OKF. Linhas vazias e comentários são permitidos, padrões são avaliados em ordem e `!` pode reintroduzir um caminho.
 - **OKF-037:** `.constructignore` e `--exclude` compõem a mesma política de conformidade: documentos correspondentes não produzem findings próprios nem aparecem como conceitos OKF, mas continuam disponíveis no filesystem, na busca Markdown geral e na resolução de links. `--no-ignore-file` deve oferecer auditoria estrita no CLI.
+- **OKF-038:** O linter deve possuir um build `okf-cli` independente das dependências de desktop, índice e MCP, reutilizando os mesmos módulos de parser, política, relatório e códigos de saída. Releases devem oferecer esse build para Linux x64.
+- **OKF-039:** A integração oficial com GitHub Actions deve ser apenas uma embalagem versionada sobre o CLI: selecionar o artefato da plataforma, validar `SHA256SUMS`, usar cache, executar JSON, apresentar summary/annotations e propagar o exit code sem duplicar regras de conformidade.
 
 ### 10.17 Índice local derivado
 
@@ -745,7 +747,7 @@ O produto não deve armazenar caminhos usando suposições exclusivas de separad
 - Uma tag semântica `vX.Y.Z` deve corresponder às versões do frontend, lockfile,
   crate Rust e configuração Tauri antes de qualquer bundle ser produzido.
 - A mesma tag e commit devem gerar a app e a CLI standalone para macOS Apple
-  Silicon, macOS Intel e Windows x64.
+  Silicon, macOS Intel e Windows x64, além da CLI standalone para Linux x64.
 - A release deve permanecer em draft até que todos os targets e checksums sejam
   verificados e os smoke tests disponíveis ao mantenedor passem.
 - Um preview não assinado que dependa de teste externo pode ser publicado
@@ -1017,6 +1019,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-27 | No preview Windows, oferecer workspace desktop e linter OKF stateless; manter índice local e MCP como macOS/Unix até existir um transporte IPC Windows autenticado. |
 | 2026-07-27 | Habilitar índice local e MCP no Windows com named pipe autenticado por token, sem listener de rede; normalizar identidades canônicas `\\?\` no frontend. |
 | 2026-07-27 | Organizar a documentação pública pelas jornadas de usuário, CLI, MCP, desenvolvimento, produto e arquitetura, mantendo README como entrada curta. |
+| 2026-07-28 | Isolar o linter em um build CLI-only, distribuí-lo para Linux x64 e oferecer uma GitHub Action fina que verifica o artefato versionado e preserva o contrato do CLI. |
 
 ## 24. Histórico do documento
 
@@ -1035,3 +1038,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.11 | 2026-07-27 | Escopo atual reconciliado com busca, Health, CLI, MCP e preview Windows; documentação pública orientada por jornada. |
 | 0.12 | 2026-07-27 | Ciclo de distribuição distinguindo draft privado, pre-release pública não assinada e release estável confiável. |
 | 0.13 | 2026-07-27 | Índice local e MCP no Windows via named pipe autenticado, incluindo compatibilidade com caminhos canônicos Windows. |
+| 0.14 | 2026-07-28 | Build CLI-only para Linux x64 e GitHub Action versionada sobre o contrato JSON do linter. |

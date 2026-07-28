@@ -17,7 +17,8 @@ Tagged release candidates provide:
 
 - `construct_X.Y.Z_aarch64-apple-darwin.tar.gz`;
 - `construct_X.Y.Z_x86_64-apple-darwin.tar.gz`;
-- `construct_X.Y.Z_x86_64-pc-windows-msvc.zip`.
+- `construct_X.Y.Z_x86_64-pc-windows-msvc.zip`;
+- `construct_X.Y.Z_x86_64-unknown-linux-gnu.tar.gz`.
 
 Download the matching archive and `SHA256SUMS` from
 [GitHub Releases](https://github.com/lfnovo/construct/releases), verify it, and
@@ -41,6 +42,21 @@ src-tauri/target/release/construct
 ```
 
 On Windows it is `src-tauri\target\release\construct.exe`.
+
+To build only the stateless CLI without Tauri, SurrealDB, the local service, or
+the desktop dependencies:
+
+```bash
+cargo build --release \
+  --manifest-path src-tauri/Cargo.toml \
+  --no-default-features \
+  --features okf-cli
+```
+
+This is the build boundary used for the Linux x64 release archive. It runs the
+same `okf.rs`, `okf_policy.rs`, and `okf_lint.rs` implementation as the desktop
+executable. Published Linux binaries are built on Ubuntu 22.04 and require
+glibc 2.35 or newer.
 
 A Tauri macOS bundle also contains the same executable:
 
@@ -206,6 +222,51 @@ directories. Directory symlinks are not followed.
 
 ## CI examples
 
+### Use the GitHub Action
+
+The repository ships a convenience Action over the versioned CLI:
+
+```yaml
+name: OKF
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check OKF conformance
+        uses: lfnovo/construct/okf-lint-action@vX.Y.Z
+        with:
+          version: X.Y.Z
+          path: .
+          fail-on: warning
+          annotations: true
+```
+
+Replace `X.Y.Z` with a published Construct release and update both pins
+deliberately. The Action:
+
+1. selects the release archive for the runner;
+2. caches the versioned archive and executable;
+3. downloads `SHA256SUMS` and verifies the archive on every run;
+4. runs `construct okf lint --format json`;
+5. writes a job summary and optional source annotations;
+6. preserves the CLI's public exit code.
+
+The first Action-compatible release supports Linux x64, macOS Apple Silicon,
+macOS Intel, and Windows x64 GitHub-hosted runners. Unknown platforms and
+unknown JSON schema versions fail clearly. `annotations: false` suppresses only
+the presentation layer; it does not alter linting or the job summary.
+
 ### Build and lint from the repository source
 
 This is the safest option before trusted standalone releases are available:
@@ -249,9 +310,9 @@ revision. A release tag is easier to read, but a full commit SHA gives the
 strongest pin. The explicit exclusion keeps the checked-out tool source outside
 the bundle's conformance report.
 
-### Use a verified standalone binary
+### Download a verified standalone binary yourself
 
-When trusted release artifacts are published:
+When integrating without the Action:
 
 1. pin a specific Construct version;
 2. download the matching CLI archive and `SHA256SUMS`;

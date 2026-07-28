@@ -70,6 +70,7 @@ Public preview builds are available in
 | macOS Apple Silicon | DMG | `tar.gz` | Yes |
 | macOS Intel | DMG | `tar.gz` | Yes |
 | Windows x64 | NSIS installer | `.zip` | Yes |
+| Linux x64 | — | `tar.gz` | CLI only |
 
 Every candidate includes a `SHA256SUMS` manifest. The current macOS builds use
 ad-hoc signing and Windows builds are not yet code-signed; trusted public
@@ -91,12 +92,17 @@ construct okf lint ./knowledge
 construct okf lint ./knowledge --fail-on warning --format json
 ```
 
+Knowledge repositories can call the same versioned executable through the
+bundled [Construct OKF lint GitHub Action](docs/cli.md#use-the-github-action).
+The Action pins a release, verifies its checksum, and publishes summaries and
+source annotations; all validation still happens inside the CLI.
+
 For registered Locations, the desktop also exposes the same findings in
 **Explore → Health**.
 
-On macOS, Windows, and Unix, select a Location and use the clipboard button in the
-**Locations** header to copy a ready-to-paste MCP configuration. The generated
-server is read-only and limited to that Location. See:
+In a supported desktop preview, select a Location and use the clipboard button
+in the **Locations** header to copy a ready-to-paste MCP configuration. The
+generated server is read-only and limited to that Location. See:
 
 - [CLI and OKF lint guide](docs/cli.md)
 - [Local MCP guide](docs/mcp.md)

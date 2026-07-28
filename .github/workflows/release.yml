@@ -158,9 +158,73 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build_linux_cli:
+    name: Build Linux x64 CLI
+    needs: build
+    # Keep the published glibc baseline deliberate and older than ubuntu-latest.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Build standalone CLI
+        run: >-
+          cargo build
+          --manifest-path src-tauri/Cargo.toml
+          --locked
+          --release
+          --target x86_64-unknown-linux-gnu
+          --no-default-features
+          --features okf-cli
+
+      - name: Verify standalone CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="src-tauri/target/x86_64-unknown-linux-gnu/release/construct"
+          "${binary}" okf lint tests/fixtures/okf/v02 \
+            --format json --fail-on never > report.json
+          node -e '
+            const report = require("./report.json");
+            if (report.schemaVersion !== 1 || !Array.isArray(report.findings)) process.exit(1);
+          '
+
+      - name: Package Linux CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          archive="construct_${version}_x86_64-unknown-linux-gnu.tar.gz"
+          mkdir -p release-assets
+          tar -C "src-tauri/target/x86_64-unknown-linux-gnu/release" \
+            -czf "release-assets/${archive}" construct
+          cd release-assets
+          sha256sum "${archive}" > "${archive}.sha256"
+
+      - name: Upload CLI archive to draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" release-assets/*.tar.gz --clobber
+
+      - name: Retain checksum fragment
+        uses: actions/upload-artifact@v7
+        with:
+          name: checksum-x86_64-unknown-linux-gnu
+          path: release-assets/*.sha256
+          if-no-files-found: error
+          retention-days: 7
+
   checksums:
     name: Publish checksums
-    needs: build
+    needs:
+      - build
+      - build_linux_cli
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
