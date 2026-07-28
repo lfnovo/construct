@@ -173,7 +173,7 @@ jobs:
           merge-multiple: true
 
       - name: Assemble SHA256SUMS
-        run: cat checksums/*.sha256 | sort > SHA256SUMS
+        run: cat checksums/*.sha256 | tr -d '\r' | sort > SHA256SUMS
 
       - name: Upload checksums to draft release
         env:
