@@ -1,14 +1,15 @@
-use crate::okf;
+use crate::{diagnostics::Diagnostics, okf};
 use blake3::Hasher;
 use chrono::Utc;
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Instant,
 };
 use surrealdb::{
     engine::local::{Db, SurrealKv},
@@ -22,6 +23,17 @@ use walkdir::{DirEntry, WalkDir};
 const INDEXER_VERSION: i64 = 4;
 const MAX_DOCUMENT_BYTES: u64 = 8 * 1024 * 1024;
 const LEXICAL_FALLBACK_BATCH_SIZE: usize = 200;
+const FULLTEXT_INDEXES: &[(&str, &str)] = &[
+    ("document_search", "search_text"),
+    ("document_title_search", "title"),
+    ("document_description_search", "description_text"),
+    ("document_type_search", "type_text"),
+    ("document_tags_search", "tags_text"),
+    ("document_headings_search", "headings_text"),
+    ("document_path_search", "relative_path_search"),
+    ("document_body_search", "body"),
+    ("document_metadata_search", "metadata_text"),
+];
 const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
     ".hg",
@@ -80,6 +92,7 @@ DEFINE INDEX IF NOT EXISTS document_metadata_search ON document FIELDS metadata_
 pub(crate) struct IndexService {
     base_dir: PathBuf,
     indexes: Arc<Mutex<HashMap<String, Arc<LocationIndex>>>>,
+    diagnostics: Diagnostics,
 }
 
 struct LocationIndex {
@@ -628,6 +641,44 @@ struct LogDocumentRow {
     body: String,
 }
 
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct DatabaseInfoRow {
+    analyzers: HashMap<String, String>,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct TableInfoRow {
+    indexes: HashMap<String, String>,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct FulltextProbeRow {
+    matched: bool,
+}
+
+struct FulltextSchemaInspection {
+    state: &'static str,
+    analyzer_defined: Option<bool>,
+    expected_indexes_defined: Option<usize>,
+}
+
+impl FulltextSchemaInspection {
+    fn is_healthy(&self) -> bool {
+        self.state == "ok"
+            && self.analyzer_defined == Some(true)
+            && self.expected_indexes_defined == Some(FULLTEXT_INDEXES.len())
+    }
+
+    fn as_json(&self) -> Value {
+        json!({
+            "schemaState": self.state,
+            "analyzerDefined": self.analyzer_defined,
+            "expectedIndexCount": FULLTEXT_INDEXES.len(),
+            "expectedIndexesDefined": self.expected_indexes_defined
+        })
+    }
+}
+
 impl IndexStatus {
     fn not_indexed(location_id: &str) -> Self {
         Self {
@@ -667,12 +718,26 @@ impl IndexStatus {
 }
 
 impl IndexService {
+    #[cfg(test)]
     pub(crate) fn new(base_dir: PathBuf) -> Result<Self, String> {
+        Self::create(base_dir, Diagnostics::disabled())
+    }
+
+    pub(crate) fn with_diagnostics(
+        base_dir: PathBuf,
+        diagnostics: Diagnostics,
+    ) -> Result<Self, String> {
+        Self::create(base_dir, diagnostics)
+    }
+
+    fn create(base_dir: PathBuf, diagnostics: Diagnostics) -> Result<Self, String> {
         fs::create_dir_all(&base_dir)
             .map_err(|error| format!("Could not create the index directory: {error}"))?;
+        diagnostics.info("index_service_ready", json!({}));
         Ok(Self {
             base_dir,
             indexes: Arc::new(Mutex::new(HashMap::new())),
+            diagnostics,
         })
     }
 
@@ -686,31 +751,78 @@ impl IndexService {
         if let Some(index) = self.indexes.lock().await.get(location_id).cloned() {
             return Ok(index);
         }
+        let location = Diagnostics::location_identity(location_id);
+        let started = Instant::now();
+        self.diagnostics.info(
+            "location_index_open_started",
+            json!({ "location": location }),
+        );
         let path = self.storage_path(location_id)?;
-        fs::create_dir_all(&path)
-            .map_err(|error| format!("Could not create the Location index: {error}"))?;
-        let db = Surreal::new::<SurrealKv>(path.clone())
-            .await
-            .map_err(|error| format!("Could not open the Location index: {error}"))?;
-        db.use_ns("construct")
-            .use_db("location")
-            .await
-            .map_err(|error| format!("Could not select the Location index: {error}"))?;
-        db.query(SCHEMA)
-            .await
-            .map_err(|error| format!("Could not initialize the Location index: {error}"))?
-            .check()
-            .map_err(|error| format!("Could not initialize the Location index: {error}"))?;
+        if let Err(error) = fs::create_dir_all(&path) {
+            self.diagnostics.error(
+                "location_index_directory_failed",
+                &error.to_string(),
+                json!({ "location": location }),
+            );
+            return Err(format!("Could not create the Location index: {error}"));
+        }
+        let db = match Surreal::new::<SurrealKv>(path.clone()).await {
+            Ok(db) => db,
+            Err(error) => {
+                self.diagnostics.error(
+                    "location_index_open_failed",
+                    &error.to_string(),
+                    json!({ "location": location }),
+                );
+                return Err(format!("Could not open the Location index: {error}"));
+            }
+        };
+        if let Err(error) = db.use_ns("construct").use_db("location").await {
+            self.diagnostics.error(
+                "location_index_scope_failed",
+                &error.to_string(),
+                json!({ "location": location }),
+            );
+            return Err(format!("Could not select the Location index: {error}"));
+        }
+        let schema = db.query(SCHEMA).await;
+        let schema = match schema {
+            Ok(schema) => schema,
+            Err(error) => {
+                self.diagnostics.error(
+                    "location_index_schema_failed",
+                    &error.to_string(),
+                    json!({ "location": location }),
+                );
+                return Err(format!("Could not initialize the Location index: {error}"));
+            }
+        };
+        if let Err(error) = schema.check() {
+            self.diagnostics.error(
+                "location_index_schema_failed",
+                &error.to_string(),
+                json!({ "location": location }),
+            );
+            return Err(format!("Could not initialize the Location index: {error}"));
+        }
         let index = Arc::new(LocationIndex {
             db,
             path,
             write_lock: Mutex::new(()),
         });
         let mut indexes = self.indexes.lock().await;
-        Ok(indexes
+        let index = indexes
             .entry(location_id.to_string())
             .or_insert_with(|| index.clone())
-            .clone())
+            .clone();
+        self.diagnostics.info(
+            "location_index_open_completed",
+            json!({
+                "location": location,
+                "durationMs": started.elapsed().as_millis()
+            }),
+        );
+        Ok(index)
     }
 
     pub(crate) async fn status(&self, location_id: &str) -> Result<IndexStatus, String> {
@@ -730,17 +842,42 @@ impl IndexService {
         request: SyncLocationRequest,
         root: PathBuf,
     ) -> Result<IndexStatus, String> {
+        let location = Diagnostics::location_identity(&request.location_id);
+        let started = Instant::now();
+        self.diagnostics.info(
+            "index_sync_started",
+            json!({
+                "location": location,
+                "rebuild": request.rebuild
+            }),
+        );
         let index = self.open(&request.location_id).await?;
         let _guard = index.write_lock.lock().await;
         if !request.rebuild && request.minimum_reconcile_interval_ms > 0 {
             if let Some(meta) = read_meta(&index.db).await? {
                 if can_skip_reconciliation(&meta, request.minimum_reconcile_interval_ms) {
+                    self.diagnostics.info(
+                        "index_sync_skipped",
+                        json!({
+                            "location": location,
+                            "durationMs": started.elapsed().as_millis(),
+                            "reason": "minimumReconcileInterval"
+                        }),
+                    );
                     return Ok(IndexStatus::from_meta(meta, directory_size(&index.path)));
                 }
             }
         }
         let result = self.sync_locked(&index, &request, &root).await;
         if let Err(error) = &result {
+            self.diagnostics.failure(
+                "index_sync_failed",
+                json!({
+                    "location": location,
+                    "durationMs": started.elapsed().as_millis(),
+                    "errorKind": index_error_category(error)
+                }),
+            );
             let previous = read_meta(&index.db).await.ok().flatten();
             let degraded = previous
                 .as_ref()
@@ -775,6 +912,21 @@ impl IndexService {
                 error: Some(error.clone()),
             };
             let _ = write_meta(&index.db, &meta).await;
+        } else if let Ok(status) = &result {
+            self.diagnostics.info(
+                "index_sync_completed",
+                json!({
+                    "location": location,
+                    "durationMs": started.elapsed().as_millis(),
+                    "state": format!("{:?}", status.state),
+                    "discoveredDocuments": status.discovered_documents,
+                    "indexedDocuments": status.indexed_documents,
+                    "failedDocuments": status.failed_documents,
+                    "changedDocuments": status.changed_documents,
+                    "removedDocuments": status.removed_documents,
+                    "activeGeneration": status.active_generation
+                }),
+            );
         }
         result
     }
@@ -951,6 +1103,8 @@ impl IndexService {
             .active_generation
             .ok_or_else(|| "This Location has no complete index generation yet.".to_string())?;
         let limit = request.limit.clamp(1, 50) as i64;
+        let location = Diagnostics::location_identity(&request.location_id);
+        let started = Instant::now();
         let fulltext_results = index
             .db
             .query(
@@ -968,43 +1122,84 @@ LIMIT $limit;
             .bind(("query", query.to_string()))
             .bind(("limit", limit))
             .await
-            .map_err(|error| format!("Could not search the Location index: {error}"))
-            .and_then(|response| {
-                response
-                    .check()
-                    .map_err(|error| format!("Could not search the Location index: {error}"))
-            })
+            .map_err(|error| error.to_string())
+            .and_then(|response| response.check().map_err(|error| error.to_string()))
             .and_then(|mut response| {
                 response
                     .take::<Vec<SearchResult>>(0)
-                    .map_err(|error| format!("Could not read the search results: {error}"))
+                    .map_err(|error| error.to_string())
             });
         match fulltext_results {
-            Ok(results) if !results.is_empty() => Ok(results),
-            _ => self
-                .search_location_knowledge(
-                    &request.location_id,
-                    query,
-                    &KnowledgeSearchFilters::default(),
-                    limit as usize,
-                )
-                .await
-                .map(|results| {
-                    results
-                        .into_iter()
-                        .map(|result| SearchResult {
-                            relative_path: result.relative_path,
-                            title: result.title,
-                            description: result.description,
-                            r#type: result.r#type,
-                            tags: result.tags,
-                            score: result.score,
-                            snippet: result.snippet,
-                            generation: result.generation,
-                        })
-                        .collect()
-                }),
+            Ok(results) if !results.is_empty() => {
+                self.diagnostics.info(
+                    "legacy_search_fulltext_completed",
+                    json!({
+                        "location": location,
+                        "durationMs": started.elapsed().as_millis(),
+                        "queryCharacters": query.chars().count(),
+                        "resultCount": results.len()
+                    }),
+                );
+                return Ok(results);
+            }
+            Ok(results) => {
+                let schema = inspect_fulltext_schema(&index.db).await;
+                if schema.is_healthy() {
+                    self.diagnostics.info(
+                        "legacy_search_fulltext_completed",
+                        json!({
+                            "location": location,
+                            "durationMs": started.elapsed().as_millis(),
+                            "queryCharacters": query.chars().count(),
+                            "resultCount": 0
+                        }),
+                    );
+                    return Ok(results);
+                }
+                self.diagnostics.warn(
+                    "legacy_search_empty_with_unhealthy_schema",
+                    json!({
+                        "location": location,
+                        "durationMs": started.elapsed().as_millis(),
+                        "queryCharacters": query.chars().count(),
+                        "diagnostic": schema.as_json()
+                    }),
+                );
+            }
+            Err(error) => {
+                self.diagnostics.error(
+                    "legacy_search_fulltext_failed",
+                    &error,
+                    json!({
+                        "location": location,
+                        "durationMs": started.elapsed().as_millis(),
+                        "queryCharacters": query.chars().count()
+                    }),
+                );
+            }
         }
+        self.search_location_knowledge(
+            &request.location_id,
+            query,
+            &KnowledgeSearchFilters::default(),
+            limit as usize,
+        )
+        .await
+        .map(|results| {
+            results
+                .into_iter()
+                .map(|result| SearchResult {
+                    relative_path: result.relative_path,
+                    title: result.title,
+                    description: result.description,
+                    r#type: result.r#type,
+                    tags: result.tags,
+                    score: result.score,
+                    snippet: result.snippet,
+                    generation: result.generation,
+                })
+                .collect()
+        })
     }
 
     pub(crate) async fn search_knowledge(
@@ -1019,6 +1214,23 @@ LIMIT $limit;
                 unavailable_location_ids: Vec::new(),
             });
         }
+        let started = Instant::now();
+        self.diagnostics.info(
+            "knowledge_search_started",
+            json!({
+                "locationCount": request.location_ids.len(),
+                "queryCharacters": query.chars().count(),
+                "limit": request.limit.clamp(1, 100),
+                "typeFilterCount": request.filters.types.len(),
+                "tagFilterCount": request.filters.tags.len(),
+                "roleFilterCount": request.filters.roles.len(),
+                "statusFilterCount": request.filters.statuses.len(),
+                "trustFilterCount": request.filters.trust.len(),
+                "freshnessFilterCount": request.filters.freshness.len(),
+                "hasPathPrefix": !request.filters.path_prefix.is_empty(),
+                "findingsFilter": request.filters.findings
+            }),
+        );
         let per_location_limit = request.limit.clamp(1, 100).saturating_mul(3).clamp(30, 200);
         let mut ranked = Vec::new();
         let mut unavailable = Vec::new();
@@ -1039,7 +1251,16 @@ LIMIT $limit;
                         ranked.push((location_order, position, result));
                     }
                 }
-                Err(_) => unavailable.push(location_id.clone()),
+                Err(error) => {
+                    self.diagnostics.error(
+                        "knowledge_search_location_unavailable",
+                        &error,
+                        json!({
+                            "location": Diagnostics::location_identity(location_id)
+                        }),
+                    );
+                    unavailable.push(location_id.clone());
+                }
             }
         }
 
@@ -1057,7 +1278,15 @@ LIMIT $limit;
             .into_iter()
             .map(|(_, _, result)| result)
             .take(request.limit.clamp(1, 100))
-            .collect();
+            .collect::<Vec<_>>();
+        self.diagnostics.info(
+            "knowledge_search_completed",
+            json!({
+                "durationMs": started.elapsed().as_millis(),
+                "resultCount": results.len(),
+                "unavailableLocationCount": unavailable.len()
+            }),
+        );
         Ok(KnowledgeSearchResponse {
             results,
             unavailable_location_ids: unavailable,
@@ -1080,6 +1309,8 @@ LIMIT $limit;
             .ok_or_else(|| "This Location has no complete index generation yet.".to_string())?;
         let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
         let fulltext_query = exact_phrase(query).unwrap_or(query).to_string();
+        let location = Diagnostics::location_identity(location_id);
+        let fulltext_started = Instant::now();
         let fulltext_rows = index
             .db
             .query(
@@ -1150,24 +1381,91 @@ LIMIT $limit;
             .bind(("today", today.clone()))
             .bind(("limit", limit as i64))
             .await
-            .map_err(|_| "Could not search this Location. Try a simpler query.".to_string())
-            .and_then(|response| {
-                response
-                    .check()
-                    .map_err(|_| "Could not search this Location. Try a simpler query.".to_string())
-            })
+            .map_err(|error| error.to_string())
+            .and_then(|response| response.check().map_err(|error| error.to_string()))
             .and_then(|mut response| {
                 response
                     .take::<Vec<LocalSearchRow>>(0)
-                    .map_err(|_| "Could not read the local search results.".to_string())
+                    .map_err(|error| error.to_string())
             });
         let rows = match fulltext_rows {
-            Ok(rows) if !rows.is_empty() => rows,
-            _ => {
-                return lexical_fallback_search(
+            Ok(rows) if !rows.is_empty() => {
+                self.diagnostics.info(
+                    "fulltext_search_completed",
+                    json!({
+                        "location": location,
+                        "durationMs": fulltext_started.elapsed().as_millis(),
+                        "queryCharacters": query.chars().count(),
+                        "resultCount": rows.len(),
+                        "activeGeneration": generation,
+                        "indexedDocuments": meta.indexed_documents
+                    }),
+                );
+                rows
+            }
+            Ok(rows) => {
+                let schema = inspect_fulltext_schema(&index.db).await;
+                if schema.is_healthy() {
+                    self.diagnostics.info(
+                        "fulltext_search_completed",
+                        json!({
+                            "location": location,
+                            "durationMs": fulltext_started.elapsed().as_millis(),
+                            "queryCharacters": query.chars().count(),
+                            "resultCount": 0,
+                            "activeGeneration": generation,
+                            "indexedDocuments": meta.indexed_documents
+                        }),
+                    );
+                    rows
+                } else {
+                    self.diagnostics.warn(
+                        "fulltext_search_empty_with_unhealthy_schema",
+                        json!({
+                            "location": location,
+                            "durationMs": fulltext_started.elapsed().as_millis(),
+                            "queryCharacters": query.chars().count(),
+                            "activeGeneration": generation,
+                            "indexedDocuments": meta.indexed_documents,
+                            "diagnostic": schema.as_json()
+                        }),
+                    );
+                    return logged_lexical_fallback(
+                        &self.diagnostics,
+                        &index.db,
+                        location_id,
+                        &location,
+                        generation,
+                        meta.indexed_documents,
+                        query,
+                        filters,
+                        &today,
+                        limit,
+                    )
+                    .await;
+                }
+            }
+            Err(error) => {
+                let diagnostic = inspect_fulltext_failure(&index.db, generation, query).await;
+                self.diagnostics.error(
+                    "fulltext_search_failed",
+                    &error,
+                    json!({
+                        "location": location,
+                        "durationMs": fulltext_started.elapsed().as_millis(),
+                        "queryCharacters": query.chars().count(),
+                        "activeGeneration": generation,
+                        "indexedDocuments": meta.indexed_documents,
+                        "diagnostic": diagnostic
+                    }),
+                );
+                return logged_lexical_fallback(
+                    &self.diagnostics,
                     &index.db,
                     location_id,
+                    &location,
                     generation,
+                    meta.indexed_documents,
                     query,
                     filters,
                     &today,
@@ -1841,6 +2139,148 @@ WHERE day >= $cutoff
         }
         Ok(())
     }
+}
+
+fn index_error_category(error: &str) -> &'static str {
+    if error.contains("scan") {
+        "scan"
+    } else if error.contains("metadata") {
+        "metadata"
+    } else if error.contains("normalize") {
+        "pathNormalization"
+    } else if error.contains("index") {
+        "index"
+    } else {
+        "unknown"
+    }
+}
+
+async fn inspect_fulltext_schema(db: &Surreal<Db>) -> FulltextSchemaInspection {
+    let mut analyzer_defined = None;
+    let mut expected_indexes_defined = None;
+    let mut schema_state = "queryError";
+    if let Ok(response) = db.query("INFO FOR DB; INFO FOR TABLE document;").await {
+        if let Ok(mut response) = response.check() {
+            let database = response.take::<Option<DatabaseInfoRow>>(0);
+            let table = response.take::<Option<TableInfoRow>>(1);
+            match (database, table) {
+                (Ok(Some(database)), Ok(Some(table))) => {
+                    analyzer_defined = Some(database.analyzers.contains_key("construct"));
+                    expected_indexes_defined = Some(
+                        FULLTEXT_INDEXES
+                            .iter()
+                            .filter(|(name, _)| table.indexes.contains_key(*name))
+                            .count(),
+                    );
+                    schema_state = "ok";
+                }
+                _ => schema_state = "decodeError",
+            }
+        } else {
+            schema_state = "statementError";
+        }
+    }
+    FulltextSchemaInspection {
+        state: schema_state,
+        analyzer_defined,
+        expected_indexes_defined,
+    }
+}
+
+async fn inspect_fulltext_failure(db: &Surreal<Db>, generation: i64, query: &str) -> Value {
+    let schema = inspect_fulltext_schema(db).await;
+
+    let mut analyzer_token_count = None;
+    let mut analyzer_state = "queryError";
+    if let Ok(response) = db
+        .query("RETURN search::analyze('construct', $query);")
+        .bind(("query", query.to_string()))
+        .await
+    {
+        if let Ok(mut response) = response.check() {
+            match response.take::<Vec<String>>(0) {
+                Ok(tokens) => {
+                    analyzer_token_count = Some(tokens.len());
+                    analyzer_state = "ok";
+                }
+                Err(_) => analyzer_state = "decodeError",
+            }
+        } else {
+            analyzer_state = "statementError";
+        }
+    }
+
+    let mut probes = serde_json::Map::new();
+    for (_, field) in FULLTEXT_INDEXES {
+        let statement = format!(
+            "SELECT true AS matched FROM document WHERE generation = $generation AND {field} @0@ $query LIMIT 1;"
+        );
+        let status = match db
+            .query(statement)
+            .bind(("generation", generation))
+            .bind(("query", query.to_string()))
+            .await
+        {
+            Ok(response) => match response.check() {
+                Ok(mut response) => match response.take::<Vec<FulltextProbeRow>>(0) {
+                    Ok(rows) if rows.iter().any(|row| row.matched) => "match",
+                    Ok(_) => "empty",
+                    Err(_) => "decodeError",
+                },
+                Err(_) => "statementError",
+            },
+            Err(_) => "queryError",
+        };
+        probes.insert((*field).to_string(), Value::String(status.to_string()));
+    }
+
+    json!({
+        "schema": schema.as_json(),
+        "analyzerState": analyzer_state,
+        "analyzerTokenCount": analyzer_token_count,
+        "fieldProbes": probes
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn logged_lexical_fallback(
+    diagnostics: &Diagnostics,
+    db: &Surreal<Db>,
+    location_id: &str,
+    location_log_identity: &str,
+    generation: i64,
+    indexed_documents: usize,
+    query: &str,
+    filters: &KnowledgeSearchFilters,
+    today: &str,
+    limit: usize,
+) -> Result<Vec<KnowledgeSearchResult>, String> {
+    let started = Instant::now();
+    let fallback =
+        lexical_fallback_search(db, location_id, generation, query, filters, today, limit).await;
+    match &fallback {
+        Ok(results) => diagnostics.warn(
+            "lexical_fallback_completed",
+            json!({
+                "location": location_log_identity,
+                "durationMs": started.elapsed().as_millis(),
+                "resultCount": results.len(),
+                "activeGeneration": generation,
+                "indexedDocuments": indexed_documents
+            }),
+        ),
+        Err(error) => diagnostics.error(
+            "lexical_fallback_failed",
+            error,
+            json!({
+                "location": location_log_identity,
+                "durationMs": started.elapsed().as_millis(),
+                "activeGeneration": generation,
+                "indexedDocuments": indexed_documents
+            }),
+        ),
+    }
+    fallback
 }
 
 async fn lexical_fallback_search(
@@ -3392,6 +3832,50 @@ REMOVE INDEX IF EXISTS document_metadata_search ON TABLE document;
             .expect("search legacy endpoint through lexical fallback");
         assert_eq!(legacy.len(), 1);
         assert_eq!(legacy[0].relative_path, "construct.md");
+
+        drop(index);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn healthy_fulltext_empty_result_does_not_trigger_substring_fallback() {
+        let data = temporary_root("empty-search-data");
+        let source = temporary_root("empty-search-source");
+        fs::write(
+            source.join("construct.md"),
+            "---\ntype: Project\ntitle: Construct Search\n---\n# Search\nReliable recovery for local indexes.",
+        )
+        .expect("write searchable document");
+        let location_id = "empty-search-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("index document");
+
+        let response = service
+            .search_knowledge(KnowledgeSearchRequest {
+                location_ids: vec![location_id.to_string()],
+                query: "cover".to_string(),
+                filters: KnowledgeSearchFilters::default(),
+                limit: 20,
+            })
+            .await
+            .expect("search healthy fulltext index");
+        assert!(response.results.is_empty());
+        assert!(response.unavailable_location_ids.is_empty());
+
+        let index = service.open(location_id).await.expect("open index");
+        let diagnostic = inspect_fulltext_failure(&index.db, 1, "recovery").await;
+        assert_eq!(diagnostic["schema"]["schemaState"], "ok");
+        assert_eq!(diagnostic["schema"]["analyzerDefined"], true);
+        assert_eq!(
+            diagnostic["schema"]["expectedIndexesDefined"],
+            json!(FULLTEXT_INDEXES.len())
+        );
+        assert_eq!(diagnostic["fieldProbes"]["body"], "match");
 
         drop(index);
         drop(service);

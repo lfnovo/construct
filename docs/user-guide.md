@@ -297,7 +297,31 @@ It includes:
   optional recent queries;
 - disposable per-Location indexes containing saved Markdown needed for local
   retrieval;
-- the user-only local service token, local IPC endpoint, and derived activity cache.
+- the user-only local service token, local IPC endpoint, and derived activity cache;
+- bounded diagnostic logs under `logs/`.
+
+The diagnostic logs are local JSONL files:
+
+- `construct.log` records desktop lifecycle plus local-service connection and
+  launch events;
+- `knowledge-service.log` records index reconciliation, full-text search,
+  sanitized failures, and lexical fallback recovery;
+- each file is capped at 1 MiB and retains two older generations.
+
+On Windows, open the folder from PowerShell with:
+
+```powershell
+explorer "$env:APPDATA\com.luisnovo.construct\logs"
+```
+
+On macOS:
+
+```text
+~/Library/Application Support/com.luisnovo.construct/logs
+```
+
+Logs omit document content, filenames, repository paths, frontmatter values,
+and search text. They may be deleted at any time while Construct is closed.
 
 The registered Markdown files remain in their original folders and remain the
 source of truth. Removing or rebuilding an index does not change those files.
@@ -322,6 +346,12 @@ opens.
 Wait for the Location status indicator to become ready. If it remains degraded
 or failed, use **Rebuild index** for that Location. Rebuild deletes only
 Construct's disposable cache and rereads saved Markdown.
+
+If Search still fails, reproduce it once, close Construct, and share the files
+from the local `logs/` directory with the maintainer. The
+`knowledge-service.log` file distinguishes a valid empty result from a
+full-text error, missing index schema, analyzer failure, or successful local
+fallback without including the searched text or repository contents.
 
 ### Edit is unavailable
 

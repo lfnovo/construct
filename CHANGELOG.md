@@ -6,12 +6,23 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+### Added
+
+- Added bounded local JSONL diagnostics for desktop/service startup, index
+  reconciliation, full-text schema and analyzer failures, field-level probes,
+  and lexical fallback recovery without logging queries or repository content.
+
+### Changed
+
+- Limited the local lexical fallback to explicit full-text failures or
+  demonstrably unhealthy search schema; a valid empty result remains empty.
+
 ## [0.1.3] - 2026-07-28
 
 ### Fixed
 
 - Kept desktop and MCP knowledge search working when the embedded full-text
-  indexes are unavailable or return no candidates by falling back to a
+  indexes are unavailable by falling back to a
   batched, local lexical scan of the active Location generation.
 
 ## [0.1.2] - 2026-07-27

@@ -13,6 +13,7 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, State};
 use walkdir::{DirEntry, WalkDir};
 
+mod diagnostics;
 mod index;
 mod knowledge;
 mod mcp;
@@ -709,6 +710,8 @@ pub fn run() {
         .manage(WatchState::default())
         .setup(|app| {
             let data_directory = app.path().app_data_dir().map_err(std::io::Error::other)?;
+            let diagnostics = diagnostics::Diagnostics::new(data_directory.clone(), "construct");
+            diagnostics.info("application_started", serde_json::json!({}));
             let knowledge =
                 knowledge::KnowledgeClient::new(data_directory).map_err(std::io::Error::other)?;
             app.manage(knowledge);
