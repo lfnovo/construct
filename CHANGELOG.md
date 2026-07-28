@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-28
+
 ### Added
 
 - Added bounded local JSONL diagnostics for desktop/service startup, index
