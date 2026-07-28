@@ -1,0 +1,90 @@
+src-tauri/src/main.rs
+  s_954343fc536a43::t_3e9651606d3858 12-23
+  s_954343fc536a43::t_9e140d9b84ffb8 24-36,38
+src-tauri/build.rs
+  s_954343fc536a43::t_3e9651606d3858 2
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_a5a0272a3ece11 3
+  s_954343fc536a43::t_3e9651606d3858 10-27,33,36-41,46-48,50
+okf-lint-action/prepare.mjs
+  s_954343fc536a43::t_305babb5fbf47e 47
+  s_954343fc536a43::t_ae7ae7571c2078 1-46,48-74
+.github/workflows/release.yml
+  s_954343fc536a43::t_84fc07abf303a0 161-163,166-222,225-227
+  s_954343fc536a43::t_99488125a8f9a1 164-165
+docs/cli.md
+  s_954343fc536a43::t_cf24dc7e9c0b1f 20-21,46-57,60,225-269,313,315
+  s_954343fc536a43::t_99488125a8f9a1 58-59
+docs/user-guide.md
+  s_954343fc536a43::t_cf24dc7e9c0b1f 14-24
+docs/proposals/retrieval/06-okf-linter.md
+  s_954343fc536a43::t_ac70120d585c6a 3-4,480-484,491-494,664-670
+scripts/classify-ci-changes.mjs
+  s_954343fc536a43::t_42a418f4e42403 66,73
+src-tauri/tauri.conf.json
+  s_954343fc536a43::t_a5a0272a3ece11 4
+docs/product-spec.md
+  s_954343fc536a43::t_cf24dc7e9c0b1f 555-556,750,1022
+  s_954343fc536a43::t_fd70750506407e 1041
+docs/architecture.md
+  s_954343fc536a43::t_fd70750506407e 61
+  s_954343fc536a43::t_cf24dc7e9c0b1f 111-123
+docs/proposals/retrieval/README.md
+  s_954343fc536a43::t_4d63d0f40965b1 53
+docs/releasing.md
+  s_954343fc536a43::t_99488125a8f9a1 38-40
+  s_954343fc536a43::t_cf24dc7e9c0b1f 32,36-37,95-96,99-101,115-116
+  s_954343fc536a43::t_fd70750506407e 35
+tests/ci-paths.test.mjs
+  s_954343fc536a43::t_42a418f4e42403 37-56
+okf-lint-action/action.yml
+  s_954343fc536a43::t_84fc07abf303a0 35
+  s_954343fc536a43::t_ae7ae7571c2078 1-34,36-57
+CHANGELOG.md
+  s_954343fc536a43::t_a5a0272a3ece11 9-25
+okf-lint-action/run.mjs
+  s_954343fc536a43::t_305babb5fbf47e 53-54
+  s_954343fc536a43::t_ae7ae7571c2078 1-52,55-137
+package.json
+  s_954343fc536a43::t_98401f703e4bec 24
+  s_954343fc536a43::t_a5a0272a3ece11 4
+src-tauri/src/lib.rs
+  s_954343fc536a43::t_3e9651606d3858 2-4,6-8,10,12,14,17,49,51,54,59
+  s_954343fc536a43::t_ae7ae7571c2078 1
+okf-lint-action/install.mjs
+  s_954343fc536a43::t_ae7ae7571c2078 1-35,40-92
+  s_954343fc536a43::t_84fc07abf303a0 36-39
+tests/okf-lint-action.test.mjs
+  s_954343fc536a43::t_98401f703e4bec 94
+  s_954343fc536a43::t_ae7ae7571c2078 1-93,95
+src-tauri/src/desktop.rs
+  s_954343fc536a43::t_3e9651606d3858 1-753
+docs/development.md
+  s_954343fc536a43::t_cf24dc7e9c0b1f 87-99,202-203
+.github/workflows/ci.yml
+  s_954343fc536a43::t_84fc07abf303a0 91,162-219,268,283,291
+README.md
+  s_954343fc536a43::t_fd70750506407e 103-105
+  s_954343fc536a43::t_cf24dc7e9c0b1f 73,95-98
+  s_954343fc536a43::t_5bba0e793738db 99
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_c2faeaf83b785f 813
+package-lock.json
+  s_954343fc536a43::t_f305cb1cb40047 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "55266ddeaa19557cd330265009119a6985b273ee",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
