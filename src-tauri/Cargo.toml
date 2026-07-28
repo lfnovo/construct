@@ -1,33 +1,51 @@
 [package]
 name = "construct"
-version = "0.1.4"
+version = "0.1.5"
 description = "A desktop knowledge workspace for coding agents"
 authors = ["Luis Novo"]
 license = "MIT"
 repository = "https://github.com/lfnovo/construct"
 edition = "2021"
 
+[features]
+default = ["desktop"]
+okf-cli = []
+desktop = [
+  "okf-cli",
+  "dep:base64",
+  "dep:blake3",
+  "dep:chrono",
+  "dep:dirs",
+  "dep:notify",
+  "dep:surrealdb",
+  "dep:tauri",
+  "dep:tauri-build",
+  "dep:tauri-plugin-dialog",
+  "dep:tokio",
+  "dep:uuid",
+]
+
 [lib]
 name = "construct_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", features = [], optional = true }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-dialog = "2"
-chrono = { version = "0.4", features = ["serde"] }
-base64 = "0.22"
-blake3 = "1"
-notify = "8"
+tauri = { version = "2", features = [], optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
+chrono = { version = "0.4", features = ["serde"], optional = true }
+base64 = { version = "0.22", optional = true }
+blake3 = { version = "1", optional = true }
+notify = { version = "8", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 pulldown-cmark = "0.13"
-surrealdb = { version = "3.2.3", default-features = false, features = ["kv-surrealkv"] }
-tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
-uuid = { version = "1", features = ["v4"] }
+surrealdb = { version = "3.2.3", default-features = false, features = ["kv-surrealkv"], optional = true }
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"], optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
 walkdir = "2"
-dirs = "6"
+dirs = { version = "6", optional = true }
 glob = "0.3.3"

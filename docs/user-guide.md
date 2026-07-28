@@ -11,16 +11,17 @@ agent-access workflows around them.
 
 The preview currently has these platform boundaries:
 
-| Capability | macOS | Windows x64 |
-| --- | --- | --- |
-| Desktop Markdown workspace | Yes | Preview |
-| Stateless `construct okf lint` CLI | Yes | Yes |
-| Local full-text index | Yes | Yes |
-| Local MCP server | Yes | Yes |
+| Capability | macOS | Windows x64 | Linux x64 |
+| --- | --- | --- | --- |
+| Desktop Markdown workspace | Yes | Preview | No |
+| Stateless `construct okf lint` CLI | Yes | Yes | Yes |
+| Local full-text index | Yes | Yes | No |
+| Local MCP server | Yes | Yes | No |
 
-Linux is not currently part of the release matrix. The retrieval service and
-MCP use authenticated Unix-domain socket IPC on macOS/Unix and local named
-pipes on Windows.
+Linux ships as a small standalone OKF linter rather than a desktop preview. The
+retrieval service and MCP use authenticated Unix-domain socket IPC on
+macOS/Unix and local named pipes on Windows, but are not part of the Linux CLI
+artifact.
 
 Preview downloads are not yet a trusted public distribution. macOS artifacts
 use ad-hoc signing and are not notarized, and Windows artifacts are not yet

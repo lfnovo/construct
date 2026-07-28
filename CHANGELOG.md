@@ -6,6 +6,23 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-28
+
+### Added
+
+- Added a standalone Linux x64 OKF linter archive built on Ubuntu 22.04 and
+  included in the release `SHA256SUMS` manifest.
+- Added a release-pinned GitHub Action that verifies the selected CLI archive,
+  caches it, runs JSON linting, publishes job summaries and source annotations,
+  and preserves the CLI exit code.
+
+### Changed
+
+- Isolated the stateless OKF parser and linter behind a lightweight `okf-cli`
+  build feature that excludes Tauri, SurrealDB, the local service, and MCP.
+- Added Linux CLI compilation and public exit-code smoke tests to pull request
+  CI.
+
 ## [0.1.4] - 2026-07-28
 
 ### Added

@@ -1,0 +1,57 @@
+name: Construct OKF lint
+description: Run the versioned Construct OKF linter and annotate its findings.
+
+inputs:
+  path:
+    description: OKF bundle path, relative to the repository workspace.
+    required: false
+    default: "."
+  version:
+    description: Immutable Construct release version, without a leading v.
+    required: true
+  fail-on:
+    description: Finding threshold that fails the job (error, warning, or never).
+    required: false
+    default: error
+  annotations:
+    description: Publish GitHub annotations for lint findings.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve Construct CLI artifact
+      id: resolve
+      shell: bash
+      env:
+        CONSTRUCT_VERSION: ${{ inputs.version }}
+      run: node "${GITHUB_ACTION_PATH}/prepare.mjs"
+
+    - name: Restore Construct CLI cache
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.resolve.outputs.cache-dir }}
+        key: construct-okf-lint-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.version }}
+
+    - name: Install verified Construct CLI
+      shell: bash
+      env:
+        CONSTRUCT_ARCHIVE: ${{ steps.resolve.outputs.archive }}
+        CONSTRUCT_BINARY: ${{ steps.resolve.outputs.binary }}
+        CONSTRUCT_CACHE_DIR: ${{ steps.resolve.outputs.cache-dir }}
+        CONSTRUCT_RELEASE_TAG: ${{ steps.resolve.outputs.release-tag }}
+      run: node "${GITHUB_ACTION_PATH}/install.mjs"
+
+    - name: Run Construct OKF lint
+      shell: bash
+      env:
+        CONSTRUCT_ANNOTATIONS: ${{ inputs.annotations }}
+        CONSTRUCT_BINARY: ${{ steps.resolve.outputs.binary }}
+        CONSTRUCT_FAIL_ON: ${{ inputs.fail-on }}
+        CONSTRUCT_LINT_PATH: ${{ inputs.path }}
+      run: node "${GITHUB_ACTION_PATH}/run.mjs"
+
+branding:
+  icon: check-circle
+  color: purple

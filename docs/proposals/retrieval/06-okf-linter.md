@@ -1,7 +1,7 @@
 # RFC 06 — Stateless OKF linter
 
-**Status:** CLI, desktop Health, and release pipeline implemented; first
-clean-runner release and oracle comparison pending
+**Status:** CLI, desktop Health, Linux x64 distribution, and GitHub Action
+implemented; tagged Action-compatible candidate and oracle comparison pending
 
 **Decision owner:** Product, OKF compatibility, CLI, and release engineering
 
@@ -477,17 +477,21 @@ For local agents, the command can be exposed by the Construct executable that
 already ships inside the macOS application bundle.
 
 For CI and knowledge repositories, each tagged GitHub Release contains
-standalone `construct` CLI archives for macOS ARM, macOS Intel, and Windows x64.
-The tag-driven release workflow builds the app and CLI from the same commit,
-publishes platform-specific archives to a draft release, and assembles a
-`SHA256SUMS` manifest.
+standalone `construct` CLI archives for macOS ARM, macOS Intel, Windows x64,
+and Linux x64. The Linux target uses the CLI-only feature boundary and does not
+compile the desktop, local index, service, or MCP. The tag-driven release
+workflow builds all artifacts from the same commit, publishes platform-specific
+archives to a draft release, and assembles a `SHA256SUMS` manifest.
 
 CI examples must pin an explicit released version and verify its checksum. They
 must not download a mutable “latest” artifact. Package-manager installation is
 deferred until signed releases and release automation are proven.
 
 A dedicated GitHub Action is convenience packaging over the CLI, not a second
-validator.
+validator. It pins a Construct release, verifies `SHA256SUMS`, caches the
+archive, invokes JSON output, and translates findings into a job summary and
+optional annotations. It rejects unknown platforms and schema versions rather
+than implementing a fallback validator.
 
 ## Repair workflow
 
@@ -657,8 +661,13 @@ Measure:
   CLI archives, and `SHA256SUMS`;
 - **Implemented:** release-tag consistency check across every version source;
 - **Implemented:** maintainer release and artifact-verification documentation;
-- **Pending:** run the first tagged candidate on clean hosted runners;
-- **Pending:** document a minimal pinned download/checksum CI example;
+- **Implemented:** isolated `okf-cli` feature and Linux x64 release archive;
+- **Implemented:** release-pinned GitHub Action with checksum verification,
+  cache, job summary, annotations, and CLI exit-code propagation;
+- **Implemented:** minimal pinned Action and manual-download CI examples;
+- **Pending:** run the first Action-compatible tagged candidate on clean hosted
+  runners;
+- **Pending:** smoke-test the Action against that published release;
 - **Pending:** compare behavior with the independent oracle corpus.
 
 Profiles, SARIF, package-manager distribution, and any fix mode remain separate

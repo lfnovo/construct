@@ -29,10 +29,15 @@ Each `vX.Y.Z` release candidate produces:
 | macOS Apple Silicon | ad-hoc-signed preview DMG | `construct_X.Y.Z_aarch64-apple-darwin.tar.gz` |
 | macOS Intel | ad-hoc-signed preview DMG | `construct_X.Y.Z_x86_64-apple-darwin.tar.gz` |
 | Windows x64 | unsigned preview NSIS setup | `construct_X.Y.Z_x86_64-pc-windows-msvc.zip` |
+| Linux x64 | Not shipped | `construct_X.Y.Z_x86_64-unknown-linux-gnu.tar.gz` |
 
 The release also contains `SHA256SUMS` for every generated installer and CLI
-archive. The app and CLI are built from the same commit and Rust executable;
-CLI subcommands exit before the Tauri desktop runtime starts.
+archive. The macOS and Windows app/CLI builds share one executable and CLI subcommands
+exit before the Tauri desktop runtime starts. The Linux artifact compiles the
+same parser, policy, and linter through the lightweight `okf-cli` feature and
+does not link the desktop, retrieval, or MCP dependencies. It is built on
+Ubuntu 22.04 to establish glibc 2.35 as the oldest supported Linux baseline,
+then exercised again on the current hosted Ubuntu image during normal CI.
 
 The Windows preview supports the desktop workspace, local knowledge index,
 stateless OKF linter, and MCP through authenticated local named-pipe IPC. Clean
@@ -87,11 +92,13 @@ The workflow:
 
 1. rejects a tag that disagrees with any project version source;
 2. runs the complete validator;
-3. builds macOS ARM, macOS Intel, and Windows x64 in isolated runners;
+3. builds macOS ARM, macOS Intel, and Windows x64 app targets in isolated
+   runners;
 4. asks `tauri-action` to create or update a draft GitHub Release;
 5. uploads DMG and NSIS app installers;
-6. packages and uploads standalone CLI archives;
-7. combines per-platform hashes into `SHA256SUMS`.
+6. builds and smoke-tests the CLI-only Linux x64 target on Ubuntu;
+7. packages and uploads all standalone CLI archives;
+8. combines per-platform hashes into `SHA256SUMS`.
 
 Never retag a released version. Correct a failed unpublished candidate before
 publication or increment the version for any published replacement.
@@ -105,6 +112,8 @@ Before publishing:
 - verify each checksum;
 - install and launch each app target available to the maintainer;
 - run `construct okf lint --help` and a real text/JSON lint;
+- verify Linux exit codes `0`, `1`, and `2` on a clean Ubuntu runner;
+- run the release-pinned `okf-lint-action` against a fixture repository;
 - run the MCP smoke path from the standalone CLI;
 - confirm the release notes and known limitations;
 - confirm that no unsigned artifact is described as trusted.

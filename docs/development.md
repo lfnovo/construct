@@ -84,6 +84,19 @@ cargo build --release --manifest-path src-tauri/Cargo.toml
 The debug executable is `src-tauri/target/debug/construct`. The same executable
 dispatches desktop, `service`, `mcp serve`, and `okf lint` modes.
 
+Build the isolated linter used by the Linux release and CI Action:
+
+```bash
+cargo build \
+  --manifest-path src-tauri/Cargo.toml \
+  --no-default-features \
+  --features okf-cli
+```
+
+This target intentionally cannot start the desktop, service, or MCP. It exists
+to keep the stateless linter free from Tauri, SurrealDB, and platform UI
+dependencies while reusing the exact parser and report code.
+
 Do not commit `dist/`, `node_modules/`, `src-tauri/target/`, local environment
 files, application data, indexes, or user content.
 
@@ -186,7 +199,8 @@ coverage.
 | `src/HealthWorkspace.tsx` | Interactive OKF lint findings |
 | `src/MarkdownPreview.tsx` | Sanitized Markdown, Mermaid, images, and links |
 | `src/*.ts` | Pure frontend domain helpers and typed native contracts |
-| `src-tauri/src/lib.rs` | Tauri commands, filesystem, watcher, state, and Git |
+| `src-tauri/src/lib.rs` | Shared feature boundary and command dispatch |
+| `src-tauri/src/desktop.rs` | Tauri commands, filesystem, watcher, state, and Git |
 | `src-tauri/src/okf.rs` | Shared tolerant OKF parser |
 | `src-tauri/src/okf_lint.rs` | Stateless CLI validation |
 | `src-tauri/src/okf_policy.rs` | `.constructignore` conformance policy |

@@ -1,7 +1,7 @@
 {
   "name": "construct",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A local-first desktop knowledge workspace for coding agents",
   "license": "MIT",
   "repository": {
@@ -21,7 +21,7 @@
     "check": "tsc --noEmit",
     "check:docs": "node scripts/check-docs.mjs",
     "lint": "npm run lint:web && npm run lint:rust",
-    "lint:web": "eslint src tests scripts vite.config.ts",
+    "lint:web": "eslint src tests scripts okf-lint-action vite.config.ts",
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "format:check": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check",
     "test": "npm run check && npm run test:web && npm run test:rust",
