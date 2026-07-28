@@ -128,7 +128,10 @@ declaring a file as non-concept does not make it unsearchable.
   full-text search projection;
 - weighted field-specific full-text indexes and exact metadata filters;
 - a batched local lexical fallback over the active generation when full-text
-  indexes fail or return no candidates, with the same filters and field weights;
+  execution fails or its required schema is demonstrably unavailable, with the
+  same filters and field weights;
+- structured local diagnostics for index lifecycle, full-text failures,
+  analyzer/schema probes, fallback recovery, and bounded timings;
 - local rank explanations and cross-Location reciprocal rank fusion;
 - persisted internal Markdown link records and direct outgoing/backlink queries;
 - deterministic context-pack assembly over explicitly selected saved documents,
@@ -175,6 +178,14 @@ and can be deleted or rebuilt without changing source files. Workspace state
 and retrieval indexes have separate schemas and lifecycles. The local service
 token, IPC endpoint, and daily activity cache are application data, never
 repository data. Activity identities use relative paths only.
+
+Best-effort rotating JSONL diagnostics live under the application data
+`logs/` directory. The desktop and independent knowledge service use separate
+files capped at 1 MiB with two previous generations retained. Search
+diagnostics contain application/runtime versions, anonymous Location
+fingerprints, index generations, aggregate counts, timings, schema/analyzer
+state, field-level match states, and sanitized errors. They never contain
+document content, filenames, repository paths, or search text.
 
 Changing the Tauri identifier or persisted schema requires a migration. Construct currently imports the former `com.luisnovo.agent-context` workspace on first launch.
 
@@ -247,6 +258,8 @@ OKF support is derived and non-destructive:
 ## Security boundaries
 
 - No document telemetry or remote content processing.
+- Diagnostic logs remain local, are bounded, and omit document content,
+  filenames, repository paths, and search text.
 - No arbitrary shell command surface exposed to Markdown.
 - Git commands are read-only and scoped to the file repository.
 - HTML is sanitized before preview.

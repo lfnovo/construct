@@ -1,8 +1,12 @@
-use crate::index::{
-    self, ActivityKind, BuildContextPackRequest, ContextPackResponse, IndexStatus,
-    IndexedDocumentView, KnowledgeSearchRequest, KnowledgeSearchResponse, LocationActivityRequest,
-    LocationActivityResponse, LocationOverview, RelatedDocumentsRequest, RelatedDocumentsResponse,
-    SearchFacets, SearchFacetsRequest, SearchIndexRequest, SearchResult, SyncLocationRequest,
+use crate::{
+    diagnostics::Diagnostics,
+    index::{
+        self, ActivityKind, BuildContextPackRequest, ContextPackResponse, IndexStatus,
+        IndexedDocumentView, KnowledgeSearchRequest, KnowledgeSearchResponse,
+        LocationActivityRequest, LocationActivityResponse, LocationOverview,
+        RelatedDocumentsRequest, RelatedDocumentsResponse, SearchFacets, SearchFacetsRequest,
+        SearchIndexRequest, SearchResult, SyncLocationRequest,
+    },
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -48,6 +52,7 @@ struct WorkspaceLocations {
 #[derive(Clone)]
 pub(crate) struct KnowledgeClient {
     data_dir: PathBuf,
+    diagnostics: Diagnostics,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -89,7 +94,12 @@ impl KnowledgeClient {
         fs::create_dir_all(&data_dir).map_err(|error| {
             format!("Could not create Construct's local data directory: {error}")
         })?;
-        Ok(Self { data_dir })
+        let diagnostics = Diagnostics::new(data_dir.clone(), "construct");
+        diagnostics.info("knowledge_client_ready", json!({}));
+        Ok(Self {
+            data_dir,
+            diagnostics,
+        })
     }
 
     pub(crate) fn data_dir(&self) -> &Path {
@@ -201,7 +211,14 @@ impl KnowledgeClient {
         };
         let mut stream = match connect(&self.data_dir).await {
             Ok(stream) => stream,
-            Err(_) => {
+            Err(error) => {
+                self.diagnostics.warn(
+                    "knowledge_service_connection_unavailable",
+                    json!({
+                        "operation": operation,
+                        "errorKind": error_category(&error)
+                    }),
+                );
                 self.start_service()?;
                 connect_with_retry(&self.data_dir).await?
             }
@@ -253,16 +270,29 @@ impl KnowledgeClient {
     fn start_service(&self) -> Result<(), String> {
         let executable = std::env::current_exe()
             .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
-        std::process::Command::new(executable)
+        self.diagnostics
+            .info("knowledge_service_start_requested", json!({}));
+        let result = std::process::Command::new(executable)
             .arg("service")
             .arg("--data-dir")
             .arg(&self.data_dir)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn()
-            .map_err(|error| format!("Could not start Construct's local service: {error}"))?;
-        Ok(())
+            .spawn();
+        match result {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                self.diagnostics.error(
+                    "knowledge_service_start_failed",
+                    &error.to_string(),
+                    json!({}),
+                );
+                Err(format!(
+                    "Could not start Construct's local service: {error}"
+                ))
+            }
+        }
     }
 }
 
@@ -310,11 +340,16 @@ pub fn run_service_command(arguments: &[String]) -> Result<(), String> {
         .map(PathBuf::from)
         .map(Ok)
         .unwrap_or_else(default_data_dir)?;
+    let diagnostics = Diagnostics::new(data_dir.clone(), "knowledge-service");
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .map_err(|error| format!("Could not start Construct's local runtime: {error}"))?;
-    runtime.block_on(run_service(data_dir))
+    let result = runtime.block_on(run_service(data_dir));
+    if let Err(error) = &result {
+        diagnostics.error("service_stopped", error, json!({}));
+    }
+    result
 }
 
 pub(crate) fn argument_value(arguments: &[String], flag: &str) -> Option<String> {
@@ -322,6 +357,16 @@ pub(crate) fn argument_value(arguments: &[String], flag: &str) -> Option<String>
         .windows(2)
         .find(|pair| pair[0] == flag)
         .map(|pair| pair[1].clone())
+}
+
+fn error_category(error: &str) -> &'static str {
+    if error.contains("connect") || error.contains("pipe") || error.contains("socket") {
+        "connection"
+    } else if error.contains("protocol") {
+        "protocol"
+    } else {
+        "unavailable"
+    }
 }
 
 #[cfg(unix)]
@@ -387,9 +432,12 @@ fn ensure_token(data_dir: &Path) -> Result<String, String> {
 async fn run_service(data_dir: PathBuf) -> Result<(), String> {
     fs::create_dir_all(&data_dir)
         .map_err(|error| format!("Could not create Construct's local data directory: {error}"))?;
+    let diagnostics = Diagnostics::new(data_dir.clone(), "knowledge-service");
+    diagnostics.info("service_starting", json!({ "transport": "unixSocket" }));
     let token = ensure_token(&data_dir)?;
     let socket_path = data_dir.join(SOCKET_NAME);
     if UnixStream::connect(&socket_path).await.is_ok() {
+        diagnostics.info("service_already_running", json!({}));
         return Ok(());
     }
     match fs::remove_file(&socket_path) {
@@ -405,7 +453,9 @@ async fn run_service(data_dir: PathBuf) -> Result<(), String> {
         .map_err(|error| format!("Could not bind Construct's local service: {error}"))?;
     fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600))
         .map_err(|error| format!("Could not protect the local service socket: {error}"))?;
-    let service = index::IndexService::new(data_dir.join("indexes"))?;
+    let service =
+        index::IndexService::with_diagnostics(data_dir.join("indexes"), diagnostics.clone())?;
+    diagnostics.info("service_ready", json!({ "transport": "unixSocket" }));
     loop {
         let (stream, _) = listener.accept().await.map_err(|error| {
             format!("Construct's local service stopped accepting requests: {error}")
@@ -422,13 +472,18 @@ async fn run_service(data_dir: PathBuf) -> Result<(), String> {
 async fn run_service(data_dir: PathBuf) -> Result<(), String> {
     fs::create_dir_all(&data_dir)
         .map_err(|error| format!("Could not create Construct's local data directory: {error}"))?;
+    let diagnostics = Diagnostics::new(data_dir.clone(), "knowledge-service");
+    diagnostics.info("service_starting", json!({ "transport": "namedPipe" }));
     let token = ensure_token(&data_dir)?;
     if connect(&data_dir).await.is_ok() {
+        diagnostics.info("service_already_running", json!({}));
         return Ok(());
     }
 
     let name = pipe_name(&data_dir);
-    let service = index::IndexService::new(data_dir.join("indexes"))?;
+    let service =
+        index::IndexService::with_diagnostics(data_dir.join("indexes"), diagnostics.clone())?;
+    diagnostics.info("service_ready", json!({ "transport": "namedPipe" }));
     let mut first_instance = true;
     loop {
         let server = ServerOptions::new()

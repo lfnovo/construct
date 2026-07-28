@@ -461,7 +461,7 @@ flowchart LR
 - **SEARCH-024:** `Copy references` copia título, Local, caminho relativo e razão do match, sem conteúdo ou caminho absoluto.
 - **SEARCH-025:** A seleção de Search é efêmera e pode alimentar `Copy context`; coleções persistentes continuam fora deste corte.
 - **SEARCH-026:** Cada resultado pode abrir uma lista limitada de links de saída e backlinks diretos, com razão estrutural em texto.
-- **SEARCH-027:** Se os índices full-text embedded falharem ou não devolverem candidatos, a busca deve degradar para uma varredura lexical local e paginada da geração ativa, preservando escopo, filtros, ranking, privacidade e os mesmos contratos de resultado.
+- **SEARCH-027:** Se a execução full-text embedded falhar, ou se o schema necessário estiver comprovadamente ausente ou inconsistente, a busca deve degradar para uma varredura lexical local e paginada da geração ativa, preservando escopo, filtros, ranking, privacidade e os mesmos contratos de resultado. Uma consulta válida com zero candidatos não deve acionar o fallback.
 
 #### 10.13.1 Grafo de retrieval e context packs
 
@@ -682,6 +682,9 @@ O Histórico não armazena o conteúdo do arquivo.
 - O aplicativo deve seguir o modelo de permissões e sandbox da plataforma quando aplicável.
 - Operações Git devem ser somente leitura e limitar seu escopo ao repositório do arquivo.
 - Logs de diagnóstico não devem registrar conteúdo de documentos por padrão.
+- Logs de diagnóstico devem permanecer locais, usar rotação limitada e poder ser apagados sem afetar arquivos, estado ou índices.
+- Logs de busca podem registrar versão, plataforma, geração, contagens agregadas, duração, estado de schema/analyzer, probes sem conteúdo e erros sanitizados.
+- Logs de busca não podem registrar texto da consulta, conteúdo, nomes de arquivo, caminhos locais ou valores de frontmatter.
 
 ## 14. Desempenho e confiabilidade
 
