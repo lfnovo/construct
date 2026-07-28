@@ -21,6 +21,7 @@ use walkdir::{DirEntry, WalkDir};
 
 const INDEXER_VERSION: i64 = 4;
 const MAX_DOCUMENT_BYTES: u64 = 8 * 1024 * 1024;
+const LEXICAL_FALLBACK_BATCH_SIZE: usize = 200;
 const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",
     ".hg",
@@ -950,7 +951,7 @@ impl IndexService {
             .active_generation
             .ok_or_else(|| "This Location has no complete index generation yet.".to_string())?;
         let limit = request.limit.clamp(1, 50) as i64;
-        let mut response = index
+        let fulltext_results = index
             .db
             .query(
                 r#"
@@ -967,12 +968,43 @@ LIMIT $limit;
             .bind(("query", query.to_string()))
             .bind(("limit", limit))
             .await
-            .map_err(|error| format!("Could not search the Location index: {error}"))?
-            .check()
-            .map_err(|error| format!("Could not search the Location index: {error}"))?;
-        response
-            .take(0)
-            .map_err(|error| format!("Could not read the search results: {error}"))
+            .map_err(|error| format!("Could not search the Location index: {error}"))
+            .and_then(|response| {
+                response
+                    .check()
+                    .map_err(|error| format!("Could not search the Location index: {error}"))
+            })
+            .and_then(|mut response| {
+                response
+                    .take::<Vec<SearchResult>>(0)
+                    .map_err(|error| format!("Could not read the search results: {error}"))
+            });
+        match fulltext_results {
+            Ok(results) if !results.is_empty() => Ok(results),
+            _ => self
+                .search_location_knowledge(
+                    &request.location_id,
+                    query,
+                    &KnowledgeSearchFilters::default(),
+                    limit as usize,
+                )
+                .await
+                .map(|results| {
+                    results
+                        .into_iter()
+                        .map(|result| SearchResult {
+                            relative_path: result.relative_path,
+                            title: result.title,
+                            description: result.description,
+                            r#type: result.r#type,
+                            tags: result.tags,
+                            score: result.score,
+                            snippet: result.snippet,
+                            generation: result.generation,
+                        })
+                        .collect()
+                }),
+        }
     }
 
     pub(crate) async fn search_knowledge(
@@ -1048,7 +1080,7 @@ LIMIT $limit;
             .ok_or_else(|| "This Location has no complete index generation yet.".to_string())?;
         let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
         let fulltext_query = exact_phrase(query).unwrap_or(query).to_string();
-        let mut response = index
+        let fulltext_rows = index
             .db
             .query(
                 r#"
@@ -1115,15 +1147,35 @@ LIMIT $limit;
             .bind(("freshness", filters.freshness.clone()))
             .bind(("path_prefix", normalize_relative_path(&filters.path_prefix)))
             .bind(("findings", filters.findings.clone()))
-            .bind(("today", today))
+            .bind(("today", today.clone()))
             .bind(("limit", limit as i64))
             .await
-            .map_err(|_| "Could not search this Location. Try a simpler query.".to_string())?
-            .check()
-            .map_err(|_| "Could not search this Location. Try a simpler query.".to_string())?;
-        let rows: Vec<LocalSearchRow> = response
-            .take(0)
-            .map_err(|_| "Could not read the local search results.".to_string())?;
+            .map_err(|_| "Could not search this Location. Try a simpler query.".to_string())
+            .and_then(|response| {
+                response
+                    .check()
+                    .map_err(|_| "Could not search this Location. Try a simpler query.".to_string())
+            })
+            .and_then(|mut response| {
+                response
+                    .take::<Vec<LocalSearchRow>>(0)
+                    .map_err(|_| "Could not read the local search results.".to_string())
+            });
+        let rows = match fulltext_rows {
+            Ok(rows) if !rows.is_empty() => rows,
+            _ => {
+                return lexical_fallback_search(
+                    &index.db,
+                    location_id,
+                    generation,
+                    query,
+                    filters,
+                    &today,
+                    limit,
+                )
+                .await;
+            }
+        };
         let mut results = rows
             .into_iter()
             .filter(|row| {
@@ -1791,6 +1843,98 @@ WHERE day >= $cutoff
     }
 }
 
+async fn lexical_fallback_search(
+    db: &Surreal<Db>,
+    location_id: &str,
+    generation: i64,
+    query: &str,
+    filters: &KnowledgeSearchFilters,
+    today: &str,
+    limit: usize,
+) -> Result<Vec<KnowledgeSearchResult>, String> {
+    let mut offset = 0_i64;
+    let batch_size = LEXICAL_FALLBACK_BATCH_SIZE as i64;
+    let mut results = Vec::new();
+
+    loop {
+        let mut response = db
+            .query(
+                r#"
+SELECT relative_path, title, description, type, tags, kind, status, trust_tier,
+       stale_after, finding_count, body, headings_text, metadata_text, generation,
+       0.0 AS title_score,
+       0.0 AS description_score,
+       0.0 AS type_score,
+       0.0 AS tags_score,
+       0.0 AS headings_score,
+       0.0 AS path_score,
+       0.0 AS body_score,
+       0.0 AS metadata_score
+FROM document
+WHERE generation = $generation
+  AND (array::len($types) = 0 OR type IN $types)
+  AND (array::len($tags) = 0 OR array::len(array::intersect(tags, $tags)) > 0)
+  AND (array::len($roles) = 0 OR kind IN $roles)
+  AND (array::len($statuses) = 0 OR status IN $statuses)
+  AND (array::len($trust) = 0 OR trust_tier IN $trust)
+  AND ($path_prefix = '' OR string::starts_with(relative_path, $path_prefix))
+  AND (
+    $findings = 'any' OR
+    ($findings = 'with' AND finding_count > 0) OR
+    ($findings = 'without' AND finding_count = 0)
+  )
+  AND (
+    array::len($freshness) = 0 OR
+    ('stale' IN $freshness AND stale_after != none AND stale_after <= $today) OR
+    ('current' IN $freshness AND stale_after != none AND stale_after > $today) OR
+    ('unspecified' IN $freshness AND stale_after = none)
+  )
+ORDER BY relative_path ASC
+LIMIT $batch_size START $offset;
+"#,
+            )
+            .bind(("generation", generation))
+            .bind(("types", filters.types.clone()))
+            .bind(("tags", filters.tags.clone()))
+            .bind(("roles", filters.roles.clone()))
+            .bind(("statuses", filters.statuses.clone()))
+            .bind(("trust", filters.trust.clone()))
+            .bind(("freshness", filters.freshness.clone()))
+            .bind(("path_prefix", normalize_relative_path(&filters.path_prefix)))
+            .bind(("findings", filters.findings.clone()))
+            .bind(("today", today.to_string()))
+            .bind(("batch_size", batch_size))
+            .bind(("offset", offset))
+            .await
+            .map_err(|_| "Could not run the local lexical search.".to_string())?
+            .check()
+            .map_err(|_| "Could not run the local lexical search.".to_string())?;
+        let rows: Vec<LocalSearchRow> = response
+            .take(0)
+            .map_err(|_| "Could not read the local lexical results.".to_string())?;
+        let row_count = rows.len();
+        results.extend(
+            rows.into_iter()
+                .filter(|row| row_matches_query(row, query))
+                .map(|row| knowledge_result(location_id, query, row)),
+        );
+        results.sort_by(|left, right| {
+            right
+                .score
+                .total_cmp(&left.score)
+                .then_with(|| left.relative_path.cmp(&right.relative_path))
+        });
+        results.truncate(limit);
+
+        if row_count < LEXICAL_FALLBACK_BATCH_SIZE {
+            break;
+        }
+        offset += batch_size;
+    }
+
+    Ok(results)
+}
+
 #[derive(Clone)]
 struct MarkdownEntry {
     path: PathBuf,
@@ -2072,6 +2216,15 @@ fn row_contains_phrase(row: &LocalSearchRow, phrase: &str) -> bool {
     .into_iter()
     .any(|value| fold_search_text(value).contains(&phrase));
     found
+}
+
+fn row_matches_query(row: &LocalSearchRow, query: &str) -> bool {
+    if let Some(phrase) = exact_phrase(query) {
+        return row_contains_phrase(row, phrase);
+    }
+    search_signals(row, query)
+        .into_iter()
+        .any(|(_, signal, _)| signal > 0.0)
 }
 
 fn field_matches(value: &str, query: &str) -> bool {
@@ -3172,6 +3325,78 @@ mod tests {
         fs::remove_dir_all(data).expect("remove data");
         fs::remove_dir_all(first).expect("remove first");
         fs::remove_dir_all(second).expect("remove second");
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_local_lexical_search_without_fulltext_indexes() {
+        let data = temporary_root("fallback-search-data");
+        let source = temporary_root("fallback-search-source");
+        fs::write(
+            source.join("construct.md"),
+            "---\ntype: Project\ntitle: Construct Search\ntags: [windows, local]\n---\n# Search\nA recuperação encontra conteúdo mesmo sem o índice full-text.",
+        )
+        .expect("write searchable document");
+        let location_id = "fallback-search-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("index document");
+
+        let index = service.open(location_id).await.expect("open index");
+        index
+            .db
+            .query(
+                r#"
+REMOVE INDEX IF EXISTS document_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_title_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_description_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_type_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_tags_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_headings_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_path_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_body_search ON TABLE document;
+REMOVE INDEX IF EXISTS document_metadata_search ON TABLE document;
+"#,
+            )
+            .await
+            .expect("remove fulltext indexes")
+            .check()
+            .expect("apply index removal");
+
+        let response = service
+            .search_knowledge(KnowledgeSearchRequest {
+                location_ids: vec![location_id.to_string()],
+                query: "recuperacao".to_string(),
+                filters: KnowledgeSearchFilters {
+                    types: vec!["Project".to_string()],
+                    tags: vec!["windows".to_string()],
+                    ..KnowledgeSearchFilters::default()
+                },
+                limit: 20,
+            })
+            .await
+            .expect("search through lexical fallback");
+        assert!(response.unavailable_location_ids.is_empty());
+        assert_eq!(response.results.len(), 1);
+        assert_eq!(response.results[0].relative_path, "construct.md");
+        assert_eq!(response.results[0].match_reason, "Body match");
+
+        let legacy = service
+            .search(SearchIndexRequest {
+                location_id: location_id.to_string(),
+                query: "recuperacao".to_string(),
+                limit: 20,
+            })
+            .await
+            .expect("search legacy endpoint through lexical fallback");
+        assert_eq!(legacy.len(), 1);
+        assert_eq!(legacy[0].relative_path, "construct.md");
+
+        drop(index);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
     }
 
     #[test]

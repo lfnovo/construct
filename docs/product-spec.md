@@ -461,6 +461,7 @@ flowchart LR
 - **SEARCH-024:** `Copy references` copia título, Local, caminho relativo e razão do match, sem conteúdo ou caminho absoluto.
 - **SEARCH-025:** A seleção de Search é efêmera e pode alimentar `Copy context`; coleções persistentes continuam fora deste corte.
 - **SEARCH-026:** Cada resultado pode abrir uma lista limitada de links de saída e backlinks diretos, com razão estrutural em texto.
+- **SEARCH-027:** Se os índices full-text embedded falharem ou não devolverem candidatos, a busca deve degradar para uma varredura lexical local e paginada da geração ativa, preservando escopo, filtros, ranking, privacidade e os mesmos contratos de resultado.
 
 #### 10.13.1 Grafo de retrieval e context packs
 
