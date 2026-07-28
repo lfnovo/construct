@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-28
+
 ### Fixed
 
 - Kept desktop and MCP knowledge search working when the embedded full-text
