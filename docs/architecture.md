@@ -22,6 +22,7 @@ flowchart LR
     I --> D[(One SurrealDB per Location)]
     T --> F[Filesystem and watcher]
     T --> G[Read-only Git commands]
+    T --> X[Supported external terminal apps]
     T --> W[Local workspace state]
     F --> R
     C["construct okf lint"] --> O
@@ -67,6 +68,23 @@ Pure domain logic should stay outside `App.tsx` so it can be tested without a we
 - workspace persistence;
 - read-only Git inspection;
 - Finder and external-link integration.
+- registered Location identity and terminal-launch authorization.
+
+`src-tauri/src/terminal.rs` owns the external-terminal adapter boundary:
+
+- detects a reviewed set of installed applications;
+- translates a terminal ID and validated directory into structured process
+  arguments;
+- supports Apple Terminal, iTerm2, Ghostty, and WezTerm on macOS plus Windows
+  Terminal on Windows;
+- never accepts document content, arbitrary executables, or command strings.
+
+The frontend asks with a Location ID and relative directory.
+`desktop.rs` resolves the registered canonical root and rejects absolute paths,
+parent traversal, missing directories, symlink escapes, and unknown Locations
+before calling an adapter. Starting the external application ends Construct's
+involvement: commands, output, history, and process lifetime belong to the
+terminal.
 
 `src-tauri/src/okf.rs` owns the shared, read-only OKF interpretation:
 
@@ -178,7 +196,7 @@ The frontend can operate only on files under registered locations. Path validati
 
 ## Persistence
 
-Workspace state is stored as `workspace.json` in the platform application data directory. It contains locations, UI layout, tabs, history metadata, and file fingerprints, but never document contents.
+Workspace state is stored as `workspace.json` in the platform application data directory. It contains locations, UI layout, tabs, history metadata, file fingerprints, and the optional ID of a known terminal adapter, but never document contents, terminal commands, output, or arbitrary executable configuration.
 
 The workspace may also retain up to 20 explicitly submitted recent knowledge
 queries with Location IDs and filters. This retention is local, user-clearable,

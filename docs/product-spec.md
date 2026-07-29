@@ -72,7 +72,8 @@ exigem coleta de dados no preview.
 ## 5. Não objetivos do produto atual
 
 - Substituir uma IDE ou editor de código completo.
-- Executar coding agents ou hospedar terminais.
+- Executar coding agents automaticamente ou hospedar terminais dentro do
+  Construct.
 - Fazer commits, staging, checkout, merge ou outras operações de escrita no Git.
 - Sincronizar arquivos entre dispositivos.
 - Colaborar em tempo real com outras pessoas.
@@ -593,6 +594,31 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
 - **AGENT-013:** O serviço usa socket Unix no macOS/Unix e named pipe no Windows, sempre com token por profile, sem listener de rede.
 
+### 10.19 Handoff para terminal externo
+
+- **TERM-001:** O usuário pode abrir explicitamente um terminal suportado na
+  raiz do Local selecionado.
+- **TERM-002:** O usuário pode abrir o terminal na pasta que contém o documento
+  ativo por toolbar ou menu de contexto.
+- **TERM-003:** Quando houver mais de um terminal suportado instalado, a
+  interface permite escolher um aplicativo e preserva essa preferência.
+- **TERM-004:** O frontend envia apenas ID do Local, diretório relativo e ID de
+  um adaptador conhecido; não pode enviar executável ou comando arbitrário.
+- **TERM-005:** O núcleo nativo resolve e canonicaliza o diretório e rejeita
+  caminhos absolutos, `..`, links simbólicos que escapem e qualquer destino
+  fora do Local registrado.
+- **TERM-006:** O handoff não envia conteúdo do documento, não inicia um coding
+  agent e não observa comandos, histórico, output ou processos do terminal.
+- **TERM-007:** A operação não é exposta por MCP, Markdown renderizado, Review,
+  busca ou context packs.
+- **TERM-008:** macOS suporta Apple Terminal, iTerm2, Ghostty e WezTerm quando
+  instalados. Windows suporta Windows Terminal quando disponível. Linux
+  desktop permanece fora do escopo atual.
+- **TERM-009:** Falha ou remoção do aplicativo preferido produz erro recuperável
+  em inglês e permite escolher outro aplicativo instalado.
+- **TERM-010:** Abrir o terminal não modifica documentos, Histórico, índice,
+  Review, Git ou estado de salvamento.
+
 ## 11. Estados e tratamento de erros
 
 ### 11.1 Estado vazio inicial
@@ -672,6 +698,13 @@ O Histórico não armazena o conteúdo do arquivo.
 - foco atual;
 - dimensões da janela e sidebar.
 
+### 12.5 Preferência de terminal
+
+- ID estável de um adaptador de terminal conhecido;
+- nenhuma linha de comando, argumento customizado, conteúdo ou caminho;
+- ausência de preferência quando o aplicativo escolhido deixa de estar
+  disponível.
+
 ## 13. Privacidade e segurança
 
 - Todo processamento de arquivos deve acontecer localmente.
@@ -687,6 +720,11 @@ O Histórico não armazena o conteúdo do arquivo.
 - Logs de diagnóstico devem permanecer locais, usar rotação limitada e poder ser apagados sem afetar arquivos, estado ou índices.
 - Logs de busca podem registrar versão, plataforma, geração, contagens agregadas, duração, estado de schema/analyzer, probes sem conteúdo e erros sanitizados.
 - Logs de busca não podem registrar texto da consulta, conteúdo, nomes de arquivo, caminhos locais ou valores de frontmatter.
+- O launcher de terminal deve aceitar somente adaptadores conhecidos e
+  diretórios derivados de Locais registrados.
+- O terminal externo recebe apenas o diretório inicial e mantém sua autoridade
+  normal de usuário; Construct não o monitora nem o apresenta como sandbox.
+- Nenhum documento, agente ou cliente MCP pode acionar o launcher.
 
 ## 14. Desempenho e confiabilidade
 
@@ -807,6 +845,8 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 - linter OKF CLI stateless com texto, JSON e thresholds de CI;
 - MCP stdio local, read-only e allowlisted no macOS, Windows e Unix;
 - overview e atividade local de 15 dias para orientar agentes.
+- handoff explícito para um terminal externo suportado na raiz de um Local ou na
+  pasta de um documento.
 
 ### Adiado
 
@@ -925,6 +965,19 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 - Mudanças, leituras servidas e inclusão em context packs permanecem contadores
   separados na atividade local.
 
+### 19.10 Continuar o trabalho em um terminal
+
+- A ação do cabeçalho abre o Local selecionado no terminal preferido.
+- A toolbar e os menus de contexto abrem a pasta do documento, não o arquivo.
+- Na primeira ação com múltiplos terminais instalados, o usuário escolhe qual
+  usar e a escolha é restaurada após reiniciar.
+- Trocar a preferência não executa um comando nem abre um terminal
+  silenciosamente.
+- Caminhos com espaços, acentos e Unicode chegam intactos ao aplicativo.
+- Um caminho fora do Local é rejeitado antes de iniciar qualquer processo.
+- O terminal não recebe conteúdo do documento nem um comando de agente.
+- O MCP continua sem capacidade de shell.
+
 ## 20. Estratégia de validação
 
 Antes de considerar o preview estável, validar:
@@ -966,7 +1019,7 @@ Possíveis etapas após o preview atual, sem ordem definitiva:
 11. Imagens locais em Edit, com inserção e cópia para uma pasta estável do projeto.
 12. Busca vetorial local opcional, apenas se avaliação demonstrar ganho sobre
     texto e grafo.
-13. Ações contextuais, como copiar Markdown renderizado ou caminho para o terminal.
+13. Ações contextuais, como copiar Markdown renderizado.
 
 ## 22. Decisões ainda abertas
 
@@ -1020,6 +1073,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-27 | Habilitar índice local e MCP no Windows com named pipe autenticado por token, sem listener de rede; normalizar identidades canônicas `\\?\` no frontend. |
 | 2026-07-27 | Organizar a documentação pública pelas jornadas de usuário, CLI, MCP, desenvolvimento, produto e arquitetura, mantendo README como entrada curta. |
 | 2026-07-28 | Isolar o linter em um build CLI-only, distribuí-lo para Linux x64 e oferecer uma GitHub Action fina que verifica o artefato versionado e preserva o contrato do CLI. |
+| 2026-07-29 | Oferecer handoff explícito para terminais externos conhecidos a partir de Locais e documentos, sem comandos arbitrários, conteúdo, monitoramento ou acesso por MCP; terminal embutido permanece adiado. |
 
 ## 24. Histórico do documento
 
@@ -1039,3 +1093,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.12 | 2026-07-27 | Ciclo de distribuição distinguindo draft privado, pre-release pública não assinada e release estável confiável. |
 | 0.13 | 2026-07-27 | Índice local e MCP no Windows via named pipe autenticado, incluindo compatibilidade com caminhos canônicos Windows. |
 | 0.14 | 2026-07-28 | Build CLI-only para Linux x64 e GitHub Action versionada sobre o contrato JSON do linter. |
+| 0.15 | 2026-07-29 | Handoff seguro para terminal externo por adaptadores conhecidos e diretório relativo validado dentro de um Local. |

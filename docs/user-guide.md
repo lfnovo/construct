@@ -14,6 +14,7 @@ The preview currently has these platform boundaries:
 | Capability | macOS | Windows x64 | Linux x64 |
 | --- | --- | --- | --- |
 | Desktop Markdown workspace | Yes | Preview | No |
+| Open an external terminal at a Location | Yes | Preview | No |
 | Stateless `construct okf lint` CLI | Yes | Yes | Yes |
 | Local full-text index | Yes | Yes | No |
 | Local MCP server | Yes | Yes | No |
@@ -121,6 +122,33 @@ Select a file under **Files** to open it in the active pane. You can:
 Use `⌘P` to quick-open a file by partial name or relative path across registered
 Locations. Use `↑` and `↓` to move through the results, `Enter` to open one, and
 `Esc` to close the finder.
+
+### Open the terminal where the work is
+
+Use the terminal button in the **Locations** header to open the selected
+Location in an installed terminal application. From a document, use the
+terminal button in its toolbar or **Open terminal here** in the file or tab
+context menu to start in that document's containing folder.
+
+Construct detects these applications on macOS:
+
+- Terminal;
+- iTerm2;
+- Ghostty;
+- WezTerm.
+
+On Windows, the preview detects Windows Terminal. The first time more than one
+supported application is available, Construct asks which one to use and keeps
+only that application ID in local workspace settings. Use **Choose terminal
+application…** from a Location, file, or tab context menu to change it.
+
+The handoff is deliberately narrow:
+
+- Construct passes the validated starting directory, not document content;
+- it does not start Codex, Claude Code, or another command automatically;
+- it does not observe terminal commands, output, history, or processes;
+- the terminal has the normal authority of your operating-system account;
+- MCP and rendered Markdown cannot invoke this action.
 
 ### 3. Choose a document mode
 

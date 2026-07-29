@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, ShieldCheck, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./explore";
@@ -16,10 +16,12 @@ import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
 import { moveQuickOpenSelection } from "./quickOpen";
 import { pathBelongsToLocation, pathIdentity, pathsEqual } from "./paths";
+import { relativeDirectoryForFile, selectedTerminal } from "./terminal";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationRecord,
-  Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, TabMode,
+  Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, TabMode, TerminalApplication,
+  TerminalApplicationId,
 } from "./types";
 
 const VisualEditor = lazy(() => import("./VisualEditor").then(({ VisualEditor: Component }) => ({ default: Component })));
@@ -93,6 +95,7 @@ function indexStatusTitle(status: IndexStatus | undefined) {
 }
 
 type TreeNode = { children: Map<string, TreeNode>; entry?: FileEntry };
+type TerminalTarget = { locationId: string; relativeDirectory: string };
 
 function makeTree(entries: FileEntry[]) {
   const root: TreeNode = { children: new Map() };
@@ -228,14 +231,18 @@ export default function App() {
   const [rememberRecentSearches, setRememberRecentSearches] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [terminalApplications, setTerminalApplications] = useState<TerminalApplication[]>([]);
+  const [terminalApplicationId, setTerminalApplicationId] = useState<TerminalApplicationId>();
+  const [terminalPicker, setTerminalPicker] = useState<{ target: TerminalTarget | null } | null>(null);
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickOpenSelection, setQuickOpenSelection] = useState(0);
   const [query, setQuery] = useState("");
   const [historyFilter, setHistoryFilter] = useState<HistoryKind | "all">("all");
-  const [fileContext, setFileContext] = useState<{ file: FileEntry; x: number; y: number } | null>(null);
+  const [fileContext, setFileContext] = useState<{ file: FileEntry; locationId: string; x: number; y: number } | null>(null);
   const [tabContext, setTabContext] = useState<{ tab: DocumentTab; paneId: string; x: number; y: number } | null>(null);
+  const [locationContext, setLocationContext] = useState<{ location: LocationRecord; x: number; y: number } | null>(null);
   const [pendingClose, setPendingClose] = useState<{ paneId: string; tabId: string } | null>(null);
   const locationsRef = useRef(locations);
   const filesRef = useRef(filesByLocation);
@@ -249,6 +256,61 @@ export default function App() {
   panesRef.current = panes;
 
   const notify = useCallback((message: string) => { setNotice(message); window.setTimeout(() => setNotice((current) => current === message ? null : current), 4200); }, []);
+
+  const launchTerminal = useCallback(async (
+    application: TerminalApplication,
+    target: TerminalTarget,
+  ) => {
+    try {
+      const result = await api.openTerminal({
+        locationId: target.locationId,
+        relativeDirectory: target.relativeDirectory,
+        terminalApplicationId: application.id,
+      });
+      const location = locationsRef.current.find((item) => item.id === target.locationId);
+      const directory = target.relativeDirectory
+        ? `${location?.name || "Location"}/${target.relativeDirectory}`
+        : location?.name || "the Location";
+      notify(`Opened ${result.application.label} at ${directory}.`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error));
+      void api.listTerminalApplications().then(setTerminalApplications).catch(() => undefined);
+    }
+  }, [notify]);
+
+  const requestTerminal = useCallback((target: TerminalTarget) => {
+    if (!terminalApplications.length) {
+      notify("No supported terminal application was found.");
+      return;
+    }
+    const selected = selectedTerminal(terminalApplications, terminalApplicationId);
+    if (selected) {
+      void launchTerminal(selected, target);
+      return;
+    }
+    if (terminalApplications.length === 1) {
+      const [onlyApplication] = terminalApplications;
+      setTerminalApplicationId(onlyApplication.id);
+      void launchTerminal(onlyApplication, target);
+      return;
+    }
+    setTerminalPicker({ target });
+  }, [launchTerminal, notify, terminalApplicationId, terminalApplications]);
+
+  const chooseTerminal = useCallback((application: TerminalApplication) => {
+    const target = terminalPicker?.target;
+    setTerminalApplicationId(application.id);
+    setTerminalPicker(null);
+    if (target) void launchTerminal(application, target);
+  }, [launchTerminal, terminalPicker]);
+
+  const openTerminalSettings = useCallback(() => {
+    if (!terminalApplications.length) {
+      notify("No supported terminal application was found.");
+      return;
+    }
+    setTerminalPicker({ target: null });
+  }, [notify, terminalApplications]);
 
   const addHistory = useCallback((events: HistoryEvent[]) => {
     if (!events.length) return;
@@ -394,10 +456,10 @@ export default function App() {
 
   const configureLocations = useCallback(async (next: LocationRecord[]) => {
     try {
-      const watched = await api.setWatchedLocations(next.map((location) => location.path));
+      const watched = await api.setWatchedLocations(next.map(({ id, path }) => ({ id, path })));
       setLocations((current) => current.map((location) => ({
         ...location,
-        available: watched.some((path) => pathsEqual(path, location.path)),
+        available: watched.includes(location.id),
       })));
       return watched;
     } catch (error) {
@@ -658,6 +720,14 @@ export default function App() {
         setSidebarHidden(saved.sidebarHidden || false);
         setCollapsedSections(saved.collapsedSections || {});
         setTheme(saved.theme || "dark");
+        setTerminalApplicationId(saved.terminalApplicationId);
+        void api.listTerminalApplications().then((availableTerminals) => {
+          if (!mounted) return;
+          setTerminalApplications(availableTerminals);
+          setTerminalApplicationId(
+            selectedTerminal(availableTerminals, saved.terminalApplicationId)?.id,
+          );
+        }).catch(() => undefined);
         setRememberRecentSearches(saved.rememberRecentSearches !== false);
         setRecentSearches((saved.recentSearches || []).slice(0, 20));
         setLayout(restoredLayout);
@@ -722,13 +792,14 @@ export default function App() {
         sidebarHidden,
         collapsedSections,
         theme,
+        terminalApplicationId,
         rememberRecentSearches,
         recentSearches: rememberRecentSearches ? recentSearches.slice(0, 20) : [],
       };
       void api.saveState(state).catch(() => undefined);
     }, 450);
     return () => window.clearTimeout(handle);
-  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, recentSearches, rememberRecentSearches, selectedLocationId, sidebarHidden, sidebarWidth, theme]);
+  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, recentSearches, rememberRecentSearches, selectedLocationId, sidebarHidden, sidebarWidth, terminalApplicationId, theme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -790,6 +861,7 @@ export default function App() {
 
   const activeLocation = locations.find((location) => location.id === selectedLocationId) || null;
   const exploreLocation = locations.find((location) => location.id === exploreLocationId) || null;
+  const activeTerminal = selectedTerminal(terminalApplications, terminalApplicationId);
   const fileResults = useMemo(() => Object.entries(filesByLocation).flatMap(([locationId, files]) => files.map((file) => ({ ...file, locationId }))).filter((file) => `${file.name} ${file.relativePath}`.toLowerCase().includes(query.toLowerCase())).slice(0, 100), [filesByLocation, query]);
   const activeQuickOpenIndex = fileResults.length
     ? Math.min(quickOpenSelection, fileResults.length - 1)
@@ -858,6 +930,7 @@ export default function App() {
             ))}
           </div>
           <button className="toolbar-button" disabled={!tab.dirty || tab.deleted} onClick={() => void saveTab(pane.id, tab.id)}>Save</button>
+          <button className="icon-button" title={`Open ${activeTerminal?.label || "terminal"} here`} onClick={() => requestTerminal({ locationId: tab.locationId, relativeDirectory: relativeDirectoryForFile(tab.relativePath) })}><SquareTerminal size={14} /></button>
           <button className="icon-button" title="Reveal in Finder" onClick={() => void api.revealInFileManager(tab.path)}><Folder size={14} /></button>
         </div>
         {tab.conflict && <div className="conflict-banner"><span>This file changed outside the app.</span><button onClick={() => void reloadExternal()}>Reload external version</button><button onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, conflict: false }))}>Keep my changes</button></div>}
@@ -906,14 +979,14 @@ export default function App() {
   return <main className={`app-shell ${sidebarHidden ? "sidebar-hidden" : ""}`} data-theme={theme} style={{ gridTemplateColumns: sidebarHidden ? "38px minmax(0, 1fr)" : `${sidebarWidth}px 5px minmax(0, 1fr)` }}>
     {sidebarHidden ? <aside className="sidebar-rail"><button className="sidebar-toggle" onClick={() => setSidebarHidden(false)} title="Show sidebar" aria-label="Show sidebar"><PanelLeftOpen size={16} /></button></aside> : <aside className="sidebar">
       <section className="sidebar-section locations-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button>{activeLocation && <button className="theme-button" onClick={() => { void api.getMcpConfiguration(activeLocation.id).then((configuration) => navigator.clipboard.writeText(configuration)).then(() => notify(`MCP configuration copied for ${activeLocation.name}.`)).catch((cause) => notify(`Could not copy the MCP configuration: ${cause instanceof Error ? cause.message : String(cause)}`)); }} title={`Copy MCP configuration for ${activeLocation.name}`} aria-label={`Copy MCP configuration for ${activeLocation.name}`}><Clipboard size={14} /></button>}<button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
-        {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} title={location.path}>
+        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button>{activeLocation && <button className="theme-button" onClick={() => requestTerminal({ locationId: activeLocation.id, relativeDirectory: "" })} title={`Open ${activeTerminal?.label || "terminal"} at ${activeLocation.name}`} aria-label={`Open terminal at ${activeLocation.name}`}><SquareTerminal size={14} /></button>}{activeLocation && <button className="theme-button" onClick={() => { void api.getMcpConfiguration(activeLocation.id).then((configuration) => navigator.clipboard.writeText(configuration)).then(() => notify(`MCP configuration copied for ${activeLocation.name}.`)).catch((cause) => notify(`Could not copy the MCP configuration: ${cause instanceof Error ? cause.message : String(cause)}`)); }} title={`Copy MCP configuration for ${activeLocation.name}`} aria-label={`Copy MCP configuration for ${activeLocation.name}`}><Clipboard size={14} /></button>}<button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
+        {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} onContextMenu={(event) => { event.preventDefault(); setLocationContext({ location, x: event.clientX, y: event.clientY }); }} title={location.path}>
           <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span>{location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}<button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
         </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
       </section>
       <section className="sidebar-section files-section">
         <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}<button className="search-button" onClick={openKnowledgeSearch}><SearchIcon size={11} /> Search</button>{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setSearchSession(null); setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
-        {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>)}
+        {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, locationId: activeLocation.id, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>)}
       </section>
       <section className="sidebar-section history-section">
         <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, history: !current.history }))}>{collapsedSections.history ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><History size={13} /><span>HISTORY</span><select aria-label="Filter history" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value as HistoryKind | "all")}><option value="all">All</option><option value="created">New</option><option value="modified">Changed</option><option value="renamed">Renamed</option><option value="removed">Removed</option></select><button className="clear-history" title="Clear history" onClick={() => { if (window.confirm("Clear all local history? This will not alter any files.")) setHistory([]); }}><X size={13} /></button></div>
@@ -972,16 +1045,32 @@ export default function App() {
         onMouseEnter={() => setQuickOpenSelection(index)}
         onClick={() => { void openFile(file); setQuickOpen(false); }}
       ><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
+    {locationContext && <div className="context-backdrop" onMouseDown={() => setLocationContext(null)}><div className="context-menu" style={{ left: locationContext.x, top: locationContext.y }} onMouseDown={(event) => event.stopPropagation()}>
+      <button onClick={() => { requestTerminal({ locationId: locationContext.location.id, relativeDirectory: "" }); setLocationContext(null); }}><SquareTerminal size={13} /> Open terminal at Location</button>
+      <button onClick={() => { openTerminalSettings(); setLocationContext(null); }}><Settings2 size={13} /> Choose terminal application…</button>
+      <button onClick={() => { void api.revealInFileManager(locationContext.location.path); setLocationContext(null); }}><Folder size={13} /> Reveal in Finder</button>
+      <button onClick={() => { void removeLocation(locationContext.location.id); setLocationContext(null); }}><X size={13} /> Remove Location</button>
+    </div></div>}
     {fileContext && <div className="context-backdrop" onMouseDown={() => setFileContext(null)}><div className="context-menu" style={{ left: fileContext.x, top: fileContext.y }} onMouseDown={(event) => event.stopPropagation()}>
       <button onClick={() => { openFile(fileContext.file); setFileContext(null); }}>Open</button>
       <button onClick={() => { openFile(fileContext.file, true); setFileContext(null); }}>Open to the right</button>
+      <button onClick={() => { requestTerminal({ locationId: fileContext.locationId, relativeDirectory: relativeDirectoryForFile(fileContext.file.relativePath) }); setFileContext(null); }}><SquareTerminal size={13} /> Open terminal here</button>
+      <button onClick={() => { openTerminalSettings(); setFileContext(null); }}><Settings2 size={13} /> Choose terminal application…</button>
       <button onClick={() => { void navigator.clipboard.writeText(fileContext.file.path); setFileContext(null); notify("Path copied."); }}><Clipboard size={13} /> Copy path</button>
       <button onClick={() => { void api.revealInFileManager(fileContext.file.path); setFileContext(null); }}>Reveal in Finder</button>
     </div></div>}
     {tabContext && <div className="context-backdrop" onMouseDown={() => setTabContext(null)}><div className="context-menu" style={{ left: tabContext.x, top: tabContext.y }} onMouseDown={(event) => event.stopPropagation()}>
       <button onClick={() => { void reloadTab(tabContext.paneId, tabContext.tab.id); setTabContext(null); }}>Reload from disk</button>
+      <button onClick={() => { requestTerminal({ locationId: tabContext.tab.locationId, relativeDirectory: relativeDirectoryForFile(tabContext.tab.relativePath) }); setTabContext(null); }}><SquareTerminal size={13} /> Open terminal here</button>
+      <button onClick={() => { openTerminalSettings(); setTabContext(null); }}><Settings2 size={13} /> Choose terminal application…</button>
       <button onClick={() => { void navigator.clipboard.writeText(tabContext.tab.path); setTabContext(null); notify("Path copied."); }}><Clipboard size={13} /> Copy path</button>
       <button onClick={() => { void api.revealInFileManager(tabContext.tab.path); setTabContext(null); }}>Reveal in Finder</button>
+    </div></div>}
+    {terminalPicker && <div className="modal-backdrop" onMouseDown={() => setTerminalPicker(null)}><div className="terminal-picker-modal" role="dialog" aria-modal="true" aria-labelledby="terminal-picker-title" onKeyDown={(event) => { if (event.key === "Escape") setTerminalPicker(null); }} onMouseDown={(event) => event.stopPropagation()}>
+      <h2 id="terminal-picker-title">Choose terminal application</h2>
+      <p>{terminalPicker.target ? "Construct will remember your choice and open this directory." : "Construct will use this application for future terminal actions."}</p>
+      <div className="terminal-application-list">{terminalApplications.map((application, index) => <button key={application.id} autoFocus={application.id === terminalApplicationId || (!terminalApplicationId && index === 0)} className={application.id === terminalApplicationId ? "selected" : ""} onClick={() => chooseTerminal(application)}><SquareTerminal size={16} /><span><strong>{application.label}</strong><small>{application.id === terminalApplicationId ? "Current selection" : "Installed"}</small></span></button>)}</div>
+      <div className="terminal-picker-actions"><button onClick={() => setTerminalPicker(null)}>Cancel</button></div>
     </div></div>}
     {pendingClose && <div className="modal-backdrop"><div className="confirm-modal"><h2>Save changes?</h2><p>This file has unsaved changes.</p><div><button onClick={() => setPendingClose(null)}>Cancel</button><button className="danger-button" onClick={() => { discardTab(pendingClose.paneId, pendingClose.tabId); setPendingClose(null); }}>Don’t save</button><button className="primary-button" onClick={() => { const request = pendingClose; setPendingClose(null); void saveTab(request.paneId, request.tabId).then((saved) => { if (saved) discardTab(request.paneId, request.tabId); }); }}>Save</button></div></div></div>}
     {notice && <div className="toast">{notice}</div>}
