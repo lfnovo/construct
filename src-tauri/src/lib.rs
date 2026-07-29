@@ -13,6 +13,8 @@ mod index;
 mod knowledge;
 #[cfg(feature = "desktop")]
 mod mcp;
+#[cfg(feature = "desktop")]
+mod terminal;
 
 pub(crate) const IGNORED_DIRECTORIES: &[&str] = &[
     ".git",

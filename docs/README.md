@@ -38,6 +38,9 @@ used by people and coding agents.
 - [Local retrieval and agent access](proposals/retrieval/README.md) — focused
   RFCs covering OKF compatibility, local indexing, search, graph-aware context,
   MCP, linting, and review integration.
+- [Terminal integration](proposals/terminal-integration.md) — accepted external
+  terminal handoff plus a proposed path to a PTY-backed terminal tab if product
+  evidence justifies it.
 
 Documents marked **Current** describe accepted behavior. Documents marked
 **Proposed** are discussion material and may intentionally disagree with the

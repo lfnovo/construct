@@ -34,6 +34,24 @@ export type LocationRecord = {
   okfMode?: "auto" | "manual" | "disabled";
 };
 
+export type TerminalApplicationId =
+  | "apple-terminal"
+  | "iterm2"
+  | "ghostty"
+  | "wezterm"
+  | "windows-terminal";
+
+export type TerminalApplication = {
+  id: TerminalApplicationId;
+  label: string;
+};
+
+export type OpenTerminalResult = {
+  application: TerminalApplication;
+  locationId: string;
+  relativeDirectory: string;
+};
+
 export type FileFingerprint = Pick<FileEntry, "path" | "relativePath" | "modifiedAtMs" | "size">;
 
 export type HistoryKind = "created" | "modified" | "renamed" | "removed";
@@ -94,6 +112,7 @@ export type SavedWorkspace = {
   sidebarHidden?: boolean;
   collapsedSections: Record<string, boolean>;
   theme: "dark" | "light";
+  terminalApplicationId?: TerminalApplicationId;
   rememberRecentSearches?: boolean;
   recentSearches?: RecentKnowledgeSearch[];
 };

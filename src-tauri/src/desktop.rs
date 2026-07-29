@@ -1,13 +1,13 @@
-use crate::{diagnostics, index, knowledge, okf, okf_policy, IGNORED_DIRECTORIES};
+use crate::{diagnostics, index, knowledge, okf, okf_policy, terminal, IGNORED_DIRECTORIES};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::Command,
     sync::Mutex,
 };
@@ -16,7 +16,7 @@ use walkdir::{DirEntry, WalkDir};
 
 #[derive(Default)]
 struct WatchState {
-    roots: Mutex<Vec<PathBuf>>,
+    locations: Mutex<HashMap<String, PathBuf>>,
     watchers: Mutex<Vec<RecommendedWatcher>>,
 }
 
@@ -67,6 +67,30 @@ struct FsChange {
 struct WriteFileRequest {
     path: String,
     content: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WatchedLocationRequest {
+    id: String,
+    path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenTerminalRequest {
+    location_id: String,
+    #[serde(default)]
+    relative_directory: String,
+    terminal_application_id: terminal::TerminalApplicationId,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenTerminalResult {
+    application: terminal::TerminalApplication,
+    location_id: String,
+    relative_directory: String,
 }
 
 fn app_data_file(app: &AppHandle) -> Result<PathBuf, String> {
@@ -131,10 +155,10 @@ fn is_allowed(path: &Path, state: &WatchState) -> bool {
     let Ok(candidate) = path.canonicalize() else {
         return false;
     };
-    let Ok(roots) = state.roots.lock() else {
+    let Ok(locations) = state.locations.lock() else {
         return false;
     };
-    roots.iter().any(|root| candidate.starts_with(root))
+    locations.values().any(|root| candidate.starts_with(root))
 }
 
 fn require_allowed(path: &str, state: &WatchState) -> Result<PathBuf, String> {
@@ -249,20 +273,22 @@ fn save_app_state(app: AppHandle, state: Value) -> Result<(), String> {
 fn set_watched_locations(
     app: AppHandle,
     state: State<WatchState>,
-    locations: Vec<String>,
+    locations: Vec<WatchedLocationRequest>,
 ) -> Result<Vec<String>, String> {
     let mut unique_roots = Vec::new();
+    let mut registered_locations = HashMap::new();
     let mut seen = HashSet::new();
     for location in locations {
-        let Ok(root) = normalize_path(&location) else {
+        let Ok(root) = normalize_path(&location.path) else {
             continue;
         };
         if !root.is_dir() {
             continue;
         }
         if seen.insert(root.clone()) {
-            unique_roots.push(root);
+            unique_roots.push(root.clone());
         }
+        registered_locations.insert(location.id, root);
     }
 
     let mut next_watchers = Vec::new();
@@ -293,17 +319,74 @@ fn set_watched_locations(
     }
 
     *state
-        .roots
+        .locations
         .lock()
-        .map_err(|_| "Filesystem monitoring is unavailable.".to_string())? = unique_roots.clone();
+        .map_err(|_| "Filesystem monitoring is unavailable.".to_string())? = registered_locations;
     *state
         .watchers
         .lock()
         .map_err(|_| "Filesystem monitoring is unavailable.".to_string())? = next_watchers;
-    Ok(unique_roots
-        .iter()
-        .map(|root| root.to_string_lossy().to_string())
+    Ok(state
+        .locations
+        .lock()
+        .map_err(|_| "Filesystem monitoring is unavailable.".to_string())?
+        .keys()
+        .cloned()
         .collect())
+}
+
+fn registered_directory(
+    location_id: &str,
+    relative_directory: &str,
+    state: &WatchState,
+) -> Result<PathBuf, String> {
+    let root = state
+        .locations
+        .lock()
+        .map_err(|_| "Registered Locations are unavailable.".to_string())?
+        .get(location_id)
+        .cloned()
+        .ok_or_else(|| "This Location is not registered in Construct.".to_string())?;
+    let relative = Path::new(relative_directory);
+    if relative.components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    }) {
+        return Err("The terminal directory must stay inside its Location.".to_string());
+    }
+    let directory = normalize_path(&root.join(relative).to_string_lossy())?;
+    if !directory.is_dir() || !directory.starts_with(&root) {
+        return Err("The terminal directory must stay inside its Location.".to_string());
+    }
+    Ok(directory)
+}
+
+#[tauri::command]
+fn list_terminal_applications() -> Vec<terminal::TerminalApplication> {
+    terminal::available_applications()
+}
+
+#[tauri::command]
+async fn open_terminal(
+    request: OpenTerminalRequest,
+    state: State<'_, WatchState>,
+) -> Result<OpenTerminalResult, String> {
+    let directory =
+        registered_directory(&request.location_id, &request.relative_directory, &state)?;
+    let location_id = request.location_id;
+    let relative_directory = request.relative_directory.replace('\\', "/");
+    let application = tauri::async_runtime::spawn_blocking(move || {
+        terminal::launch(request.terminal_application_id, &directory)
+    })
+    .await
+    .map_err(|error| format!("The terminal launch task failed: {error}"))??;
+    Ok(OpenTerminalResult {
+        application,
+        location_id,
+        relative_directory,
+    })
 }
 
 #[tauri::command]
@@ -702,6 +785,8 @@ pub(crate) fn run() {
             get_git_diff,
             reveal_in_file_manager,
             open_external_url,
+            list_terminal_applications,
+            open_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Construct");
@@ -726,6 +811,68 @@ mod tests {
         assert!(is_markdown(Path::new("notes.MARKDOWN")));
         assert!(!is_markdown(Path::new("notes.txt")));
         assert!(!is_markdown(Path::new("notes")));
+    }
+
+    #[test]
+    fn terminal_directory_resolves_inside_registered_location() {
+        let root = temporary_root();
+        fs::create_dir_all(root.join("docs/guides")).expect("create nested directory");
+        let root = root.canonicalize().expect("canonicalize temporary root");
+        let state = WatchState::default();
+        state
+            .locations
+            .lock()
+            .expect("lock locations")
+            .insert("knowledge".to_string(), root.clone());
+
+        assert_eq!(
+            registered_directory("knowledge", "docs/guides", &state)
+                .expect("resolve terminal directory"),
+            root.join("docs/guides")
+                .canonicalize()
+                .expect("canonicalize terminal directory")
+        );
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn terminal_directory_rejects_parent_and_unknown_location() {
+        let root = temporary_root();
+        let root = root.canonicalize().expect("canonicalize temporary root");
+        let state = WatchState::default();
+        state
+            .locations
+            .lock()
+            .expect("lock locations")
+            .insert("knowledge".to_string(), root.clone());
+
+        assert!(registered_directory("knowledge", "../outside", &state).is_err());
+        assert!(registered_directory("missing", "", &state).is_err());
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn terminal_directory_rejects_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let root = temporary_root();
+        let outside = temporary_root();
+        symlink(&outside, root.join("escape")).expect("create escaping symlink");
+        let root = root.canonicalize().expect("canonicalize temporary root");
+        let state = WatchState::default();
+        state
+            .locations
+            .lock()
+            .expect("lock locations")
+            .insert("knowledge".to_string(), root.clone());
+
+        assert!(registered_directory("knowledge", "escape", &state).is_err());
+
+        fs::remove_dir_all(root).expect("remove temporary root");
+        fs::remove_dir_all(outside).expect("remove outside directory");
     }
 
     #[test]
