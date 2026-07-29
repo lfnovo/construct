@@ -5,8 +5,8 @@
 | Campo | Valor |
 | --- | --- |
 | Status | Preview funcional em fase de hardening |
-| Versão | 0.13 |
-| Data | 27 de julho de 2026 |
+| Versão | 0.16 |
+| Data | 29 de julho de 2026 |
 | Plataforma principal | macOS |
 | Preview adicional | Windows x64 com índice local e MCP |
 | Plataforma futura | Linux |
@@ -593,6 +593,10 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
 - **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
 - **AGENT-013:** O serviço usa socket Unix no macOS/Unix e named pipe no Windows, sempre com token por profile, sem listener de rede.
+- **AGENT-014:** No Windows, uma invocação desktop deve se desacoplar do console
+  antes de iniciar a interface, enquanto `okf`, `service` e `mcp serve`
+  permanecem anexados ao console com stdin, stdout, stderr e códigos de saída
+  preservados.
 
 ### 10.19 Handoff para terminal externo
 
@@ -1094,3 +1098,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.13 | 2026-07-27 | Índice local e MCP no Windows via named pipe autenticado, incluindo compatibilidade com caminhos canônicos Windows. |
 | 0.14 | 2026-07-28 | Build CLI-only para Linux x64 e GitHub Action versionada sobre o contrato JSON do linter. |
 | 0.15 | 2026-07-29 | Handoff seguro para terminal externo por adaptadores conhecidos e diretório relativo validado dentro de um Local. |
+| 0.16 | 2026-07-29 | Inicialização desktop no Windows desacoplada do console, preservando console e stdio para CLI, serviço e MCP no executável compartilhado. |
