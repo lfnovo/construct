@@ -275,6 +275,20 @@ clipboard handoff share one interpretation. Visual Edit removes the review block
 from Milkdown's input and reattaches it unchanged; OKF link extraction excludes it.
 Malformed review data fails closed to Source rather than being rewritten.
 
+New review entries may add a backward-compatible passage locator containing
+normalized offsets and bounded surrounding context. `reviewAnchors.ts` resolves
+the original range, contextual repeated matches, and unique legacy quotes
+without guessing. Review highlights are temporary render decorations:
+`reviewDom.ts` maps normalized ranges onto rendered text nodes, while
+`ReviewEditor.tsx` owns active-comment state and bidirectional navigation.
+Unresolved comments remain durable and are presented as detached.
+
+`DocumentModeSurface.tsx` captures runtime scroll state for each open tab and
+mode. Explicit mode changes transfer a bounded semantic text anchor; the target
+surface resolves that block after its renderer is ready and falls back to a
+proportional position. This UI state is not written to Markdown or persisted in
+`workspace.json`.
+
 OKF support is derived and non-destructive:
 
 - the bundle remains the source of truth;

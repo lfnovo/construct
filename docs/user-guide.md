@@ -204,9 +204,22 @@ Comments live in a versioned `construct-review:v1` HTML comment inside the
 Markdown. Preview hides the block, Source keeps it inspectable, and agents can
 read it without needing Construct.
 
+The selected passage is highlighted in Review. Choose a highlight to reveal its
+comment, or choose a comment to return directly to the passage. Construct stores
+bounded context with new comments so repeated text can be distinguished. Older
+comments remain compatible and are highlighted when their quote is unique.
+
+If an edit removes a passage or makes its location ambiguous, the comment stays
+available with a **Passage changed** state. Construct never moves the comment to
+an arbitrary matching sentence.
+
 Removing one comment preserves the others. Removing the last comment deletes
 the review block and restores the original document content around it. Review
 actions follow the same explicit-save behavior as normal editing.
+
+Changing between Preview, Edit, Review, and Source keeps the current semantic
+passage in view when possible. Each mode also retains its latest scroll
+position while the tab remains open.
 
 ## Search local knowledge
 
