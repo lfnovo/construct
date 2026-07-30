@@ -1,4 +1,5 @@
 import { splitMarkdownDocument } from "./markdownDocument.ts";
+import type { ReviewAnchor } from "./reviewAnchors.ts";
 
 const REVIEW_MARKER = "<!-- construct-review:v1";
 const REVIEW_START = `${REVIEW_MARKER}\n`;
@@ -9,6 +10,7 @@ export type ReviewComment = {
   quote: string;
   comment: string;
   createdAt: string;
+  anchor?: ReviewAnchor;
 };
 
 export type ReviewDocument = {
@@ -22,7 +24,21 @@ export type ReviewDocument = {
 function isReviewComment(value: unknown): value is ReviewComment {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
-  return typeof item.id === "string"
+  const anchor = item.anchor as Record<string, unknown> | undefined;
+  const validAnchor = anchor === undefined || (
+    anchor !== null
+    && typeof anchor === "object"
+    && typeof anchor.start === "number"
+    && Number.isInteger(anchor.start)
+    && anchor.start >= 0
+    && typeof anchor.end === "number"
+    && Number.isInteger(anchor.end)
+    && anchor.end >= anchor.start
+    && typeof anchor.prefix === "string"
+    && typeof anchor.suffix === "string"
+  );
+  return validAnchor
+    && typeof item.id === "string"
     && typeof item.quote === "string"
     && typeof item.comment === "string"
     && typeof item.createdAt === "string";

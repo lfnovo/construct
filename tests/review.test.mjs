@@ -32,6 +32,23 @@ test("stores reviews at the beginning when a document has no frontmatter", () =>
   assert.equal(setReviewComments(added, []).content, original);
 });
 
+test("round-trips optional passage anchors without changing legacy comments", () => {
+  const anchored = {
+    ...comment,
+    anchor: {
+      start: 12,
+      end: 32,
+      prefix: "Before ",
+      suffix: " after",
+    },
+  };
+  const original = "# Title\n\nA selected sentence.\n";
+  const added = setReviewComments(original, [comment, anchored]).content;
+
+  assert.deepEqual(splitReviewDocument(added).comments, [comment, anchored]);
+  assert.equal("anchor" in splitReviewDocument(setReviewComments(original, [comment]).content).comments[0], false);
+});
+
 test("escapes HTML comment terminators without changing review text", () => {
   const dangerous = { ...comment, comment: "Do not emit --> in the wrapper." };
   const added = setReviewComments("# Title", [dangerous]).content;

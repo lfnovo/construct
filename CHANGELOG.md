@@ -6,6 +6,19 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+### Added
+
+- Added anchored Review highlights with bidirectional passage/comment
+  navigation, keyboard access, and an explicit detached state for changed or
+  ambiguous passages.
+
+### Changed
+
+- Preserved per-mode scroll state and transferred the visible semantic passage
+  when switching between Preview, Edit, Review, Source, and Diff.
+- Extended new `construct-review:v1` comments with optional contextual locators
+  while keeping existing quote-only comments compatible.
+
 ## [0.1.5] - 2026-07-28
 
 ### Added

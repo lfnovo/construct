@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MarkdownPreview } from "./MarkdownPreview";
 import {
   buildReviewPrompt,
@@ -6,6 +6,13 @@ import {
   splitReviewDocument,
   type ReviewComment,
 } from "./review";
+import {
+  buildRenderedTextIndex,
+  captureReviewAnchor,
+  clearReviewHighlights,
+  highlightReviewRange,
+} from "./reviewDom";
+import { normalizeReviewText, resolveReviewAnchor, type ReviewAnchor } from "./reviewAnchors";
 
 type Props = {
   content: string;
@@ -20,7 +27,17 @@ type Props = {
 };
 
 function normalizeQuote(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+  return normalizeReviewText(value);
+}
+
+function renderVersion(body: string, comments: ReviewComment[]) {
+  const value = `${body}\u0000${JSON.stringify(comments)}`;
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return `${value.length}:${hash >>> 0}`;
 }
 
 export function ReviewEditor({
@@ -35,15 +52,83 @@ export function ReviewEditor({
   onNotify,
 }: Props) {
   const documentRef = useRef<HTMLDivElement>(null);
+  const commentRefs = useRef(new Map<string, HTMLElement>());
   const review = useMemo(() => splitReviewDocument(content), [content]);
-  const [quote, setQuote] = useState("");
+  const [selectionDraft, setSelectionDraft] = useState<{ quote: string; anchor: ReviewAnchor | null } | null>(null);
   const [comment, setComment] = useState("");
+  const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
+  const [resolvedComments, setResolvedComments] = useState<Record<string, boolean>>({});
+  const reviewRenderVersion = useMemo(
+    () => renderVersion(review.body, review.comments),
+    [review.body, review.comments],
+  );
+  const quote = selectionDraft?.quote || "";
 
   const captureSelection = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.anchorNode || !selection.focusNode) return;
     if (!documentRef.current?.contains(selection.anchorNode) || !documentRef.current.contains(selection.focusNode)) return;
-    setQuote(normalizeQuote(selection.toString()).slice(0, 2_000));
+    const preview = documentRef.current.querySelector<HTMLElement>(".markdown-preview");
+    if (!preview) return;
+    const selectedQuote = normalizeQuote(selection.toString()).slice(0, 2_000);
+    if (!selectedQuote) return;
+    setSelectionDraft({
+      quote: selectedQuote,
+      anchor: captureReviewAnchor(preview, selection.getRangeAt(0), selectedQuote),
+    });
+  };
+
+  useEffect(() => {
+    const preview = documentRef.current?.querySelector<HTMLElement>(".markdown-preview");
+    if (!preview) return;
+    clearReviewHighlights(preview);
+    const fullText = buildRenderedTextIndex(preview).text;
+    const nextResolved: Record<string, boolean> = {};
+    review.comments.forEach((item, index) => {
+      const resolved = resolveReviewAnchor(fullText, item.quote, item.anchor);
+      nextResolved[item.id] = Boolean(resolved);
+      if (resolved) highlightReviewRange(preview, resolved, item.id, index + 1);
+    });
+    setResolvedComments(nextResolved);
+    setActiveReviewId((current) => (
+      current && review.comments.some((item) => item.id === current) ? current : null
+    ));
+    return () => clearReviewHighlights(preview);
+  }, [review.comments, reviewRenderVersion]);
+
+  useEffect(() => {
+    const preview = documentRef.current?.querySelector<HTMLElement>(".markdown-preview");
+    if (!preview) return;
+    preview.querySelectorAll<HTMLElement>("mark[data-review-id]").forEach((mark) => {
+      mark.classList.toggle("active", mark.dataset.reviewId === activeReviewId);
+    });
+  }, [activeReviewId, resolvedComments]);
+
+  const selectCommentFromDocument = (reviewId: string) => {
+    setActiveReviewId(reviewId);
+    commentRefs.current.get(reviewId)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
+
+  const handleDocumentClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const mark = (event.target as Element).closest<HTMLElement>("mark[data-review-id]");
+    if (mark?.dataset.reviewId) selectCommentFromDocument(mark.dataset.reviewId);
+  };
+
+  const handleDocumentKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const mark = (event.target as Element).closest<HTMLElement>("mark[data-review-id]");
+    if (!mark?.dataset.reviewId) return;
+    event.preventDefault();
+    selectCommentFromDocument(mark.dataset.reviewId);
+  };
+
+  const revealPassage = (reviewId: string) => {
+    setActiveReviewId(reviewId);
+    const mark = documentRef.current?.querySelector<HTMLElement>(
+      `mark[data-review-id="${CSS.escape(reviewId)}"]`,
+    );
+    mark?.scrollIntoView({ block: "center", behavior: "smooth" });
+    mark?.focus({ preventScroll: true });
   };
 
   const applyComments = (comments: ReviewComment[]) => {
@@ -57,18 +142,21 @@ export function ReviewEditor({
 
   const addComment = () => {
     const note = comment.trim();
-    if (!quote || !note || readOnly || review.error) return;
+    if (!selectionDraft || !note || readOnly || review.error) return;
+    const id = crypto.randomUUID();
     applyComments([
       ...review.comments,
       {
-        id: crypto.randomUUID(),
-        quote,
+        id,
+        quote: selectionDraft.quote,
         comment: note,
         createdAt: new Date().toISOString(),
+        ...(selectionDraft.anchor ? { anchor: selectionDraft.anchor } : {}),
       },
     ]);
+    setActiveReviewId(id);
     window.getSelection()?.removeAllRanges();
-    setQuote("");
+    setSelectionDraft(null);
     setComment("");
   };
 
@@ -95,9 +183,16 @@ export function ReviewEditor({
 
   return (
     <div className="review-workspace">
-      <div className="review-document" ref={documentRef} onMouseUp={captureSelection}>
+      <div
+        className="review-document"
+        ref={documentRef}
+        onMouseUp={captureSelection}
+        onClick={handleDocumentClick}
+        onKeyDown={handleDocumentKeyDown}
+      >
         <div className="review-selection-hint">Select text in the document to leave feedback.</div>
         <MarkdownPreview
+          key={reviewRenderVersion}
           content={`${review.frontmatter}${review.body}`}
           sourcePath={sourcePath}
           bundleRoot={bundleRoot}
@@ -127,7 +222,7 @@ export function ReviewEditor({
               }}
             />
             <footer>
-              <button onClick={() => { setQuote(""); setComment(""); }}>Cancel</button>
+              <button onClick={() => { setSelectionDraft(null); setComment(""); }}>Cancel</button>
               <button className="primary-button" disabled={!comment.trim() || readOnly} onClick={addComment}>Add comment</button>
             </footer>
           </section>
@@ -141,13 +236,39 @@ export function ReviewEditor({
             </div>
           )}
           {review.comments.map((item, index) => (
-            <article className="review-comment" key={item.id}>
+            <article
+              className={`review-comment ${activeReviewId === item.id ? "active" : ""} ${resolvedComments[item.id] === false ? "detached" : ""}`}
+              key={item.id}
+              ref={(element) => {
+                if (element) commentRefs.current.set(item.id, element);
+                else commentRefs.current.delete(item.id);
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`Go to review comment ${index + 1}`}
+              onClick={() => revealPassage(item.id)}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                revealPassage(item.id);
+              }}
+            >
               <div className="review-comment-number">{index + 1}</div>
               <blockquote>{item.quote}</blockquote>
               <p>{item.comment}</p>
+              {resolvedComments[item.id] === false && <div className="review-comment-detached">Passage changed</div>}
               <footer>
                 <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time>
-                <button disabled={readOnly} onClick={() => applyComments(review.comments.filter((commentItem) => commentItem.id !== item.id))}>Remove</button>
+                <button
+                  disabled={readOnly}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    applyComments(review.comments.filter((commentItem) => commentItem.id !== item.id));
+                  }}
+                >
+                  Remove
+                </button>
               </footer>
             </article>
           ))}

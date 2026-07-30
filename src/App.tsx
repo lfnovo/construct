@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
+import { DocumentModeSurface } from "./DocumentModeSurface";
 import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./explore";
 import { HealthWorkspace } from "./HealthWorkspace";
 import { deduplicateHistory } from "./history";
@@ -23,6 +24,7 @@ import type {
   Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, TabMode, TerminalApplication,
   TerminalApplicationId,
 } from "./types";
+import type { DocumentModeTransfer, DocumentViewState } from "./documentPosition";
 
 const VisualEditor = lazy(() => import("./VisualEditor").then(({ VisualEditor: Component }) => ({ default: Component })));
 const modeLabels: Record<TabMode, string> = {
@@ -251,6 +253,8 @@ export default function App() {
   const policyRefreshRequested = useRef(false);
   const okfIndexSignatures = useRef<Record<string, string>>({});
   const quickOpenResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const documentViewStates = useRef(new Map<string, Partial<Record<TabMode, DocumentViewState>>>());
+  const documentModeTransfers = useRef(new Map<string, DocumentModeTransfer>());
   locationsRef.current = locations;
   filesRef.current = filesByLocation;
   panesRef.current = panes;
@@ -610,6 +614,31 @@ export default function App() {
     setPane(paneId, (pane) => ({ ...pane, tabs: pane.tabs.map((tab) => tab.id === tabId ? updater(tab) : tab) }));
   }, [setPane]);
 
+  const rememberDocumentViewState = useCallback((tabId: string, mode: TabMode, state: DocumentViewState) => {
+    const current = documentViewStates.current.get(tabId) || {};
+    documentViewStates.current.set(tabId, { ...current, [mode]: state });
+  }, []);
+
+  const consumeDocumentRestoreState = useCallback((tabId: string, mode: TabMode) => {
+    const transfer = documentModeTransfers.current.get(tabId);
+    if (transfer?.targetMode === mode) documentModeTransfers.current.delete(tabId);
+    return {
+      saved: documentViewStates.current.get(tabId)?.[mode] || null,
+      transfer: transfer?.targetMode === mode ? transfer : null,
+    };
+  }, []);
+
+  const changeTabMode = useCallback((paneId: string, tab: DocumentTab, mode: TabMode) => {
+    if (tab.mode === mode) return;
+    const current = documentViewStates.current.get(tab.id)?.[tab.mode];
+    documentModeTransfers.current.set(tab.id, {
+      targetMode: mode,
+      anchor: current?.anchor || null,
+      ratio: current?.ratio || 0,
+    });
+    updateTab(paneId, tab.id, (item) => ({ ...item, mode }));
+  }, [updateTab]);
+
   const reloadTab = useCallback(async (paneId: string, tabId: string) => {
     const tab = panes[paneId]?.tabs.find((item) => item.id === tabId);
     if (!tab) return;
@@ -642,6 +671,8 @@ export default function App() {
       const tabs = current.tabs.filter((item) => item.id !== tabId);
       return { ...current, tabs, activeTabId: current.activeTabId === tabId ? tabs.at(-1)?.id || null : current.activeTabId };
     });
+    documentViewStates.current.delete(tabId);
+    documentModeTransfers.current.delete(tabId);
   }, [panes, setPane]);
 
   const closeTab = useCallback((paneId: string, tabId: string) => {
@@ -924,7 +955,7 @@ export default function App() {
           {okf && <button className={`okf-status ${okf.isConformant ? "valid" : "invalid"}`} title="Open Knowledge Format details" onClick={() => setShowOkfInspector((current) => !current)}>OKF</button>}
           <div className="mode-switch">
             {(["preview", "edit", "review", "source", "diff"] as TabMode[]).map((mode) => (
-              <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode }))}>
+              <button key={mode} className={tab.mode === mode ? "selected" : ""} disabled={mode === "diff" && !tab.git?.available} onClick={() => changeTabMode(pane.id, tab, mode)}>
                 {modeLabels[mode]}{mode === "review" && review?.comments.length ? <span className="mode-count">{review.comments.length}</span> : null}
               </button>
             ))}
@@ -960,15 +991,23 @@ export default function App() {
           {!!okf.findings.length && <ul className="okf-issues">{okf.findings.map((item) => <li key={`${item.code}-${item.message}`} className={item.severity} title={item.code}>{item.message}</li>)}</ul>}
         </aside>}
         <div className="document-content">
-          {tab.mode === "source" && <CodeEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onSave={() => void saveTab(pane.id, tab.id)} />}
-          {tab.mode === "edit" && (
-            <Suspense fallback={<div className="visual-editor-loading">Preparing visual editor…</div>}>
-              <VisualEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onRequestSource={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode: "source" }))} />
-            </Suspense>
-          )}
-          {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} />}
-          {tab.mode === "review" && <ReviewEditor content={tab.content} relativePath={tab.relativePath} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} readOnly={tab.deleted} onChange={changeContent} onOpenInternal={openPath} onRequestSource={() => updateTab(pane.id, tab.id, (current) => ({ ...current, mode: "source" }))} onNotify={notify} />}
-          {tab.mode === "diff" && <DiffView tab={tab} />}
+          <DocumentModeSurface
+            key={`${tab.id}:${tab.mode}`}
+            tabId={tab.id}
+            mode={tab.mode}
+            consumeRestoreState={() => consumeDocumentRestoreState(tab.id, tab.mode)}
+            onViewState={(state) => rememberDocumentViewState(tab.id, tab.mode, state)}
+          >
+            {tab.mode === "source" && <CodeEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onSave={() => void saveTab(pane.id, tab.id)} />}
+            {tab.mode === "edit" && (
+              <Suspense fallback={<div className="visual-editor-loading">Preparing visual editor…</div>}>
+                <VisualEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onRequestSource={() => changeTabMode(pane.id, tab, "source")} />
+              </Suspense>
+            )}
+            {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} />}
+            {tab.mode === "review" && <ReviewEditor content={tab.content} relativePath={tab.relativePath} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} readOnly={tab.deleted} onChange={changeContent} onOpenInternal={openPath} onRequestSource={() => changeTabMode(pane.id, tab, "source")} onNotify={notify} />}
+            {tab.mode === "diff" && <DiffView tab={tab} />}
+          </DocumentModeSurface>
         </div>
       </>}
     </section>;

@@ -279,6 +279,9 @@ coverage
 - **NAV-003:** Se o arquivo estiver aberto em outro Painel, o comportamento padrão é focar a instância existente.
 - **NAV-004:** Deve existir uma ação explícita para abrir outra visualização do mesmo arquivo em outro Painel.
 - **NAV-005:** O aplicativo deve preservar a posição de rolagem separadamente para Preview, Edit, Review e Source enquanto a aba estiver aberta.
+- **NAV-008:** Ao alternar explicitamente entre modos, o aplicativo deve tentar
+  manter o mesmo bloco semântico visível e usar uma posição proporcional apenas
+  quando esse bloco não puder ser reencontrado.
 - **NAV-006:** Ao selecionar um evento no Histórico, o Local correspondente é selecionado, o arquivo é revelado na árvore e sua aba recebe foco.
 - **NAV-007:** O caminho relativo completo deve estar disponível na interface, mesmo que não permaneça visível o tempo todo.
 
@@ -345,6 +348,18 @@ coverage
 - **REVIEW-010:** Links Markdown citados dentro de comentários não participam da navegação, backlinks ou Graph do bundle OKF.
 - **REVIEW-011:** Um bloco de review malformado nunca deve ser reescrito automaticamente; o aplicativo mantém o documento acessível em Source e apresenta erro acionável.
 - **REVIEW-012:** Comentários guardam um snapshot textual da seleção. Alterações posteriores no trecho não apagam a observação silenciosamente.
+- **REVIEW-013:** Novos comentários podem guardar uma âncora opcional com
+  offsets normalizados e contexto anterior e posterior sem alterar o trecho
+  visível do Markdown.
+- **REVIEW-014:** Comentários antigos sem âncora continuam legíveis e só são
+  associados visualmente quando seu trecho possui uma ocorrência inequívoca.
+- **REVIEW-015:** Review destaca passagens resolvidas em tempo de renderização;
+  os destaques não são inseridos no corpo Markdown.
+- **REVIEW-016:** Selecionar um destaque revela seu comentário, e selecionar um
+  comentário navega para o destaque correspondente.
+- **REVIEW-017:** Quando uma passagem não puder ser localizada com segurança, o
+  comentário permanece visível com estado `Passage changed`; o aplicativo não
+  escolhe uma ocorrência ambígua.
 
 ### 10.8 Preview Markdown
 
@@ -1074,6 +1089,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-27 | Organizar a documentação pública pelas jornadas de usuário, CLI, MCP, desenvolvimento, produto e arquitetura, mantendo README como entrada curta. |
 | 2026-07-28 | Isolar o linter em um build CLI-only, distribuí-lo para Linux x64 e oferecer uma GitHub Action fina que verifica o artefato versionado e preserva o contrato do CLI. |
 | 2026-07-29 | Oferecer handoff explícito para terminais externos conhecidos a partir de Locais e documentos, sem comandos arbitrários, conteúdo, monitoramento ou acesso por MCP; terminal embutido permanece adiado. |
+| 2026-07-30 | Preservar a posição semântica ao alternar modos e tornar comentários de Review bidirecionalmente navegáveis por âncoras opcionais compatíveis com `construct-review:v1`. |
 
 ## 24. Histórico do documento
 
@@ -1083,6 +1099,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.2 | 2026-07-25 | Estado do preview, identidade Construct, suporte OKF e decisões técnicas consolidados. |
 | 0.3 | 2026-07-26 | Edição visual Markdown, contrato de preservação de frontmatter e critérios de segurança do buffer. |
 | 0.4 | 2026-07-26 | Review persistente no documento, ciclo de comentários e handoff copiável para agentes. |
+| 0.5 | 2026-07-30 | Continuidade de posição entre modos, âncoras de Review, destaques e navegação bidirecional. |
 | 0.5 | 2026-07-26 | Compatibilidade OKF v0.1/v0.2, parser nativo compartilhado, metadados tipados e contrato de findings. |
 | 0.6 | 2026-07-26 | Índice local persistente por Local, ownership nativo, gerações, retenção e controles de rebuild. |
 | 0.7 | 2026-07-26 | Search dedicado, filtros OKF, federação entre Locais e seleção efêmera de referências. |

@@ -35,6 +35,9 @@ used by people and coding agents.
 
 ## Design proposals
 
+- [Anchored review experience](proposals/anchored-review.md) — accepted design
+  for cross-mode reading continuity, durable passage locators, highlights, and
+  bidirectional review navigation.
 - [Local retrieval and agent access](proposals/retrieval/README.md) — focused
   RFCs covering OKF compatibility, local indexing, search, graph-aware context,
   MCP, linting, and review integration.
