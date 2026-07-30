@@ -133,6 +133,13 @@ that target compiles only the shared OKF parser, conformance policy, CLI
 formatter, and their lightweight dependencies. Desktop commands live in
 `src-tauri/src/desktop.rs` and are not present in the CLI-only binary.
 
+`src-tauri/src/main.rs` classifies the invocation before entering any runtime.
+On Windows, only the ordinary desktop path detaches from the inherited or
+Explorer-created console before Tauri starts. Explicit `okf`, `service`, and
+`mcp serve` modes stay console-attached so CLI output, exit codes, and MCP stdio
+remain intact. The binary therefore must not use an unconditional Windows GUI
+subsystem attribute while these modes share one executable.
+
 `okf-lint-action/` is a presentation and distribution adapter. It resolves an
 explicit Construct release, verifies the selected archive against
 `SHA256SUMS`, invokes the CLI in JSON mode, and translates version-1 findings
