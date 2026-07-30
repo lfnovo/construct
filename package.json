@@ -1,7 +1,7 @@
 {
   "name": "construct",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A local-first desktop knowledge workspace for coding agents",
   "license": "MIT",
   "repository": {
