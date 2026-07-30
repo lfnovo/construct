@@ -1,0 +1,30 @@
+CHANGELOG.md
+  s_954343fc536a43::t_c486e221966f19 9-10,13-15,27-30
+  s_954343fc536a43::t_345076aafdeb95 31
+src-tauri/tauri.conf.json
+  s_954343fc536a43::t_c486e221966f19 4
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_c486e221966f19 3
+package.json
+  s_954343fc536a43::t_c486e221966f19 4
+package-lock.json
+  s_954343fc536a43::t_422007df50b0e7 3,9
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_55c096aead8851 813
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.17",
+  "base_commit_sha": "ff6cd8ee0ca8c101554cc47a3b40cb26c408c0c4",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
