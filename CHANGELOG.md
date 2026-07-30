@@ -6,8 +6,13 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-30
+
 ### Added
 
+- Added a reviewed external-terminal handoff for registered Location roots and
+  document directories, with remembered adapters for supported macOS and
+  Windows terminals.
 - Added anchored Review highlights with bidirectional passage/comment
   navigation, keyboard access, and an explicit detached state for changed or
   ambiguous passages.
@@ -18,6 +23,11 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
   when switching between Preview, Edit, Review, Source, and Diff.
 - Extended new `construct-review:v1` comments with optional contextual locators
   while keeping existing quote-only comments compatible.
+
+### Fixed
+
+- Prevented the Windows desktop application from opening a companion console
+  window while preserving normal console behavior for CLI commands.
 
 ## [0.1.5] - 2026-07-28
 
