@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, MoreHorizontal, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { DocumentModeSurface } from "./DocumentModeSurface";
@@ -17,12 +17,18 @@ import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
 import { moveQuickOpenSelection } from "./quickOpen";
 import { pathBelongsToLocation, pathIdentity, pathsEqual } from "./paths";
+import {
+  defaultSidebarPanelSizes,
+  resizeSidebarPanelPair,
+  sanitizeSidebarPanelSizes,
+  sidebarSectionIds,
+} from "./sidebar";
 import { relativeDirectoryForFile, selectedTerminal } from "./terminal";
 import type {
   DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationRecord,
-  Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, TabMode, TerminalApplication,
-  TerminalApplicationId,
+  Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, SidebarPanelSizes, SidebarSectionId,
+  TabMode, TerminalApplication, TerminalApplicationId,
 } from "./types";
 import type { DocumentModeTransfer, DocumentViewState } from "./documentPosition";
 
@@ -98,6 +104,8 @@ function indexStatusTitle(status: IndexStatus | undefined) {
 
 type TreeNode = { children: Map<string, TreeNode>; entry?: FileEntry };
 type TerminalTarget = { locationId: string; relativeDirectory: string };
+type McpAccessMode = "current" | "custom" | "all";
+type McpDialogState = { mode: McpAccessMode; locationIds: string[] };
 
 function makeTree(entries: FileEntry[]) {
   const root: TreeNode = { children: new Map() };
@@ -232,10 +240,14 @@ export default function App() {
   const [recentSearches, setRecentSearches] = useState<RecentKnowledgeSearch[]>([]);
   const [rememberRecentSearches, setRememberRecentSearches] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [sidebarPanelSizes, setSidebarPanelSizes] = useState<SidebarPanelSizes>(
+    defaultSidebarPanelSizes,
+  );
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [terminalApplications, setTerminalApplications] = useState<TerminalApplication[]>([]);
   const [terminalApplicationId, setTerminalApplicationId] = useState<TerminalApplicationId>();
   const [terminalPicker, setTerminalPicker] = useState<{ target: TerminalTarget | null } | null>(null);
+  const [mcpDialog, setMcpDialog] = useState<McpDialogState | null>(null);
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -253,6 +265,11 @@ export default function App() {
   const policyRefreshRequested = useRef(false);
   const okfIndexSignatures = useRef<Record<string, string>>({});
   const quickOpenResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const sidebarPanelRefs = useRef<Record<SidebarSectionId, HTMLElement | null>>({
+    locations: null,
+    files: null,
+    history: null,
+  });
   const documentViewStates = useRef(new Map<string, Partial<Record<TabMode, DocumentViewState>>>());
   const documentModeTransfers = useRef(new Map<string, DocumentModeTransfer>());
   locationsRef.current = locations;
@@ -750,6 +767,7 @@ export default function App() {
         setSidebarWidth(saved.sidebarWidth || 295);
         setSidebarHidden(saved.sidebarHidden || false);
         setCollapsedSections(saved.collapsedSections || {});
+        setSidebarPanelSizes(sanitizeSidebarPanelSizes(saved.sidebarPanelSizes));
         setTheme(saved.theme || "dark");
         setTerminalApplicationId(saved.terminalApplicationId);
         void api.listTerminalApplications().then((availableTerminals) => {
@@ -822,6 +840,7 @@ export default function App() {
         sidebarWidth,
         sidebarHidden,
         collapsedSections,
+        sidebarPanelSizes,
         theme,
         terminalApplicationId,
         rememberRecentSearches,
@@ -830,7 +849,7 @@ export default function App() {
       void api.saveState(state).catch(() => undefined);
     }, 450);
     return () => window.clearTimeout(handle);
-  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, recentSearches, rememberRecentSearches, selectedLocationId, sidebarHidden, sidebarWidth, terminalApplicationId, theme]);
+  }, [activePaneId, collapsedSections, fingerprints, history, layout, locations, panes, ready, recentSearches, rememberRecentSearches, selectedLocationId, sidebarHidden, sidebarPanelSizes, sidebarWidth, terminalApplicationId, theme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -902,12 +921,83 @@ export default function App() {
     quickOpenResultRefs.current[activeQuickOpenIndex]?.scrollIntoView({ block: "nearest" });
   }, [activeQuickOpenIndex, fileResults.length, quickOpen]);
   const visibleHistory = history.filter((event) => historyFilter === "all" || event.kind === historyFilter);
+  const expandedSidebarSections = sidebarSectionIds.filter(
+    (section) => !collapsedSections[section],
+  );
+  const previousExpandedSidebarSection = (section: SidebarSectionId) => {
+    const index = expandedSidebarSections.indexOf(section);
+    return index > 0 ? expandedSidebarSections[index - 1] : null;
+  };
+
+  const openMcpDialog = () => {
+    setMcpDialog({
+      mode: activeLocation ? "current" : "custom",
+      locationIds: activeLocation ? [activeLocation.id] : [],
+    });
+  };
+
+  const copyMcpConfiguration = async () => {
+    if (!mcpDialog) return;
+    const locationIds = mcpDialog.mode === "all"
+      ? []
+      : mcpDialog.mode === "current"
+        ? activeLocation ? [activeLocation.id] : []
+        : mcpDialog.locationIds;
+    if (mcpDialog.mode !== "all" && !locationIds.length) {
+      notify("Choose at least one Location for agent access.");
+      return;
+    }
+    try {
+      const configuration = await api.getMcpConfiguration({
+        locationIds,
+        allowAll: mcpDialog.mode === "all",
+      });
+      await navigator.clipboard.writeText(configuration);
+      setMcpDialog(null);
+      notify(mcpDialog.mode === "all"
+        ? "MCP configuration copied for all registered Locations."
+        : `MCP configuration copied for ${locationIds.length} Location${locationIds.length === 1 ? "" : "s"}.`);
+    } catch (cause) {
+      notify(`Could not copy the MCP configuration: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+  };
 
   const resizeSidebar = (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     const onMove = (move: PointerEvent) => setSidebarWidth(Math.max(220, Math.min(520, move.clientX)));
     const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
     window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
+  };
+
+  const resizeSidebarPanels = (
+    event: React.PointerEvent<HTMLDivElement>,
+    upper: SidebarSectionId,
+    lower: SidebarSectionId,
+  ) => {
+    const upperPanel = sidebarPanelRefs.current[upper];
+    const lowerPanel = sidebarPanelRefs.current[lower];
+    if (!upperPanel || !lowerPanel) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const start = event.clientY;
+    const upperHeight = upperPanel.getBoundingClientRect().height;
+    const lowerHeight = lowerPanel.getBoundingClientRect().height;
+    const initial = sidebarPanelSizes;
+    const onMove = (move: PointerEvent) => {
+      setSidebarPanelSizes(resizeSidebarPanelPair(
+        initial,
+        upper,
+        lower,
+        upperHeight,
+        lowerHeight,
+        move.clientY - start,
+      ));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
 
   const renderPane = (pane: Pane, active: boolean) => {
@@ -1017,22 +1107,44 @@ export default function App() {
 
   return <main className={`app-shell ${sidebarHidden ? "sidebar-hidden" : ""}`} data-theme={theme} style={{ gridTemplateColumns: sidebarHidden ? "38px minmax(0, 1fr)" : `${sidebarWidth}px 5px minmax(0, 1fr)` }}>
     {sidebarHidden ? <aside className="sidebar-rail"><button className="sidebar-toggle" onClick={() => setSidebarHidden(false)} title="Show sidebar" aria-label="Show sidebar"><PanelLeftOpen size={16} /></button></aside> : <aside className="sidebar">
-      <section className="sidebar-section locations-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button>{activeLocation && <button className="theme-button" onClick={() => requestTerminal({ locationId: activeLocation.id, relativeDirectory: "" })} title={`Open ${activeTerminal?.label || "terminal"} at ${activeLocation.name}`} aria-label={`Open terminal at ${activeLocation.name}`}><SquareTerminal size={14} /></button>}{activeLocation && <button className="theme-button" onClick={() => { void api.getMcpConfiguration(activeLocation.id).then((configuration) => navigator.clipboard.writeText(configuration)).then(() => notify(`MCP configuration copied for ${activeLocation.name}.`)).catch((cause) => notify(`Could not copy the MCP configuration: ${cause instanceof Error ? cause.message : String(cause)}`)); }} title={`Copy MCP configuration for ${activeLocation.name}`} aria-label={`Copy MCP configuration for ${activeLocation.name}`}><Clipboard size={14} /></button>}<button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
-        {!collapsedSections.locations && <div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} onContextMenu={(event) => { event.preventDefault(); setLocationContext({ location, x: event.clientX, y: event.clientY }); }} title={location.path}>
-          <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span>{location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}<button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button><button onClick={(event) => { event.stopPropagation(); void removeLocation(location.id); }} title="Remove location"><X size={14} /></button>
-        </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div>}
-      </section>
-      <section className="sidebar-section files-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}<button className="search-button" onClick={openKnowledgeSearch}><SearchIcon size={11} /> Search</button>{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setSearchSession(null); setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
-        {!collapsedSections.files && (activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, locationId: activeLocation.id, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>)}
-      </section>
-      <section className="sidebar-section history-section">
-        <div className="section-title"><button onClick={() => setCollapsedSections((current) => ({ ...current, history: !current.history }))}>{collapsedSections.history ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><History size={13} /><span>HISTORY</span><select aria-label="Filter history" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value as HistoryKind | "all")}><option value="all">All</option><option value="created">New</option><option value="modified">Changed</option><option value="renamed">Renamed</option><option value="removed">Removed</option></select><button className="clear-history" title="Clear history" onClick={() => { if (window.confirm("Clear all local history? This will not alter any files.")) setHistory([]); }}><X size={13} /></button></div>
-        {!collapsedSections.history && <div className="history-list">{visibleHistory.length ? visibleHistory.map((event) => <button key={event.id} className="history-row" onClick={() => event.available ? openPath(event.path) : notify("This file is no longer available.")} title={event.previousPath ? `${event.previousPath} → ${event.path}` : event.path}>
-          <span className={`history-kind ${event.kind}`}>{statusLabel(event.kind)}</span><span className="history-file">{basename(event.path)}</span><time>{formatWhen(event.observedAt)}</time>
-        </button>) : <div className="empty-sidebar">Changes from your agents will appear here.</div>}</div>}
-      </section>
+      <div className="sidebar-global-toolbar">
+        <button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button>
+        <span>CONSTRUCT</span>
+        <button className="connect-agents-button" onClick={openMcpDialog} title="Connect agents"><Bot size={14} /><span>Agents</span></button>
+        <button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"} aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button>
+      </div>
+      <div className="sidebar-panels">
+        <section
+          ref={(element) => { sidebarPanelRefs.current.locations = element; }}
+          className={`sidebar-section locations-section ${collapsedSections.locations ? "collapsed" : ""}`}
+          style={collapsedSections.locations ? undefined : { flexGrow: sidebarPanelSizes.locations }}
+        >
+          <div className="section-title"><button aria-expanded={!collapsedSections.locations} onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
+          {!collapsedSections.locations && <div className="sidebar-section-content"><div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} onContextMenu={(event) => { event.preventDefault(); setLocationContext({ location, x: event.clientX, y: event.clientY }); }} title={location.path}>
+            <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span>{location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}<button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button><button onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setLocationContext({ location, x: bounds.right - 220, y: bounds.bottom }); }} title={`Actions for ${location.name}`} aria-label={`Actions for ${location.name}`}><MoreHorizontal size={14} /></button>
+          </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div></div>}
+        </section>
+        {previousExpandedSidebarSection("files") && <div className="sidebar-panel-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Locations and Files" onPointerDown={(event) => resizeSidebarPanels(event, previousExpandedSidebarSection("files")!, "files")} />}
+        <section
+          ref={(element) => { sidebarPanelRefs.current.files = element; }}
+          className={`sidebar-section files-section ${collapsedSections.files ? "collapsed" : ""}`}
+          style={collapsedSections.files ? undefined : { flexGrow: sidebarPanelSizes.files }}
+        >
+          <div className="section-title"><button aria-expanded={!collapsedSections.files} onClick={() => setCollapsedSections((current) => ({ ...current, files: !current.files }))}>{collapsedSections.files ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><Folder size={13} /><span>FILES</span>{activeLocation && <span className="section-subtitle" title={activeLocation.path}>{activeLocation.name}</span>}<button className="search-button" onClick={openKnowledgeSearch}><SearchIcon size={11} /> Search</button>{activeLocation?.okfBundle && <button className="explore-button" onClick={() => { setSearchSession(null); setExploreFilters({ types: [] }); setExploreLocationId(activeLocation.id); }}>Explore</button>}</div>
+          {!collapsedSections.files && <div className="sidebar-section-content">{activeLocation ? <FileTree entries={filesByLocation[activeLocation.id] || []} onOpen={openFile} onContext={(event, file) => { event.preventDefault(); setFileContext({ file, locationId: activeLocation.id, x: event.clientX, y: event.clientY }); }} /> : <div className="empty-sidebar">Select a Location.</div>}</div>}
+        </section>
+        {previousExpandedSidebarSection("history") && <div className="sidebar-panel-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize sidebar panels" onPointerDown={(event) => resizeSidebarPanels(event, previousExpandedSidebarSection("history")!, "history")} />}
+        <section
+          ref={(element) => { sidebarPanelRefs.current.history = element; }}
+          className={`sidebar-section history-section ${collapsedSections.history ? "collapsed" : ""}`}
+          style={collapsedSections.history ? undefined : { flexGrow: sidebarPanelSizes.history }}
+        >
+          <div className="section-title"><button aria-expanded={!collapsedSections.history} onClick={() => setCollapsedSections((current) => ({ ...current, history: !current.history }))}>{collapsedSections.history ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><History size={13} /><span>HISTORY</span><select aria-label="Filter history" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value as HistoryKind | "all")}><option value="all">All</option><option value="created">New</option><option value="modified">Changed</option><option value="renamed">Renamed</option><option value="removed">Removed</option></select><button className="clear-history" title="Clear history" onClick={() => { if (window.confirm("Clear all local history? This will not alter any files.")) setHistory([]); }}><X size={13} /></button></div>
+          {!collapsedSections.history && <div className="sidebar-section-content"><div className="history-list">{visibleHistory.length ? visibleHistory.map((event) => <button key={event.id} className="history-row" onClick={() => event.available ? openPath(event.path) : notify("This file is no longer available.")} title={event.previousPath ? `${event.previousPath} → ${event.path}` : event.path}>
+            <span className={`history-kind ${event.kind}`}>{statusLabel(event.kind)}</span><span className="history-file">{basename(event.path)}</span><time>{formatWhen(event.observedAt)}</time>
+          </button>) : <div className="empty-sidebar">Changes from your agents will appear here.</div>}</div></div>}
+        </section>
+      </div>
     </aside>}
     {!sidebarHidden && <div className="sidebar-resizer" onPointerDown={resizeSidebar} />}
     <section className="workspace">{searchSession ? <SearchWorkspace
@@ -1104,6 +1216,36 @@ export default function App() {
       <button onClick={() => { openTerminalSettings(); setTabContext(null); }}><Settings2 size={13} /> Choose terminal application…</button>
       <button onClick={() => { void navigator.clipboard.writeText(tabContext.tab.path); setTabContext(null); notify("Path copied."); }}><Clipboard size={13} /> Copy path</button>
       <button onClick={() => { void api.revealInFileManager(tabContext.tab.path); setTabContext(null); }}>Reveal in Finder</button>
+    </div></div>}
+    {mcpDialog && <div className="modal-backdrop" onMouseDown={() => setMcpDialog(null)}><div className="mcp-access-modal" role="dialog" aria-modal="true" aria-labelledby="mcp-access-title" onKeyDown={(event) => { if (event.key === "Escape") setMcpDialog(null); }} onMouseDown={(event) => event.stopPropagation()}>
+      <h2 id="mcp-access-title">Connect agents</h2>
+      <p>Copy a ready-to-paste MCP configuration and choose which registered Locations the external client may read.</p>
+      <div className="mcp-access-options" role="radiogroup" aria-label="Agent access scope">
+        <label className={mcpDialog.mode === "current" ? "selected" : ""}>
+          <input type="radio" name="mcp-access" checked={mcpDialog.mode === "current"} disabled={!activeLocation} onChange={() => setMcpDialog({ mode: "current", locationIds: activeLocation ? [activeLocation.id] : [] })} />
+          <span><strong>Current Location</strong><small>{activeLocation ? activeLocation.name : "Select a Location first"}</small></span>
+        </label>
+        <label className={mcpDialog.mode === "custom" ? "selected" : ""}>
+          <input type="radio" name="mcp-access" checked={mcpDialog.mode === "custom"} disabled={!locations.length} onChange={() => setMcpDialog((current) => current ? { ...current, mode: "custom" } : current)} />
+          <span><strong>Choose Locations</strong><small>Grant access only to the folders selected below.</small></span>
+        </label>
+        {mcpDialog.mode === "custom" && <div className="mcp-location-options">{locations.map((location) => <label key={location.id}>
+          <input type="checkbox" checked={mcpDialog.locationIds.includes(location.id)} onChange={() => setMcpDialog((current) => {
+            if (!current) return current;
+            const locationIds = current.locationIds.includes(location.id)
+              ? current.locationIds.filter((id) => id !== location.id)
+              : [...current.locationIds, location.id];
+            return { ...current, locationIds };
+          })} />
+          <span>{location.name}</span>
+        </label>)}</div>}
+        <label className={mcpDialog.mode === "all" ? "selected" : ""}>
+          <input type="radio" name="mcp-access" checked={mcpDialog.mode === "all"} disabled={!locations.length} onChange={() => setMcpDialog((current) => current ? { ...current, mode: "all" } : current)} />
+          <span><strong>All Locations</strong><small>Also grants access to Locations registered in the future.</small></span>
+        </label>
+      </div>
+      <p className="mcp-access-warning">Construct exposes read-only knowledge tools. Retrieved content leaves Construct’s control when the external client sends it to its configured model.</p>
+      <div className="mcp-access-actions"><button onClick={() => setMcpDialog(null)}>Cancel</button><button className="primary-button" disabled={!locations.length || (mcpDialog.mode !== "all" && mcpDialog.mode !== "current" && !mcpDialog.locationIds.length) || (mcpDialog.mode === "current" && !activeLocation)} onClick={() => void copyMcpConfiguration()}>Copy configuration</button></div>
     </div></div>}
     {terminalPicker && <div className="modal-backdrop" onMouseDown={() => setTerminalPicker(null)}><div className="terminal-picker-modal" role="dialog" aria-modal="true" aria-labelledby="terminal-picker-title" onKeyDown={(event) => { if (event.key === "Escape") setTerminalPicker(null); }} onMouseDown={(event) => event.stopPropagation()}>
       <h2 id="terminal-picker-title">Choose terminal application</h2>

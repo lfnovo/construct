@@ -85,6 +85,15 @@ struct OpenTerminalRequest {
     terminal_application_id: terminal::TerminalApplicationId,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct McpConfigurationRequest {
+    #[serde(default)]
+    location_ids: Vec<String>,
+    #[serde(default)]
+    allow_all: bool,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OpenTerminalResult {
@@ -563,10 +572,33 @@ async fn delete_location_index(
 
 #[tauri::command]
 fn get_mcp_configuration(
-    location_id: String,
+    request: McpConfigurationRequest,
+    watch: State<'_, WatchState>,
     knowledge: State<'_, knowledge::KnowledgeClient>,
 ) -> Result<String, String> {
-    knowledge::mcp_configuration(knowledge.data_dir(), &location_id)
+    if request.allow_all && !request.location_ids.is_empty() {
+        return Err(
+            "Choose specific Locations or all Locations, but not both at once.".to_string(),
+        );
+    }
+    if !request.allow_all && request.location_ids.is_empty() {
+        return Err("Choose at least one Location for MCP access.".to_string());
+    }
+    let registered = watch
+        .locations
+        .lock()
+        .map_err(|_| "Could not verify the registered Locations.".to_string())?;
+    let mut unique = HashSet::new();
+    let mut location_ids = Vec::new();
+    for location_id in request.location_ids {
+        if !registered.contains_key(&location_id) {
+            return Err("MCP access can include only registered Locations.".to_string());
+        }
+        if unique.insert(location_id.clone()) {
+            location_ids.push(location_id);
+        }
+    }
+    knowledge::mcp_configuration(knowledge.data_dir(), &location_ids, request.allow_all)
 }
 
 #[tauri::command]

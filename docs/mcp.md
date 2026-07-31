@@ -31,9 +31,10 @@ The MCP client controls where retrieved content goes after it leaves Construct.
 1. Open Construct.
 2. Register the folders you want to use as Locations.
 3. Wait for the relevant Location index to become ready.
-4. Select one Location.
-5. Use the clipboard button in the **Locations** header.
-6. Paste the copied configuration into your MCP client.
+4. Use **Agents** in the global sidebar toolbar.
+5. Choose the current Location, a custom set of Locations, or all registered
+   Locations.
+6. Copy the configuration and paste it into your MCP client.
 7. Restart or reload the client if it does not discover the new server.
 
 The copied JSON resembles:
@@ -56,8 +57,8 @@ The copied JSON resembles:
 }
 ```
 
-Construct copies the actual executable path, application-data path, and selected
-Location ID from the running app. Prefer this over constructing IDs manually.
+Construct copies the actual executable path, application-data path, and chosen
+Location IDs from the running app. Prefer this over constructing IDs manually.
 
 If the app is moved or replaced, copy the configuration again so the command
 continues to point to an existing executable.
@@ -115,8 +116,9 @@ construct mcp serve \
   --allow-all
 ```
 
-`--allow-all` is broader than the generated configuration and automatically
-includes Locations registered later. It is useful for a personal agent that
+`--allow-all` is broader than a selected or custom scope and automatically
+includes Locations registered later. The **Connect agents** dialog calls this
+out before copying the configuration. It is useful for a personal agent that
 needs a complete local memory, but it weakens isolation. It does not mean
 arbitrary filesystem access: only registered Locations are exposed.
 
