@@ -1,0 +1,62 @@
+docs/product-spec.md
+  s_954343fc536a43::t_222215df9a5892 187-190,611,980-982,1102
+src/styles.css
+  s_954343fc536a43::t_e7de7e26ee5afe 46-60,68
+  s_954343fc536a43::t_3169e8dcdf17de 314-332,379
+src-tauri/tauri.conf.json
+  s_954343fc536a43::t_512067d6fb30e6 4
+src-tauri/src/desktop.rs
+  s_954343fc536a43::t_267362bbd1da68 88-96,575-576,579-601
+docs/mcp.md
+  s_954343fc536a43::t_222215df9a5892 34-37,60-61,119-121
+src/sidebar.ts
+  s_954343fc536a43::t_5a3be0cb529404 1-48
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_512067d6fb30e6 3
+src/App.tsx
+  s_954343fc536a43::t_deee8b775f9f54 4,20-25,30-31,107-108,243-245,250,268-272
+  s_954343fc536a43::t_3be4b3d14bc317 770,843,852
+  s_954343fc536a43::t_b646f4dd950d00 1220-1249
+  s_954343fc536a43::t_3f9e3fe62b56e7 924-963,972-1001
+  s_954343fc536a43::t_2b4a0d0490d9cb 1110-1147
+  s_954343fc536a43::t_bcede72b35e828 1002
+tests/sidebar.test.mjs
+  s_954343fc536a43::t_5a3be0cb529404 1-48
+src/api.ts
+  s_954343fc536a43::t_267362bbd1da68 43-44
+CHANGELOG.md
+  s_954343fc536a43::t_512067d6fb30e6 9-25
+package.json
+  s_954343fc536a43::t_512067d6fb30e6 4
+docs/user-guide.md
+  s_954343fc536a43::t_7f633f86259faf 302,304
+  s_954343fc536a43::t_222215df9a5892 299-301
+README.md
+  s_954343fc536a43::t_222215df9a5892 103-106
+src-tauri/src/knowledge.rs
+  s_954343fc536a43::t_a1905586598991 680-685,687-720,727-732
+  s_954343fc536a43::t_267362bbd1da68 317-329,332-345,350
+  s_954343fc536a43::t_7e58f139824beb 686,721-726
+src/types.ts
+  s_954343fc536a43::t_5a3be0cb529404 102-103,116
+package-lock.json
+  s_954343fc536a43::t_bfa5ebdad37362 3,9
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_b0a7bcde8667c3 813
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "8ee71458cd285b5bdb1db0c6382fb9d57c331393",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
