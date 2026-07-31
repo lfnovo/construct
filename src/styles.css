@@ -43,11 +43,21 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sidebar { min-width: 0; display: flex; flex-direction: column; background: #18181c; border-right: 1px solid var(--border); overflow: hidden; }
 .sidebar-resizer { cursor: col-resize; background: var(--bg); position: relative; z-index: 2; }
 .sidebar-resizer:hover { background: var(--accent); }
-.sidebar-section { min-height: 48px; overflow: auto; border-bottom: 1px solid var(--border); }
-.locations-section { flex: 0 1 25%; }
-.files-section { flex: 1 1 auto; }
-.history-section { flex: 0 1 28%; border-bottom: 0; }
-.section-title { height: 35px; display: flex; align-items: center; gap: 7px; padding: 0 8px; color: var(--muted); font-size: 10px; letter-spacing: .08em; font-weight: 700; border-bottom: 1px solid rgba(58,58,66,.55); user-select: none; }
+.sidebar-global-toolbar { flex: 0 0 35px; min-width: 0; display: flex; align-items: center; gap: 5px; padding: 0 7px; border-bottom: 1px solid var(--border); color: var(--muted); }
+.sidebar-global-toolbar > span { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-global-toolbar button { height: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 0; border-radius: 5px; padding: 0 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.sidebar-global-toolbar button:hover { background: var(--surface-hover); color: var(--text); }
+.sidebar-global-toolbar .sidebar-toggle, .sidebar-global-toolbar .theme-button { flex: 0 0 24px; width: 24px; padding: 0; }
+.sidebar-global-toolbar .connect-agents-button { flex: 0 0 auto; font-size: 9px; font-weight: 700; letter-spacing: .02em; }
+.sidebar-panels { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-section { flex-basis: 0; min-height: 80px; display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px solid var(--border); }
+.sidebar-section.collapsed { flex: 0 0 35px !important; min-height: 35px; }
+.history-section { border-bottom: 0; }
+.sidebar-section-content { flex: 1; min-height: 0; overflow: auto; }
+.sidebar-panel-resizer { position: relative; z-index: 2; flex: 0 0 5px; cursor: row-resize; background: var(--bg); touch-action: none; }
+.sidebar-panel-resizer::after { position: absolute; inset: 2px 0; content: ""; background: var(--border); opacity: .42; }
+.sidebar-panel-resizer:hover::after { background: var(--accent); opacity: 1; }
+.section-title { flex: 0 0 35px; height: 35px; display: flex; align-items: center; gap: 7px; padding: 0 8px; color: var(--muted); font-size: 10px; letter-spacing: .08em; font-weight: 700; border-bottom: 1px solid rgba(58,58,66,.55); user-select: none; }
 .section-title > button:first-child { width: 17px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 17px; line-height: 1; }
 .section-title .add-button { margin-left: auto; width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-raised); color: var(--text); font-size: 17px; line-height: 1; }
 .section-title .add-button { display: grid; place-items: center; padding: 0; }
@@ -55,9 +65,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .section-subtitle { margin-left: auto; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; letter-spacing: normal; }
 .section-title select { margin-left: auto; max-width: 65px; background: transparent; border: 0; color: var(--muted); font-size: 10px; outline: 0; }
 .section-title .clear-history { border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
-.section-title > button:first-child, .section-title .theme-button { display: grid; place-items: center; }
-.section-title .theme-button { margin-left: auto; width: 24px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
-.section-title .theme-button:hover { background: var(--surface-hover); color: var(--text); }
+.section-title > button:first-child { display: grid; place-items: center; }
 .section-title .sidebar-toggle { width: 24px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
 .section-title .sidebar-toggle:hover, .sidebar-rail .sidebar-toggle:hover { background: var(--surface-hover); color: var(--text); }
 .sidebar-rail { display: flex; justify-content: center; padding-top: 7px; background: #18181c; border-right: 1px solid var(--border); }
@@ -303,6 +311,25 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .terminal-application-list small { color: var(--muted); font-size: 10px; }
 .terminal-picker-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
 .terminal-picker-actions button { border: 1px solid var(--border-strong); border-radius: 5px; padding: 6px 10px; background: var(--surface-raised); color: var(--text); font-size: 12px; cursor: pointer; }
+.mcp-access-modal { width: min(480px, calc(100vw - 40px)); max-height: min(680px, calc(100vh - 40px)); overflow: auto; padding: 20px; border: 1px solid var(--border-strong); border-radius: 9px; background: #26262c; box-shadow: 0 20px 70px rgba(0,0,0,.5); }
+.mcp-access-modal h2 { margin: 0; font-size: 17px; }
+.mcp-access-modal > p { margin: 7px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.mcp-access-options { display: grid; gap: 7px; }
+.mcp-access-options > label { display: flex; align-items: start; gap: 9px; border: 1px solid var(--border); border-radius: 7px; padding: 10px; background: var(--surface); cursor: pointer; }
+.mcp-access-options > label:hover, .mcp-access-options > label.selected { border-color: var(--accent); background: var(--accent-soft); }
+.mcp-access-options > label:has(input:disabled) { opacity: .48; cursor: default; }
+.mcp-access-options input { margin: 2px 0 0; accent-color: var(--accent); }
+.mcp-access-options label span { display: grid; gap: 3px; }
+.mcp-access-options strong { font-size: 12px; }
+.mcp-access-options small { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.mcp-location-options { max-height: 190px; overflow: auto; display: grid; gap: 3px; margin: 0 0 2px 27px; padding: 5px 0; }
+.mcp-location-options label { display: flex; align-items: center; gap: 8px; min-height: 27px; border-radius: 4px; padding: 2px 7px; color: var(--text); font-size: 11px; cursor: pointer; }
+.mcp-location-options label:hover { background: var(--surface-hover); }
+.mcp-access-modal .mcp-access-warning { margin: 14px 0 0; border-top: 1px solid var(--border); padding-top: 12px; font-size: 10px; }
+.mcp-access-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.mcp-access-actions button { border: 1px solid var(--border-strong); border-radius: 5px; padding: 6px 10px; background: var(--surface-raised); color: var(--text); font-size: 12px; cursor: pointer; }
+.mcp-access-actions .primary-button { border-color: #696be0; background: #5154c7; color: white; }
+.mcp-access-actions button:disabled { opacity: .45; cursor: default; }
 
 /* Polished icon alignment, readable code, and light-mode overrides. */
 .section-title svg, .icon-button svg, .file-row svg, .folder-row svg, .context-menu svg { flex: 0 0 auto; vertical-align: middle; }
@@ -349,6 +376,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 [data-theme="light"] .context-menu button { color: #262633; }
 [data-theme="light"] .context-menu button:hover { background: #ececf3; }
 [data-theme="light"] .terminal-picker-modal { background: #ffffff; border-color: #c7c7d4; box-shadow: 0 20px 60px rgba(25,25,40,.2); }
+[data-theme="light"] .mcp-access-modal { background: #ffffff; border-color: #c7c7d4; box-shadow: 0 20px 60px rgba(25,25,40,.2); }
 
 /* Keep the reading scrollbar flush to the pane edge and visible in both themes. */
 .markdown-preview { width: 100%; max-width: none; scrollbar-color: #777783 transparent; scrollbar-width: thin; }

@@ -99,6 +99,8 @@ export type LayoutNode =
 
 export type SavedTab = Pick<DocumentTab, "id" | "path" | "locationId" | "title" | "relativePath" | "mode">;
 export type SavedPane = Omit<Pane, "tabs"> & { tabs: SavedTab[] };
+export type SidebarSectionId = "locations" | "files" | "history";
+export type SidebarPanelSizes = Record<SidebarSectionId, number>;
 
 export type SavedWorkspace = {
   locations: LocationRecord[];
@@ -111,6 +113,7 @@ export type SavedWorkspace = {
   sidebarWidth: number;
   sidebarHidden?: boolean;
   collapsedSections: Record<string, boolean>;
+  sidebarPanelSizes?: SidebarPanelSizes;
   theme: "dark" | "light";
   terminalApplicationId?: TerminalApplicationId;
   rememberRecentSearches?: boolean;

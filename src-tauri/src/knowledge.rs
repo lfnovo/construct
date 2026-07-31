@@ -314,21 +314,40 @@ pub(crate) fn load_locations(data_dir: &Path) -> Result<Vec<LocationDefinition>,
     Ok(workspace.locations)
 }
 
-pub(crate) fn mcp_configuration(data_dir: &Path, location_id: &str) -> Result<String, String> {
+pub(crate) fn mcp_configuration(
+    data_dir: &Path,
+    location_ids: &[String],
+    allow_all: bool,
+) -> Result<String, String> {
+    if allow_all && !location_ids.is_empty() {
+        return Err(
+            "Choose specific Locations or all Locations, but not both at once.".to_string(),
+        );
+    }
+    if !allow_all && location_ids.is_empty() {
+        return Err("Choose at least one Location for MCP access.".to_string());
+    }
     let executable = std::env::current_exe()
         .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
+    let mut arguments = vec![
+        "mcp".to_string(),
+        "serve".to_string(),
+        "--data-dir".to_string(),
+        data_dir.to_string_lossy().into_owned(),
+    ];
+    if allow_all {
+        arguments.push("--allow-all".to_string());
+    } else {
+        for location_id in location_ids {
+            arguments.push("--allow".to_string());
+            arguments.push(location_id.clone());
+        }
+    }
     serde_json::to_string_pretty(&json!({
         "mcpServers": {
             "construct": {
                 "command": executable,
-                "args": [
-                    "mcp",
-                    "serve",
-                    "--data-dir",
-                    data_dir,
-                    "--allow",
-                    location_id
-                ]
+                "args": arguments
             }
         }
     }))
@@ -657,4 +676,57 @@ fn required_string<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
         .get(key)
         .and_then(Value::as_str)
         .ok_or_else(|| format!("The local service request is missing {key}."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn configuration_arguments(configuration: &str) -> Vec<String> {
+        serde_json::from_str::<Value>(configuration).unwrap()["mcpServers"]["construct"]["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|argument| argument.as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn mcp_configuration_supports_multiple_explicit_locations() {
+        let configuration = mcp_configuration(
+            Path::new("/tmp/construct-profile"),
+            &["first".to_string(), "second".to_string()],
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            configuration_arguments(&configuration),
+            [
+                "mcp",
+                "serve",
+                "--data-dir",
+                "/tmp/construct-profile",
+                "--allow",
+                "first",
+                "--allow",
+                "second",
+            ]
+        );
+    }
+
+    #[test]
+    fn mcp_configuration_requires_an_explicit_access_scope() {
+        assert!(mcp_configuration(Path::new("/tmp/construct-profile"), &[], false).is_err());
+        assert!(mcp_configuration(
+            Path::new("/tmp/construct-profile"),
+            &["first".to_string()],
+            true,
+        )
+        .is_err());
+
+        let configuration =
+            mcp_configuration(Path::new("/tmp/construct-profile"), &[], true).unwrap();
+        assert!(configuration_arguments(&configuration).contains(&"--allow-all".to_string()));
+    }
 }

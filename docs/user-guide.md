@@ -296,11 +296,12 @@ metadata, not files.
 On macOS, Windows, and Unix:
 
 1. select a Location;
-2. use the clipboard button in the **Locations** header;
-3. paste the generated stdio configuration into your MCP client;
-4. restart or reload the client if it does not discover newly added servers.
+2. use **Agents** in the global sidebar toolbar;
+3. choose the current Location, a custom set, or all registered Locations;
+4. paste the generated stdio configuration into your MCP client;
+5. restart or reload the client if it does not discover newly added servers.
 
-The generated server can read only the selected Location. It exposes overview,
+The generated server can read only the chosen scope. It exposes overview,
 recent activity, search, document reading, direct relationships, context-pack
 assembly, and index status. It cannot edit files or run Git, shell, or database
 queries.

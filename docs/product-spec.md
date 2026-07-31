@@ -184,6 +184,10 @@ A sidebar é redimensionável e contém três seções também redimensionáveis
 3. **Histórico:** eventos recentes agregados de todos os Locais.
 
 Cada seção pode ser recolhida. O aplicativo deve preservar seus tamanhos e estados de expansão.
+Recolher uma seção reduz sua altura ao cabeçalho e devolve imediatamente o
+espaço às demais. Cada corpo possui scroll independente e mantém o cabeçalho
+visível. Controles globais da sidebar, como tema, visibilidade e conexão de
+agentes, permanecem fora das seções e não rolam com Locais.
 
 ### 9.2 Área principal
 
@@ -604,7 +608,7 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-007:** Cada Local mantém um cache derivado diário de 15 dias com contadores separados para mudanças reais, leituras servidas e inclusão em context packs. Hits de busca e rebuilds não contam como atividade.
 - **AGENT-008:** O overview deve combinar contagens por type, tag e role, saúde de links, findings, atividade recente e entradas recentes dos `log.md` reservados pelo OKF, inclusive em scopes aninhados.
 - **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 07 e nunca são misturados silenciosamente ao conteúdo fonte.
-- **AGENT-010:** A interface deve permitir copiar uma configuração MCP pronta para o Local selecionado e explicar que o cliente externo controla o destino do conteúdo recuperado.
+- **AGENT-010:** A interface deve oferecer um ponto global para copiar uma configuração MCP pronta, exigindo escolha explícita entre o Local atual, um conjunto de Locais ou todos os Locais, e explicar que o cliente externo controla o destino do conteúdo recuperado.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
 - **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
 - **AGENT-013:** O serviço usa socket Unix no macOS/Unix e named pipe no Windows, sempre com token por profile, sem listener de rede.
@@ -973,8 +977,9 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 
 ### 19.9 Conectar um agente local
 
-- A configuração copiada para o MCP aponta ao executável e profile atuais e
-  permite apenas o Local selecionado.
+- A configuração copiada para o MCP aponta ao executável e profile atuais.
+- O usuário escolhe explicitamente o Local atual, um conjunto de Locais ou
+  todos os Locais; a interface nunca amplia o acesso silenciosamente.
 - O servidor recusa iniciar sem allowlist explícita ou `--allow-all`.
 - O agente pode consultar Locations, overview, activity, busca, documento,
   relações, context pack e status do índice.
@@ -1094,6 +1099,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-28 | Isolar o linter em um build CLI-only, distribuí-lo para Linux x64 e oferecer uma GitHub Action fina que verifica o artefato versionado e preserva o contrato do CLI. |
 | 2026-07-29 | Oferecer handoff explícito para terminais externos conhecidos a partir de Locais e documentos, sem comandos arbitrários, conteúdo, monitoramento ou acesso por MCP; terminal embutido permanece adiado. |
 | 2026-07-30 | Preservar a posição semântica ao alternar modos e tornar comentários de Review bidirecionalmente navegáveis por âncoras opcionais compatíveis com `construct-review:v1`. |
+| 2026-07-30 | Tornar as três seções da sidebar redimensionáveis, com recolhimento que libera espaço e scroll independente; mover tema e conexão de agentes para controles globais e exigir escopo MCP explícito. |
 
 ## 24. Histórico do documento
 

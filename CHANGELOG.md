@@ -6,6 +6,23 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-07-30
+
+### Added
+
+- Added independently resizable Locations, Files, and History panels with
+  persisted proportions and independent scrolling.
+- Added a global **Connect agents** flow with explicit access to the current
+  Location, a custom set of Locations, or all registered Locations.
+
+### Changed
+
+- Moved theme and agent connection controls into a fixed global sidebar
+  toolbar so they remain available while Location content scrolls.
+- Made collapsed sidebar panels release their space immediately to the
+  remaining expanded panels.
+- Consolidated Location-specific actions in each Location's actions menu.
+
 ## [0.1.6] - 2026-07-30
 
 ### Added

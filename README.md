@@ -100,9 +100,10 @@ source annotations; all validation still happens inside the CLI.
 For registered Locations, the desktop also exposes the same findings in
 **Explore → Health**.
 
-In a supported desktop preview, select a Location and use the clipboard button
-in the **Locations** header to copy a ready-to-paste MCP configuration. The
-generated server is read-only and limited to that Location. See:
+In a supported desktop preview, use **Agents** in the global sidebar toolbar to
+copy a ready-to-paste MCP configuration. Choose the current Location, a custom
+set, or all registered Locations explicitly. The generated server remains
+read-only. See:
 
 - [CLI and OKF lint guide](docs/cli.md)
 - [Local MCP guide](docs/mcp.md)
