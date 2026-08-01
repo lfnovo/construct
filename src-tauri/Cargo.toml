@@ -1,6 +1,6 @@
 [package]
 name = "construct"
-version = "0.1.7"
+version = "0.1.8"
 description = "A desktop knowledge workspace for coding agents"
 authors = ["Luis Novo"]
 license = "MIT"
