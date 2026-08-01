@@ -1,4 +1,5 @@
 use crate::{diagnostics::Diagnostics, okf};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use blake3::Hasher;
 use chrono::Utc;
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
@@ -20,7 +21,8 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 
-const INDEXER_VERSION: i64 = 4;
+const INDEXER_VERSION: i64 = 5;
+const LIST_DOCUMENTS_CURSOR_VERSION: u8 = 1;
 const MAX_DOCUMENT_BYTES: u64 = 8 * 1024 * 1024;
 const LEXICAL_FALLBACK_BATCH_SIZE: usize = 200;
 const FULLTEXT_INDEXES: &[(&str, &str)] = &[
@@ -177,6 +179,61 @@ pub(crate) struct KnowledgeSearchRequest {
     pub(crate) filters: KnowledgeSearchFilters,
     #[serde(default = "default_search_limit")]
     pub(crate) limit: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ListDocumentsRequest {
+    pub(crate) location_id: String,
+    #[serde(default)]
+    pub(crate) role: Option<String>,
+    #[serde(default)]
+    pub(crate) r#type: Option<String>,
+    #[serde(default)]
+    pub(crate) status: Option<String>,
+    #[serde(default)]
+    pub(crate) tags: Vec<String>,
+    #[serde(default)]
+    pub(crate) path_prefix: String,
+    #[serde(default = "default_list_documents_limit")]
+    pub(crate) limit: usize,
+    #[serde(default)]
+    pub(crate) cursor: Option<String>,
+    #[serde(default = "default_document_order")]
+    pub(crate) order_by: String,
+}
+
+fn default_list_documents_limit() -> usize {
+    100
+}
+
+fn default_document_order() -> String {
+    "relativePath".to_string()
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ListedDocument {
+    pub(crate) location_id: String,
+    pub(crate) relative_path: String,
+    pub(crate) title: String,
+    pub(crate) description: Option<String>,
+    pub(crate) r#type: Option<String>,
+    pub(crate) tags: Vec<String>,
+    pub(crate) role: String,
+    pub(crate) status: Option<String>,
+    pub(crate) trust: Option<String>,
+    pub(crate) freshness: String,
+    pub(crate) stale_after: Option<String>,
+    pub(crate) generation: i64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ListDocumentsResponse {
+    pub(crate) documents: Vec<ListedDocument>,
+    pub(crate) next_cursor: Option<String>,
+    pub(crate) generation: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -611,6 +668,30 @@ struct FacetRow {
     trust_tier: Option<String>,
     stale_after: Option<String>,
     finding_count: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, SurrealValue)]
+struct ListDocumentRow {
+    relative_path: String,
+    title: String,
+    description: Option<String>,
+    r#type: Option<String>,
+    tags: Vec<String>,
+    kind: String,
+    status: Option<String>,
+    trust_tier: Option<String>,
+    stale_after: Option<String>,
+    generation: i64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ListDocumentsCursor {
+    version: u8,
+    location_id: String,
+    generation: i64,
+    after_relative_path: String,
+    request_hash: String,
 }
 
 #[derive(Clone, Debug, Deserialize, SurrealValue)]
@@ -1290,6 +1371,136 @@ LIMIT $limit;
         Ok(KnowledgeSearchResponse {
             results,
             unavailable_location_ids: unavailable,
+        })
+    }
+
+    pub(crate) async fn list_documents(
+        &self,
+        request: ListDocumentsRequest,
+    ) -> Result<ListDocumentsResponse, String> {
+        validate_location_id(&request.location_id)?;
+        if request.order_by != "relativePath" {
+            return Err("The document order is invalid.".to_string());
+        }
+        let index = self.open(&request.location_id).await?;
+        let meta = read_meta(&index.db)
+            .await?
+            .ok_or_else(|| "This Location has not been indexed yet.".to_string())?;
+        let generation = meta
+            .active_generation
+            .ok_or_else(|| "This Location has no complete index generation yet.".to_string())?;
+        let limit = request.limit.clamp(1, 100);
+        let role = normalized_optional_filter(request.role.as_deref());
+        let document_type = normalized_optional_filter(request.r#type.as_deref());
+        let status = normalized_optional_filter(request.status.as_deref());
+        let mut tags = request
+            .tags
+            .iter()
+            .filter_map(|tag| normalized_optional_filter(Some(tag)))
+            .collect::<Vec<_>>();
+        tags.sort();
+        tags.dedup();
+        let path_prefix = normalize_path_prefix(&request.path_prefix);
+        let request_hash = list_documents_request_hash(
+            role.as_deref(),
+            document_type.as_deref(),
+            status.as_deref(),
+            &tags,
+            &path_prefix,
+            &request.order_by,
+        )?;
+        let after_relative_path = match request.cursor.as_deref() {
+            Some(cursor) => {
+                let cursor = decode_list_documents_cursor(cursor)?;
+                if cursor.version != LIST_DOCUMENTS_CURSOR_VERSION
+                    || cursor.location_id != request.location_id
+                    || cursor.request_hash != request_hash
+                {
+                    return Err("The document list cursor does not match this request.".to_string());
+                }
+                if cursor.generation != generation {
+                    return Err(
+                        "The document list cursor no longer matches the active index generation."
+                            .to_string(),
+                    );
+                }
+                cursor.after_relative_path
+            }
+            None => String::new(),
+        };
+        let mut response = index
+            .db
+            .query(
+                r#"
+SELECT relative_path, title, description, type, tags, kind, status, trust_tier,
+       stale_after, generation
+FROM document
+WHERE generation = $generation
+  AND ($after_relative_path = '' OR relative_path > $after_relative_path)
+  AND ($role = '' OR kind = $role)
+  AND ($document_type = '' OR type = $document_type)
+  AND ($status = '' OR status = $status)
+  AND (array::len($tags) = 0 OR array::len(array::intersect(tags, $tags)) > 0)
+  AND ($path_prefix = '' OR string::starts_with(relative_path, $path_prefix))
+ORDER BY relative_path ASC
+LIMIT $limit;
+"#,
+            )
+            .bind(("generation", generation))
+            .bind(("after_relative_path", after_relative_path))
+            .bind(("role", role.unwrap_or_default()))
+            .bind(("document_type", document_type.unwrap_or_default()))
+            .bind(("status", status.unwrap_or_default()))
+            .bind(("tags", tags))
+            .bind(("path_prefix", path_prefix))
+            .bind(("limit", limit.saturating_add(1) as i64))
+            .await
+            .map_err(|error| format!("Could not list indexed documents: {error}"))?
+            .check()
+            .map_err(|error| format!("Could not list indexed documents: {error}"))?;
+        let mut rows: Vec<ListDocumentRow> = response
+            .take(0)
+            .map_err(|error| format!("Could not decode indexed documents: {error}"))?;
+        let has_more = rows.len() > limit;
+        if has_more {
+            rows.truncate(limit);
+        }
+        let next_cursor = if has_more {
+            rows.last()
+                .map(|row| {
+                    encode_list_documents_cursor(&ListDocumentsCursor {
+                        version: LIST_DOCUMENTS_CURSOR_VERSION,
+                        location_id: request.location_id.clone(),
+                        generation,
+                        after_relative_path: row.relative_path.clone(),
+                        request_hash,
+                    })
+                })
+                .transpose()?
+        } else {
+            None
+        };
+        let documents = rows
+            .into_iter()
+            .map(|row| ListedDocument {
+                location_id: request.location_id.clone(),
+                relative_path: row.relative_path,
+                title: row.title,
+                description: row.description,
+                r#type: row.r#type,
+                tags: row.tags,
+                role: row.kind,
+                status: row.status,
+                trust: row.trust_tier,
+                freshness: freshness_for(row.stale_after.as_deref()),
+                stale_after: row.stale_after,
+                generation: row.generation,
+            })
+            .collect();
+        Ok(ListDocumentsResponse {
+            documents,
+            next_cursor,
+            generation,
         })
     }
 
@@ -2403,6 +2614,61 @@ fn normalize_relative_path(path: &str) -> String {
         .join("/")
 }
 
+fn normalize_path_prefix(path: &str) -> String {
+    let normalized = normalize_relative_path(path);
+    if !normalized.is_empty() && (path.ends_with('/') || path.ends_with('\\')) {
+        format!("{normalized}/")
+    } else {
+        normalized
+    }
+}
+
+fn normalized_optional_filter(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn list_documents_request_hash(
+    role: Option<&str>,
+    document_type: Option<&str>,
+    status: Option<&str>,
+    tags: &[String],
+    path_prefix: &str,
+    order_by: &str,
+) -> Result<String, String> {
+    let value = json!({
+        "role": role,
+        "type": document_type,
+        "status": status,
+        "tags": tags,
+        "pathPrefix": path_prefix,
+        "orderBy": order_by,
+    });
+    let encoded = serde_json::to_vec(&value)
+        .map_err(|error| format!("Could not encode the document list filters: {error}"))?;
+    Ok(blake3::hash(&encoded).to_hex().to_string())
+}
+
+fn encode_list_documents_cursor(cursor: &ListDocumentsCursor) -> Result<String, String> {
+    let encoded = serde_json::to_vec(cursor)
+        .map_err(|error| format!("Could not encode the document list cursor: {error}"))?;
+    Ok(URL_SAFE_NO_PAD.encode(encoded))
+}
+
+fn decode_list_documents_cursor(value: &str) -> Result<ListDocumentsCursor, String> {
+    let encoded = URL_SAFE_NO_PAD
+        .decode(value)
+        .map_err(|_| "The document list cursor is invalid.".to_string())?;
+    let cursor: ListDocumentsCursor = serde_json::from_slice(&encoded)
+        .map_err(|_| "The document list cursor is invalid.".to_string())?;
+    if cursor.after_relative_path.is_empty() {
+        return Err("The document list cursor is invalid.".to_string());
+    }
+    Ok(cursor)
+}
+
 fn validate_knowledge_search(request: &KnowledgeSearchRequest) -> Result<(), String> {
     if request.location_ids.is_empty() {
         return Err("Choose at least one Location to search.".to_string());
@@ -3198,17 +3464,16 @@ fn collect_okf_mapping_field(value: &Value, field: &str, output: &mut Vec<String
 }
 
 fn trust_tier(metadata: &Value, is_okf_concept: bool) -> Option<String> {
-    if !is_okf_concept {
-        return None;
-    }
     let mut actors = Vec::new();
     if let Some(verified) = metadata.get("verified") {
         collect_okf_mapping_field(verified, "by", &mut actors);
     }
     if actors.iter().any(|actor| actor.starts_with("human:")) {
         Some("humanReviewed".to_string())
-    } else if actors.is_empty() {
+    } else if actors.is_empty() && is_okf_concept {
         Some("unverified".to_string())
+    } else if actors.is_empty() {
+        None
     } else {
         Some("machineConfirmed".to_string())
     }
@@ -3293,14 +3558,9 @@ fn build_document(
         .filter(|value| !value.is_null());
     let kind = json_string(&inspection_json, "kind").unwrap_or_else(|| "concept".to_string());
     let is_okf_concept = context.request.okf_bundle && kind == "concept";
-    let lifecycle_status = if is_okf_concept {
-        Some(json_string(&metadata, "status").unwrap_or_else(|| "stable".to_string()))
-    } else {
-        None
-    };
-    let stale_after = is_okf_concept
-        .then(|| json_string(&metadata, "staleAfter"))
-        .flatten();
+    let lifecycle_status =
+        json_string(&metadata, "status").or_else(|| is_okf_concept.then(|| "stable".to_string()));
+    let stale_after = json_string(&metadata, "staleAfter");
     let trust_tier = trust_tier(&metadata, is_okf_concept);
     let finding_count = inspection_json
         .get("findings")
@@ -3637,6 +3897,117 @@ mod tests {
         fs::remove_dir_all(data).expect("remove data");
         fs::remove_dir_all(first).expect("remove first");
         fs::remove_dir_all(second).expect("remove second");
+    }
+
+    #[tokio::test]
+    async fn lists_documents_with_exact_filters_and_cursor_pagination() {
+        let data = temporary_root("list-data");
+        let source = temporary_root("list-source");
+        fs::create_dir_all(source.join("projects")).expect("create projects");
+        fs::create_dir_all(source.join("projects-old")).expect("create sibling projects");
+        fs::create_dir_all(source.join("people")).expect("create people");
+        fs::write(
+            source.join("projects/alpha.md"),
+            "---\ntype: Project\ntitle: Alpha\ndescription: First project\ntags: [example, software]\nstatus: stable\nstale_after: 2099-01-01\nverified: { by: human:luis, at: 2026-08-01T00:00:00Z }\n---\n# Alpha",
+        )
+        .expect("write alpha");
+        fs::write(
+            source.join("projects/beta.md"),
+            "---\ntype: Project\ntitle: Beta\ntags: [example]\nstatus: stable\n---\n# Beta",
+        )
+        .expect("write beta");
+        fs::write(
+            source.join("people/luis.md"),
+            "---\ntype: Person\ntitle: Luis\ntags: [example]\nstatus: draft\n---\n# Luis",
+        )
+        .expect("write person");
+        fs::write(
+            source.join("projects-old/legacy.md"),
+            "---\ntype: Project\ntitle: Legacy\ntags: [example]\nstatus: stable\n---\n# Legacy",
+        )
+        .expect("write sibling project");
+        let location_id = "list-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("index documents");
+
+        let first = service
+            .list_documents(ListDocumentsRequest {
+                location_id: location_id.to_string(),
+                role: Some("concept".to_string()),
+                r#type: Some("Project".to_string()),
+                status: Some("stable".to_string()),
+                tags: vec!["example".to_string()],
+                path_prefix: "projects/".to_string(),
+                limit: 1,
+                cursor: None,
+                order_by: "relativePath".to_string(),
+            })
+            .await
+            .expect("list first page");
+        assert_eq!(first.documents.len(), 1);
+        assert_eq!(first.documents[0].relative_path, "projects/alpha.md");
+        assert_eq!(first.documents[0].status.as_deref(), Some("stable"));
+        assert_eq!(first.documents[0].trust.as_deref(), Some("humanReviewed"));
+        assert_eq!(first.documents[0].freshness, "current");
+        let cursor = first.next_cursor.expect("next cursor");
+
+        let second = service
+            .list_documents(ListDocumentsRequest {
+                location_id: location_id.to_string(),
+                role: Some("concept".to_string()),
+                r#type: Some("Project".to_string()),
+                status: Some("stable".to_string()),
+                tags: vec!["example".to_string()],
+                path_prefix: "projects/".to_string(),
+                limit: 1,
+                cursor: Some(cursor.clone()),
+                order_by: "relativePath".to_string(),
+            })
+            .await
+            .expect("list second page");
+        assert_eq!(second.documents.len(), 1);
+        assert_eq!(second.documents[0].relative_path, "projects/beta.md");
+        assert!(second.next_cursor.is_none());
+
+        let mismatch = service
+            .list_documents(ListDocumentsRequest {
+                location_id: location_id.to_string(),
+                role: Some("concept".to_string()),
+                r#type: Some("Person".to_string()),
+                status: Some("stable".to_string()),
+                tags: vec!["example".to_string()],
+                path_prefix: "projects/".to_string(),
+                limit: 1,
+                cursor: Some(cursor),
+                order_by: "relativePath".to_string(),
+            })
+            .await
+            .expect_err("reject mismatched cursor");
+        assert!(mismatch.contains("does not match this request"));
+
+        let empty = service
+            .list_documents(ListDocumentsRequest {
+                location_id: location_id.to_string(),
+                role: None,
+                r#type: Some("Missing".to_string()),
+                status: None,
+                tags: Vec::new(),
+                path_prefix: String::new(),
+                limit: 100,
+                cursor: None,
+                order_by: "relativePath".to_string(),
+            })
+            .await
+            .expect("return empty result");
+        assert!(empty.documents.is_empty());
+        assert!(empty.next_cursor.is_none());
+
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
     }
 
     #[tokio::test]
