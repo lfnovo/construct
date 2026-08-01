@@ -61,9 +61,17 @@ fn main() {
             }
             return;
         }
+        let current_directory =
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        if let Err(error) =
+            construct_lib::validate_desktop_invocation(&arguments, &current_directory)
+        {
+            eprintln!("construct: {error}");
+            std::process::exit(2);
+        }
         #[cfg(target_os = "windows")]
         detach_desktop_console();
-        construct_lib::run();
+        construct_lib::run(arguments, current_directory);
     }
 }
 

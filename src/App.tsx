@@ -5,7 +5,7 @@ import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileTe
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { DocumentModeSurface } from "./DocumentModeSurface";
-import { buildTypeColorMap, toggleFilterValue, type ExploreFilters } from "./explore";
+import { buildTypeColorMap, sortFacetsByCount, TAG_PREVIEW_LIMIT, toggleFilterValue, visibleTagFacets, type ExploreFilters } from "./explore";
 import { HealthWorkspace } from "./HealthWorkspace";
 import { deduplicateHistory } from "./history";
 import { KnowledgeGraph } from "./KnowledgeGraph";
@@ -16,7 +16,7 @@ import { splitReviewDocument } from "./review";
 import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
 import { moveQuickOpenSelection } from "./quickOpen";
-import { pathBelongsToLocation, pathIdentity, pathsEqual } from "./paths";
+import { mostSpecificContainingLocation, parentPath, pathIdentity, pathsEqual, relativePathWithinLocation } from "./paths";
 import {
   defaultSidebarPanelSizes,
   resizeSidebarPanelPair,
@@ -25,7 +25,7 @@ import {
 } from "./sidebar";
 import { relativeDirectoryForFile, selectedTerminal } from "./terminal";
 import type {
-  DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
+  CliInstallResult, DesktopOpenRequest, DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationRecord,
   Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, SidebarPanelSizes, SidebarSectionId,
   TabMode, TerminalApplication, TerminalApplicationId,
@@ -156,6 +156,7 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onOpenFin
   onClose: () => void;
 }) {
   const [view, setView] = useState<"list" | "graph" | "health">("list");
+  const [expandedTagLocationId, setExpandedTagLocationId] = useState<string | null>(null);
   if (!index || index.status === "scanning") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Building the local knowledge index…</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
   if (index.status === "error") return <section className="bundle-explorer"><header><div><h1>{location.name}</h1><p>Could not build the knowledge index.</p></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></header></section>;
   const typeCounts = new Map<string, number>();
@@ -165,9 +166,11 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onOpenFin
     for (const tag of concept.tags) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
   }
   const concepts = index.concepts.filter((concept) => (!filters.types.length || filters.types.includes(concept.type)) && (!filters.tag || concept.tags.includes(filters.tag)));
-  const types = [...typeCounts.entries()].sort(([left], [right]) => left.localeCompare(right));
+  const types = sortFacetsByCount([...typeCounts.entries()]);
   const typeColors = buildTypeColorMap(types.map(([type]) => type));
-  const tags = [...tagCounts.entries()].sort(([leftName, leftCount], [rightName, rightCount]) => rightCount - leftCount || leftName.localeCompare(rightName));
+  const tags = sortFacetsByCount([...tagCounts.entries()]);
+  const showAllTags = expandedTagLocationId === location.id;
+  const visibleTags = visibleTagFacets(tags, filters.tag, showAllTags);
   return <section className="bundle-explorer">
     <header><div><h1>{location.name}</h1><p>{index.declaredVersion ? `OKF ${index.declaredVersion}` : "OKF"} bundle · {index.concepts.length} concepts · {types.length} types · {tags.length} tags{index.findingCount ? ` · ${index.findingCount} findings` : ""}</p></div><div className="explore-header-actions"><div className="explore-view-switch" aria-label="Explore view"><button className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={13} /> List</button><button className={view === "graph" ? "selected" : ""} onClick={() => setView("graph")}><Network size={13} /> Graph</button><button className={view === "health" ? "selected" : ""} onClick={() => setView("health")}><ShieldCheck size={13} /> Health{index.findingCount ? <span>{index.findingCount}</span> : null}</button></div><button className="toolbar-button" onClick={onClose}>Back to workspace</button></div></header>
     {view === "health" ? <HealthWorkspace
@@ -179,7 +182,7 @@ function BundleExplorer({ location, index, filters, onFilters, onOpen, onOpenFin
       onRefresh={onRefreshHealth}
       onNotify={onNotify}
     /> : <>
-      <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list types">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} style={{ "--type-color": typeColors[type] } as CSSProperties} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}><i className="type-color-dot" />{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags">{tags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div></section></div>
+      <div className="explore-facets"><section><h2>Browse by type</h2><div className="facet-list types">{types.map(([type, count]) => <button key={type} className={filters.types.includes(type) ? "selected" : ""} style={{ "--type-color": typeColors[type] } as CSSProperties} aria-pressed={filters.types.includes(type)} onClick={() => onFilters({ ...filters, types: toggleFilterValue(filters.types, type) })}><i className="type-color-dot" />{type}<span>{count}</span></button>)}</div></section><section><h2>Browse by tag</h2><div className="facet-list tags" id="explore-tag-facets">{visibleTags.map(([tag, count]) => <button key={tag} className={filters.tag === tag ? "selected" : ""} aria-pressed={filters.tag === tag} onClick={() => onFilters({ ...filters, tag: filters.tag === tag ? undefined : tag })}>#{tag}<span>{count}</span></button>)}</div>{tags.length > TAG_PREVIEW_LIMIT && <button className="facet-overflow-toggle" aria-controls="explore-tag-facets" aria-expanded={showAllTags} onClick={() => setExpandedTagLocationId(showAllTags ? null : location.id)}>{showAllTags ? "Show less" : `Show more (${tags.length - TAG_PREVIEW_LIMIT})`}</button>}</section></div>
       <div className="explore-results-heading"><h2>{filters.types.length || filters.tag ? `${concepts.length} matching concepts` : view === "graph" ? "Knowledge graph" : "All concepts"}</h2>{(filters.types.length || filters.tag) && <button onClick={() => onFilters({ types: [] })}>Clear filters</button>}</div>
       {view === "graph" ? <KnowledgeGraph concepts={concepts} typeColors={typeColors} onOpen={onOpen} /> : <div className="concept-results">{concepts.map((concept) => <button key={concept.path} onClick={() => onOpen(concept.path)}><div><strong>{concept.title}</strong>{concept.description && <p>{concept.description}</p>}<small>{concept.relativePath}</small></div><aside><span className="concept-type" style={{ "--type-color": typeColors[concept.type] } as CSSProperties}>{concept.type}</span>{concept.tags.slice(0, 3).map((tag) => <em key={tag}>#{tag}</em>)}</aside></button>)}</div>}
     </>}
@@ -248,6 +251,10 @@ export default function App() {
   const [terminalApplicationId, setTerminalApplicationId] = useState<TerminalApplicationId>();
   const [terminalPicker, setTerminalPicker] = useState<{ target: TerminalTarget | null } | null>(null);
   const [mcpDialog, setMcpDialog] = useState<McpDialogState | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [cliInstallResult, setCliInstallResult] = useState<CliInstallResult | null>(null);
+  const [cliInstallerSupported, setCliInstallerSupported] = useState<boolean | null>(null);
+  const [installingCli, setInstallingCli] = useState(false);
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -459,12 +466,14 @@ export default function App() {
         } })));
       }
       setLocations((current) => current.map((item) => item.id === location.id ? { ...item, available: true } : item));
+      return entries;
     } catch {
       setLocations((current) => current.map((item) => item.id === location.id ? { ...item, available: false } : item));
       setFilesByLocation((current) => ({ ...current, [location.id]: [] }));
       void api.getLocationIndexStatus(location.id)
         .then((indexStatus) => setIndexStatuses((current) => ({ ...current, [location.id]: indexStatus })))
         .catch(() => undefined);
+      return [];
     }
   }, [reconcile, refreshOkfIndex]);
 
@@ -478,14 +487,16 @@ export default function App() {
   const configureLocations = useCallback(async (next: LocationRecord[]) => {
     try {
       const watched = await api.setWatchedLocations(next.map(({ id, path }) => ({ id, path })));
-      setLocations((current) => current.map((location) => ({
+      const configured = next.map((location) => ({
         ...location,
         available: watched.includes(location.id),
-      })));
+      }));
+      locationsRef.current = configured;
+      setLocations(configured);
       return watched;
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error));
-      return [];
+      return null;
     }
   }, [notify]);
 
@@ -541,6 +552,19 @@ export default function App() {
   const openFile = useCallback(async (file: FileEntry, newPane = false, initialMode?: TabMode) => {
     setExploreLocationId(null);
     setSearchSession(null);
+    if (!newPane) {
+      const openPane = Object.values(panes).find((pane) => pane.tabs.some((tab) => pathsEqual(tab.path, file.path)));
+      const openTab = openPane?.tabs.find((tab) => pathsEqual(tab.path, file.path));
+      if (openPane && openTab) {
+        setActivePaneId(openPane.id);
+        setPane(openPane.id, (current) => ({
+          ...current,
+          activeTabId: openTab.id,
+          tabs: current.tabs.map((tab) => tab.id === openTab.id && initialMode ? { ...tab, mode: initialMode } : tab),
+        }));
+        return;
+      }
+    }
     let targetId = activePaneId;
     if (newPane) {
       const nextId = crypto.randomUUID();
@@ -559,7 +583,10 @@ export default function App() {
       }));
       return;
     }
-    const location = locationsRef.current.find((item) => pathBelongsToLocation(file.path, item.path));
+    const location = mostSpecificContainingLocation(
+      locationsRef.current.filter((item) => item.available),
+      file.path,
+    );
     if (!location) return notify("This file does not belong to an available location.");
     try {
       const [contents, git] = await Promise.all([api.readMarkdownFile(file.path), api.getGitInfo(file.path)]);
@@ -721,17 +748,103 @@ export default function App() {
     setActivePaneId(target);
   }, [layout, panes]);
 
+  const ensureExactLocation = useCallback(async (path: string) => {
+    let location = locationsRef.current.find((item) => pathsEqual(item.path, path));
+    let needsRegistration = !location?.available;
+    if (!location) {
+      location = { id: crypto.randomUUID(), path, name: basename(path), available: true };
+      const next = [...locationsRef.current, location];
+      locationsRef.current = next;
+      setLocations(next);
+      needsRegistration = true;
+    }
+    if (needsRegistration) {
+      const next = locationsRef.current;
+      const watched = await configureLocations(next);
+      if (watched) {
+        location = locationsRef.current.find((item) => item.id === location?.id) || location;
+      } else {
+        location = { ...location, available: false };
+        const failedLocation = location;
+        locationsRef.current = next.map((item) => item.id === failedLocation.id ? failedLocation : item);
+        setLocations(locationsRef.current);
+      }
+    }
+    setSelectedLocationId(location.id);
+    const hasCachedEntries = Object.prototype.hasOwnProperty.call(filesRef.current, location.id);
+    const entries = !location.available
+      ? []
+      : hasCachedEntries
+        ? filesRef.current[location.id]
+        : await refreshLocation(location, "reconciliation");
+    return { location, entries };
+  }, [configureLocations, refreshLocation]);
+
   const addLocation = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false, title: "Add folder to watch" });
     if (typeof selected !== "string") return;
     if (locationsRef.current.some((location) => pathsEqual(location.path, selected))) return notify("This folder has already been added.");
-    const location: LocationRecord = { id: crypto.randomUUID(), path: selected, name: basename(selected), available: true };
-    const next = [...locationsRef.current, location];
-    setLocations(next);
-    await configureLocations(next);
-    setSelectedLocationId(location.id);
-    await refreshLocation(location, "reconciliation");
-  }, [configureLocations, notify, refreshLocation]);
+    await ensureExactLocation(selected);
+  }, [ensureExactLocation, notify]);
+
+  const handleDesktopOpenRequest = useCallback(async (request: DesktopOpenRequest) => {
+    if (request.kind === "directory") {
+      await ensureExactLocation(request.path);
+      return;
+    }
+    let location = mostSpecificContainingLocation(locationsRef.current, request.path);
+    let entries: FileEntry[];
+    if (!location) {
+      const registered = await ensureExactLocation(parentPath(request.path));
+      location = registered.location;
+      entries = registered.entries;
+    } else if (!location.available) {
+      const registered = await ensureExactLocation(location.path);
+      location = registered.location;
+      entries = registered.entries;
+    } else {
+      setSelectedLocationId(location.id);
+      entries = Object.prototype.hasOwnProperty.call(filesRef.current, location.id)
+        ? filesRef.current[location.id]
+        : await refreshLocation(location, "reconciliation");
+    }
+    if (!location.available) {
+      const fallback = mostSpecificContainingLocation(
+        locationsRef.current.filter((item) => item.available),
+        request.path,
+      );
+      if (!fallback) {
+        notify("This file does not belong to an available location.");
+        return;
+      }
+      location = fallback;
+      setSelectedLocationId(location.id);
+      entries = Object.prototype.hasOwnProperty.call(filesRef.current, location.id)
+        ? filesRef.current[location.id]
+        : await refreshLocation(location, "reconciliation");
+    }
+    const file = entries.find((entry) => pathsEqual(entry.path, request.path)) || {
+      path: request.path,
+      relativePath: relativePathWithinLocation(request.path, location.path),
+      name: basename(request.path),
+      modifiedAtMs: 0,
+      size: 0,
+    };
+    await openFile(file, false, "edit");
+  }, [ensureExactLocation, notify, openFile, refreshLocation]);
+
+  const installCliCommand = useCallback(async () => {
+    setInstallingCli(true);
+    try {
+      const result = await api.installCliCommand();
+      setCliInstallResult(result);
+      notify(result.alreadyInstalled ? "The construct command is already installed." : "The construct command was installed.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : String(error));
+    } finally {
+      setInstallingCli(false);
+    }
+  }, [notify]);
 
   const removeLocation = useCallback(async (locationId: string) => {
     const location = locationsRef.current.find((item) => item.id === locationId);
@@ -777,6 +890,9 @@ export default function App() {
             selectedTerminal(availableTerminals, saved.terminalApplicationId)?.id,
           );
         }).catch(() => undefined);
+        void api.cliCommandInstallSupported().then(setCliInstallerSupported).catch(() => {
+          if (mounted) setCliInstallerSupported(false);
+        });
         setRememberRecentSearches(saved.rememberRecentSearches !== false);
         setRecentSearches((saved.recentSearches || []).slice(0, 20));
         setLayout(restoredLayout);
@@ -808,6 +924,36 @@ export default function App() {
     })();
     return () => { mounted = false; };
   }, [configureLocations, notify, refreshLocation]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let dispose: (() => void) | null = null;
+    const drainRequests = async () => {
+      if (!ready) return;
+      try {
+        const requests = await api.takeDesktopOpenRequests();
+        for (const request of requests) await handleDesktopOpenRequest(request);
+      } catch (error) {
+        notify(error instanceof Error ? error.message : String(error));
+      }
+    };
+    void listen("desktop-open-request-available", () => { void drainRequests(); })
+      .then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+          return;
+        }
+        dispose = unlisten;
+        void drainRequests();
+      })
+      .catch((error) => {
+        if (!cancelled) notify(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [handleDesktopOpenRequest, notify, ready]);
 
   useEffect(() => {
     const unlisten = listen<FileSystemChange>("filesystem-change", (event) => {
@@ -1111,6 +1257,7 @@ export default function App() {
         <button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button>
         <span>CONSTRUCT</span>
         <button className="connect-agents-button" onClick={openMcpDialog} title="Connect agents"><Bot size={14} /><span>Agents</span></button>
+        <button className="settings-button" onClick={() => setSettingsOpen(true)} title="Settings" aria-label="Settings"><Settings2 size={14} /></button>
         <button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"} aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button>
       </div>
       <div className="sidebar-panels">
@@ -1246,6 +1393,21 @@ export default function App() {
       </div>
       <p className="mcp-access-warning">Construct exposes read-only knowledge tools. Retrieved content leaves Construct’s control when the external client sends it to its configured model.</p>
       <div className="mcp-access-actions"><button onClick={() => setMcpDialog(null)}>Cancel</button><button className="primary-button" disabled={!locations.length || (mcpDialog.mode !== "all" && mcpDialog.mode !== "current" && !mcpDialog.locationIds.length) || (mcpDialog.mode === "current" && !activeLocation)} onClick={() => void copyMcpConfiguration()}>Copy configuration</button></div>
+    </div></div>}
+    {settingsOpen && <div className="modal-backdrop" onMouseDown={() => setSettingsOpen(false)}><div className="terminal-picker-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onKeyDown={(event) => { if (event.key === "Escape") setSettingsOpen(false); }} onMouseDown={(event) => event.stopPropagation()}>
+      <h2 id="settings-title">Construct settings</h2>
+      <p>Connect Construct to your terminal and preferred terminal application.</p>
+      <section className="settings-section">
+        <div><strong>Terminal command</strong><small>Use <code>construct .</code> for a Location or <code>construct file.md</code> to edit a Markdown file.</small></div>
+        {cliInstallerSupported && <button className="toolbar-button" disabled={installingCli} onClick={() => void installCliCommand()}>{installingCli ? "Installing…" : cliInstallResult ? "Installed" : "Install command"}</button>}
+        {cliInstallerSupported === false && <small className="settings-result">Automatic installation is not available on Windows yet. Place construct.exe on your PATH manually.</small>}
+        {cliInstallResult && <small className="settings-result">{cliInstallResult.path}{cliInstallResult.requiresPathSetup ? " · Add ~/.local/bin to your PATH." : ""}</small>}
+      </section>
+      <section className="settings-section">
+        <div><strong>Terminal application</strong><small>{activeTerminal ? `Currently using ${activeTerminal.label}.` : "Choose the app used by Open terminal actions."}</small></div>
+        <button className="toolbar-button" onClick={() => { setSettingsOpen(false); openTerminalSettings(); }}>Choose…</button>
+      </section>
+      <div className="terminal-picker-actions"><button onClick={() => setSettingsOpen(false)}>Done</button></div>
     </div></div>}
     {terminalPicker && <div className="modal-backdrop" onMouseDown={() => setTerminalPicker(null)}><div className="terminal-picker-modal" role="dialog" aria-modal="true" aria-labelledby="terminal-picker-title" onKeyDown={(event) => { if (event.key === "Escape") setTerminalPicker(null); }} onMouseDown={(event) => event.stopPropagation()}>
       <h2 id="terminal-picker-title">Choose terminal application</h2>

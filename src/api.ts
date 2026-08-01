@@ -4,13 +4,16 @@ import type {
   ContextDocumentRef, ContextPackResponse, FileContent, FileEntry, FileSystemChange,
   GitDiff, GitInfo, IndexedDocument,
   IndexSearchResult, IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResponse,
-  LocationRecord, OpenTerminalResult, RelatedDocumentsResponse, SavedWorkspace,
+  CliInstallResult, DesktopOpenRequest, LocationRecord, OpenTerminalResult, RelatedDocumentsResponse, SavedWorkspace,
   SearchFacets, TerminalApplication, TerminalApplicationId,
 } from "./types";
 
 export const api = {
   loadState: () => invoke<Partial<SavedWorkspace>>("load_app_state"),
   saveState: (state: SavedWorkspace) => invoke<void>("save_app_state", { state }),
+  takeDesktopOpenRequests: () => invoke<DesktopOpenRequest[]>("take_desktop_open_requests"),
+  cliCommandInstallSupported: () => invoke<boolean>("cli_command_install_supported"),
+  installCliCommand: () => invoke<CliInstallResult>("install_cli_command"),
   setWatchedLocations: (locations: Pick<LocationRecord, "id" | "path">[]) =>
     invoke<string[]>("set_watched_locations", { locations }),
   listMarkdownFiles: (path: string) => invoke<FileEntry[]>("list_markdown_files", { path }),

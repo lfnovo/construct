@@ -52,6 +52,17 @@ export type OpenTerminalResult = {
   relativeDirectory: string;
 };
 
+export type DesktopOpenRequest = {
+  kind: "directory" | "file";
+  path: string;
+};
+
+export type CliInstallResult = {
+  path: string;
+  alreadyInstalled: boolean;
+  requiresPathSetup: boolean;
+};
+
 export type FileFingerprint = Pick<FileEntry, "path" | "relativePath" | "modifiedAtMs" | "size">;
 
 export type HistoryKind = "created" | "modified" | "renamed" | "removed";

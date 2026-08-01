@@ -69,6 +69,24 @@ Pure domain logic should stay outside `App.tsx` so it can be tested without a we
 - read-only Git inspection;
 - Finder and external-link integration.
 - registered Location identity and terminal-launch authorization.
+- desktop path-request queuing and installation of the fixed `construct`
+  launcher in a standard user command directory.
+
+`src-tauri/src/desktop_open.rs` owns desktop argument interpretation. It accepts
+at most one existing directory or Markdown file, resolves relative paths from
+the caller's working directory, and produces a canonical typed request. The
+single-instance plugin is registered before other plugins: a later invocation
+focuses the existing window, queues its request in native state, and emits only
+an availability signal. The frontend drains that queue after workspace restore,
+so cold-start requests cannot race persisted Locations and tabs.
+
+The installed `construct` launcher is a symlink to the running application
+executable. Its destination and filename are chosen by the native core; the
+frontend cannot supply an executable, command string, or installation path.
+This automatic installer is exposed only on macOS/Unix; Windows keeps manual
+`PATH` setup until a safe platform-native launcher contract is implemented.
+Console namespaces such as `construct okf`, `construct service`, and
+`construct mcp serve` are dispatched before desktop argument handling.
 
 `src-tauri/src/terminal.rs` owns the external-terminal adapter boundary:
 
@@ -205,7 +223,7 @@ The frontend can operate only on files under registered locations. Path validati
 
 ## Persistence
 
-Workspace state is stored as `workspace.json` in the platform application data directory. It contains locations, UI layout, tabs, history metadata, file fingerprints, and the optional ID of a known terminal adapter, but never document contents, terminal commands, output, or arbitrary executable configuration.
+Workspace state is stored as `workspace.json` in the platform application data directory. It contains locations, UI layout, tabs, history metadata, file fingerprints, and the optional ID of a known terminal adapter, but never document contents, terminal commands, output, arbitrary executable configuration, or pending desktop-open requests.
 
 The workspace may also retain up to 20 explicitly submitted recent knowledge
 queries with Location IDs and filters. This retention is local, user-clearable,
