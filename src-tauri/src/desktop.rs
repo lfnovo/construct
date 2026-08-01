@@ -1,4 +1,7 @@
-use crate::{diagnostics, index, knowledge, okf, okf_policy, terminal, IGNORED_DIRECTORIES};
+use crate::{
+    desktop_open::{self, DesktopOpenRequest},
+    diagnostics, index, knowledge, okf, okf_policy, terminal, IGNORED_DIRECTORIES,
+};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
@@ -18,6 +21,24 @@ use walkdir::{DirEntry, WalkDir};
 struct WatchState {
     locations: Mutex<HashMap<String, PathBuf>>,
     watchers: Mutex<Vec<RecommendedWatcher>>,
+}
+
+struct DesktopOpenState {
+    requests: Mutex<Vec<DesktopOpenRequest>>,
+}
+
+impl DesktopOpenState {
+    fn new(initial: Option<DesktopOpenRequest>) -> Self {
+        Self {
+            requests: Mutex::new(initial.into_iter().collect()),
+        }
+    }
+
+    fn push(&self, request: DesktopOpenRequest) {
+        if let Ok(mut requests) = self.requests.lock() {
+            requests.push(request);
+        }
+    }
 }
 
 #[derive(Serialize, Clone)]
@@ -100,6 +121,14 @@ struct OpenTerminalResult {
     application: terminal::TerminalApplication,
     location_id: String,
     relative_directory: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CliInstallResult {
+    path: String,
+    already_installed: bool,
+    requires_path_setup: bool,
 }
 
 fn app_data_file(app: &AppHandle) -> Result<PathBuf, String> {
@@ -276,6 +305,121 @@ fn save_app_state(app: AppHandle, state: Value) -> Result<(), String> {
         .map_err(|error| format!("Could not write the workspace: {error}"))?;
     fs::rename(&temporary, &path)
         .map_err(|error| format!("Could not finish saving the workspace: {error}"))
+}
+
+#[tauri::command]
+fn take_desktop_open_requests(
+    state: State<DesktopOpenState>,
+) -> Result<Vec<DesktopOpenRequest>, String> {
+    let mut requests = state
+        .requests
+        .lock()
+        .map_err(|_| "Desktop open requests are unavailable.".to_string())?;
+    Ok(requests.drain(..).collect())
+}
+
+#[cfg(unix)]
+fn install_cli_launcher_at(
+    executable: &Path,
+    candidates: &[(PathBuf, bool)],
+) -> Result<CliInstallResult, String> {
+    use std::io::ErrorKind;
+    use std::os::unix::fs::symlink;
+
+    for (directory, requires_path_setup) in candidates {
+        if let Err(error) = fs::create_dir_all(directory) {
+            if error.kind() == ErrorKind::PermissionDenied {
+                continue;
+            }
+            return Err(format!(
+                "Could not prepare the command directory '{}': {error}",
+                directory.display()
+            ));
+        }
+        let launcher = directory.join("construct");
+        match fs::symlink_metadata(&launcher) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() {
+                    let target = fs::read_link(&launcher).map_err(|error| {
+                        format!("Could not inspect '{}': {error}", launcher.display())
+                    })?;
+                    let resolved = if target.is_absolute() {
+                        target
+                    } else {
+                        directory.join(target)
+                    };
+                    if resolved == executable {
+                        return Ok(CliInstallResult {
+                            path: launcher.to_string_lossy().to_string(),
+                            already_installed: true,
+                            requires_path_setup: *requires_path_setup,
+                        });
+                    }
+                }
+                return Err(format!(
+                    "A file already exists at '{}'. Remove or rename it before installing the Construct command.",
+                    launcher.display()
+                ));
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Could not inspect '{}': {error}",
+                    launcher.display()
+                ))
+            }
+        }
+        match symlink(executable, &launcher) {
+            Ok(()) => {
+                return Ok(CliInstallResult {
+                    path: launcher.to_string_lossy().to_string(),
+                    already_installed: false,
+                    requires_path_setup: *requires_path_setup,
+                })
+            }
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => continue,
+            Err(error) => {
+                return Err(format!(
+                    "Could not install the Construct command at '{}': {error}",
+                    launcher.display()
+                ))
+            }
+        }
+    }
+    Err("Construct could not find a writable command directory.".to_string())
+}
+
+#[tauri::command]
+fn cli_command_install_supported() -> bool {
+    cfg!(unix)
+}
+
+#[tauri::command]
+fn install_cli_command() -> Result<CliInstallResult, String> {
+    #[cfg(unix)]
+    {
+        let executable = std::env::current_exe()
+            .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
+        let home =
+            dirs::home_dir().ok_or_else(|| "Could not locate your home directory.".to_string())?;
+        let mut candidates = Vec::new();
+        #[cfg(target_os = "macos")]
+        for directory in [
+            PathBuf::from("/opt/homebrew/bin"),
+            PathBuf::from("/usr/local/bin"),
+        ] {
+            if directory.is_dir() {
+                candidates.push((directory, false));
+            }
+        }
+        candidates.push((home.join(".local/bin"), true));
+        install_cli_launcher_at(&executable, &candidates)
+    }
+    #[cfg(not(unix))]
+    Err(
+        "Installing the Construct terminal command is not supported on this platform yet."
+            .to_string(),
+    )
 }
 
 #[tauri::command]
@@ -780,10 +924,29 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn run() {
+pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
+    let initial_request = desktop_open::parse_request(&arguments, &current_directory)
+        .expect("desktop invocation was validated before startup");
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(
+            |app, arguments, current_directory| {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+                if let Ok(Some(request)) = desktop_open::parse_request(
+                    desktop_open::forwarded_arguments(&arguments),
+                    Path::new(&current_directory),
+                ) {
+                    app.state::<DesktopOpenState>().push(request);
+                    let _ = app.emit("desktop-open-request-available", ());
+                }
+            },
+        ))
         .plugin(tauri_plugin_dialog::init())
         .manage(WatchState::default())
+        .manage(DesktopOpenState::new(initial_request))
         .setup(|app| {
             let data_directory = app.path().app_data_dir().map_err(std::io::Error::other)?;
             let diagnostics = diagnostics::Diagnostics::new(data_directory.clone(), "construct");
@@ -796,6 +959,9 @@ pub(crate) fn run() {
         .invoke_handler(tauri::generate_handler![
             load_app_state,
             save_app_state,
+            take_desktop_open_requests,
+            cli_command_install_supported,
+            install_cli_command,
             set_watched_locations,
             list_markdown_files,
             read_markdown_file,
@@ -827,11 +993,16 @@ pub(crate) fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEMPORARY_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn temporary_root() -> PathBuf {
         let path = std::env::temp_dir().join(format!(
-            "construct-test-{}",
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+            "construct-test-{}-{}-{}",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default(),
+            TEMPORARY_ROOT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir_all(&path).expect("create temporary directory");
         path
@@ -881,6 +1052,48 @@ mod tests {
 
         assert!(registered_directory("knowledge", "../outside", &state).is_err());
         assert!(registered_directory("missing", "", &state).is_err());
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_installation_is_idempotent() {
+        let root = temporary_root();
+        let executable = root.join("Construct");
+        let bin = root.join("bin");
+        fs::write(&executable, "desktop executable").expect("create executable placeholder");
+
+        let installed = install_cli_launcher_at(&executable, &[(bin.clone(), false)])
+            .expect("install launcher");
+        assert!(!installed.already_installed);
+        assert!(!installed.requires_path_setup);
+        assert_eq!(installed.path, bin.join("construct").to_string_lossy());
+        assert_eq!(
+            fs::read_link(bin.join("construct")).expect("read installed launcher"),
+            executable
+        );
+
+        let repeated = install_cli_launcher_at(&executable, &[(bin, false)])
+            .expect("recognize installed launcher");
+        assert!(repeated.already_installed);
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_does_not_replace_an_existing_file() {
+        let root = temporary_root();
+        let executable = root.join("Construct");
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).expect("create command directory");
+        fs::write(&executable, "desktop executable").expect("create executable placeholder");
+        fs::write(bin.join("construct"), "another command").expect("create conflicting command");
+
+        let error = install_cli_launcher_at(&executable, &[(bin, false)])
+            .expect_err("reject conflicting command");
+        assert!(error.contains("already exists"));
 
         fs::remove_dir_all(root).expect("remove temporary directory");
     }

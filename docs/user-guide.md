@@ -123,6 +123,14 @@ Use `⌘P` to quick-open a file by partial name or relative path across register
 Locations. Use `↑` and `↓` to move through the results, `Enter` to open one, and
 `Esc` to close the finder.
 
+To open Construct from a terminal, open **Settings** from the sidebar and choose
+**Install command** on macOS or Unix. Then use `construct .` to register and
+select the current folder, or `construct path/to/file.md` to open an existing
+Markdown file directly in Edit. Construct reuses the most specific registered
+Location and activates an existing tab without discarding unsaved changes. On
+Windows, place `construct.exe` on your `PATH` manually. See [CLI and OKF
+lint](cli.md) for installation details and supported inputs.
+
 ### Open the terminal where the work is
 
 Use the terminal button in the **Locations** header to open the selected

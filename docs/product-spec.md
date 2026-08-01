@@ -576,6 +576,8 @@ O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledg
 - **OKF-037:** `.constructignore` e `--exclude` compõem a mesma política de conformidade: documentos correspondentes não produzem findings próprios nem aparecem como conceitos OKF, mas continuam disponíveis no filesystem, na busca Markdown geral e na resolução de links. `--no-ignore-file` deve oferecer auditoria estrita no CLI.
 - **OKF-038:** O linter deve possuir um build `okf-cli` independente das dependências de desktop, índice e MCP, reutilizando os mesmos módulos de parser, política, relatório e códigos de saída. Releases devem oferecer esse build para Linux x64.
 - **OKF-039:** A integração oficial com GitHub Actions deve ser apenas uma embalagem versionada sobre o CLI: selecionar o artefato da plataforma, validar `SHA256SUMS`, usar cache, executar JSON, apresentar summary/annotations e propagar o exit code sem duplicar regras de conformidade.
+- **OKF-040:** Explore deve exibir inicialmente as 20 tags mais frequentes, oferecer expansão e recolhimento da lista completa e manter visível uma tag ativa mesmo quando ela estiver fora desse recorte.
+- **OKF-041:** Os filtros de `type` e tag no Explore devem ser ordenados por frequência decrescente e usar o nome em ordem alfabética como desempate determinístico.
 
 ### 10.17 Índice local derivado
 
@@ -645,6 +647,32 @@ relações diretas, context packs e o acesso MCP.
   em inglês e permite escolher outro aplicativo instalado.
 - **TERM-010:** Abrir o terminal não modifica documentos, Histórico, índice,
   Review, Git ou estado de salvamento.
+
+### 10.20 Abertura do Construct pelo terminal
+
+- **OPEN-001:** `construct .` e `construct <diretório>` abrem o desktop,
+  cadastram o diretório canônico como Local quando necessário e o selecionam.
+- **OPEN-002:** `construct <arquivo.md>` abre o arquivo em Edit. O aplicativo
+  reutiliza o Local registrado mais específico que contém o arquivo ou
+  cadastra seu diretório pai como Local quando nenhum existente o contém.
+- **OPEN-003:** Se o arquivo já estiver aberto, inclusive em outro Painel, a
+  invocação ativa a aba existente e preserva seu buffer e mudanças não salvas.
+- **OPEN-004:** A invocação desktop aceita no máximo um caminho existente e
+  somente diretórios ou arquivos `.md`/`.markdown`. Caminhos relativos são
+  resolvidos a partir do diretório de trabalho do processo e falhas terminam
+  com mensagem em inglês e código 2.
+- **OPEN-005:** Construct mantém uma única instância desktop. Invocações
+  posteriores mostram e focam a janela existente e entregam a solicitação por
+  uma fila nativa drenada somente após a restauração do workspace.
+- **OPEN-006:** A ausência de caminho mantém a abertura normal do workspace.
+  Os namespaces `okf`, `service` e `mcp serve` continuam com seus contratos de
+  console e não são interpretados como caminhos desktop.
+- **OPEN-007:** Settings permite instalar de forma idempotente o launcher fixo
+  `construct` em um diretório padrão. O aplicativo não aceita destino ou
+  executável arbitrário, não substitui arquivos conflitantes e informa quando
+  o fallback `~/.local/bin` exige configuração de `PATH`. A instalação
+  automática é oferecida somente em macOS/Unix; no Windows, Settings orienta o
+  usuário a colocar `construct.exe` no `PATH` manualmente.
 
 ## 11. Estados e tratamento de erros
 
@@ -752,6 +780,9 @@ O Histórico não armazena o conteúdo do arquivo.
 - O terminal externo recebe apenas o diretório inicial e mantém sua autoridade
   normal de usuário; Construct não o monitora nem o apresenta como sandbox.
 - Nenhum documento, agente ou cliente MCP pode acionar o launcher.
+- O instalador do comando `construct` pode criar apenas um link simbólico com
+  nome e destino definidos pelo núcleo nativo em diretórios de comandos
+  revisados; conflitos nunca são sobrescritos.
 
 ## 14. Desempenho e confiabilidade
 
@@ -1104,6 +1135,9 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-07-29 | Oferecer handoff explícito para terminais externos conhecidos a partir de Locais e documentos, sem comandos arbitrários, conteúdo, monitoramento ou acesso por MCP; terminal embutido permanece adiado. |
 | 2026-07-30 | Preservar a posição semântica ao alternar modos e tornar comentários de Review bidirecionalmente navegáveis por âncoras opcionais compatíveis com `construct-review:v1`. |
 | 2026-07-30 | Tornar as três seções da sidebar redimensionáveis, com recolhimento que libera espaço e scroll independente; mover tema e conexão de agentes para controles globais e exigir escopo MCP explícito. |
+| 2026-08-01 | Limitar a visualização inicial de tags no Explore às 20 mais frequentes, com expansão explícita e preservação do filtro ativo. |
+| 2026-08-01 | Ordenar os filtros de types e tags no Explore pela quantidade de conceitos, com desempate alfabético. |
+| 2026-08-01 | Permitir abrir Locais e Markdown pelo comando `construct <caminho>`, reutilizando uma única instância desktop e oferecendo instalação segura do launcher em Settings. |
 
 ## 24. Histórico do documento
 
@@ -1126,3 +1160,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.14 | 2026-07-28 | Build CLI-only para Linux x64 e GitHub Action versionada sobre o contrato JSON do linter. |
 | 0.15 | 2026-07-29 | Handoff seguro para terminal externo por adaptadores conhecidos e diretório relativo validado dentro de um Local. |
 | 0.16 | 2026-07-29 | Inicialização desktop no Windows desacoplada do console, preservando console e stdio para CLI, serviço e MCP no executável compartilhado. |
+| 0.17 | 2026-08-01 | Abertura de Locais e arquivos pelo terminal, instância desktop única, fila de cold start e instalação segura do launcher. |

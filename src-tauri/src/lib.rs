@@ -6,6 +6,8 @@ mod okf_policy;
 #[cfg(feature = "desktop")]
 mod desktop;
 #[cfg(feature = "desktop")]
+mod desktop_open;
+#[cfg(feature = "desktop")]
 mod diagnostics;
 #[cfg(feature = "desktop")]
 mod index;
@@ -49,8 +51,16 @@ pub(crate) const IGNORED_DIRECTORIES: &[&str] = &[
 ];
 
 #[cfg(feature = "desktop")]
-pub fn run() {
-    desktop::run()
+pub fn run(arguments: Vec<String>, current_directory: std::path::PathBuf) {
+    desktop::run(arguments, current_directory)
+}
+
+#[cfg(feature = "desktop")]
+pub fn validate_desktop_invocation(
+    arguments: &[String],
+    current_directory: &std::path::Path,
+) -> Result<(), String> {
+    desktop_open::parse_request(arguments, current_directory).map(|_| ())
 }
 
 #[cfg(feature = "desktop")]

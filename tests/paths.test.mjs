@@ -3,7 +3,10 @@ import test from "node:test";
 import {
   pathBelongsToLocation,
   pathIdentity,
+  parentPath,
   pathsEqual,
+  mostSpecificContainingLocation,
+  relativePathWithinLocation,
 } from "../src/paths.ts";
 
 test("normalizes Windows verbatim paths and separators", () => {
@@ -14,6 +17,44 @@ test("normalizes Windows verbatim paths and separators", () => {
   assert.equal(
     pathIdentity(String.raw`\\?\UNC\server\share\knowledge\index.md`),
     "//server/share/knowledge/index.md",
+  );
+});
+
+test("derives a Location-relative path with portable separators", () => {
+  assert.equal(
+    relativePathWithinLocation(
+      String.raw`C:\Users\Lucas\knowledge\notes\context.md`,
+      String.raw`C:\Users\Lucas\knowledge`,
+    ),
+    "notes/context.md",
+  );
+  assert.equal(
+    relativePathWithinLocation(
+      String.raw`\\?\C:\Users\Lucas\Knowledge\Notes\Context.md`,
+      String.raw`C:\Users\Lucas\Knowledge`,
+    ),
+    "Notes/Context.md",
+  );
+});
+
+test("finds the parent directory across Unix and Windows paths", () => {
+  assert.equal(parentPath("/Users/luis/knowledge/index.md"), "/Users/luis/knowledge");
+  assert.equal(parentPath("/index.md"), "/");
+  assert.equal(parentPath(String.raw`C:\Users\Lucas\knowledge\index.md`), "C:/Users/Lucas/knowledge");
+  assert.equal(
+    parentPath(String.raw`\\?\C:\Users\Lucas\knowledge\index.md`),
+    String.raw`\\?\C:\Users\Lucas\knowledge`,
+  );
+});
+
+test("prefers the most specific Location containing a file", () => {
+  const locations = [
+    { id: "home", path: "/Users/luis" },
+    { id: "knowledge", path: "/Users/luis/knowledge" },
+  ];
+  assert.equal(
+    mostSpecificContainingLocation(locations, "/Users/luis/knowledge/index.md")?.id,
+    "knowledge",
   );
 });
 

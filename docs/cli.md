@@ -74,6 +74,30 @@ ln -s /absolute/path/to/construct ~/.local/bin/construct
 
 Ensure `~/.local/bin` is on your shell's `PATH`.
 
+## Open the desktop from a terminal
+
+Desktop-capable builds accept one existing directory or Markdown file:
+
+```bash
+construct .
+construct ./knowledge
+construct ./knowledge/index.md
+```
+
+A directory is registered as a Location when necessary and selected. A `.md` or
+`.markdown` file opens directly in Edit; Construct reuses the most specific
+registered Location, or registers the file's parent directory. If the file is
+already open, its existing tab and unsaved buffer are preserved.
+
+On macOS and Unix, **Settings → Install command** installs a fixed `construct`
+launcher without replacing an existing command. If Construct falls back to
+`~/.local/bin`, add that directory to your `PATH`. Automatic installation is not
+available on Windows yet; place `construct.exe` on your `PATH` manually.
+
+Desktop path invocation accepts only one existing directory or Markdown file at
+a time. Invalid or unsupported paths exit with code `2`. The `okf`, `service`,
+and `mcp serve` namespaces retain their existing console behavior.
+
 ## Run a lint
 
 ```bash
