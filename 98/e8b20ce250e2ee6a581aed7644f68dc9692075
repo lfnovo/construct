@@ -1,0 +1,38 @@
+docs/product-spec.md
+  s_954343fc536a43::t_48d66da8d3c027 599,608,620
+src-tauri/src/index.rs
+  s_954343fc536a43::t_81580ac464c9f0 3903-3906,3908-3923,3929-3952,3954-4012
+  s_954343fc536a43::t_ad99465ab5a524 695,2626-2671,3473,3475-3476,3563
+  s_954343fc536a43::t_ff917a73eebebb 2,25,184-238,673-694
+  s_954343fc536a43::t_6f077f5b39efb8 24,1403,2617-2625,3561-3562,3907,3924-3928,3953
+  s_954343fc536a43::t_fea4e6415e5302 1377-1402,1404-1506
+  s_954343fc536a43::t_d7b4403e96209a 696
+  s_954343fc536a43::t_5eac8d5824da4d 3902
+src-tauri/src/mcp.rs
+  s_954343fc536a43::t_b3f5b35b5b077f 4-5,85-106,143-150,334,374-393,511-526
+  s_954343fc536a43::t_81580ac464c9f0 717-734
+  s_954343fc536a43::t_98cabfb3a7fcee 527-530
+docs/mcp.md
+  s_954343fc536a43::t_48d66da8d3c027 171-183,224-225
+src-tauri/src/knowledge.rs
+  s_954343fc536a43::t_9b69cc0f42609c 5-6,132-138,611
+  s_954343fc536a43::t_ab12b9a3b97246 612-615
+docs/architecture.md
+  s_954343fc536a43::t_48d66da8d3c027 168-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "98e8b20ce250e2ee6a581aed7644f68dc9692075",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
