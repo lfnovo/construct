@@ -1,0 +1,21 @@
+src/ReviewEditor.tsx
+  s_954343fc536a43::t_ff8346b280c344 83
+docs/product-spec.md
+  s_954343fc536a43::t_ff8346b280c344 367-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "b7fb3d7d8035f8e3e3a61da1b4e36e1d1d5cb99d",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
