@@ -30,16 +30,6 @@ function normalizeQuote(value: string) {
   return normalizeReviewText(value);
 }
 
-function renderVersion(body: string, comments: ReviewComment[]) {
-  const value = `${body}\u0000${JSON.stringify(comments)}`;
-  let hash = 2_166_136_261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16_777_619);
-  }
-  return `${value.length}:${hash >>> 0}`;
-}
-
 export function ReviewEditor({
   content,
   relativePath,
@@ -58,10 +48,6 @@ export function ReviewEditor({
   const [comment, setComment] = useState("");
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [resolvedComments, setResolvedComments] = useState<Record<string, boolean>>({});
-  const reviewRenderVersion = useMemo(
-    () => renderVersion(review.body, review.comments),
-    [review.body, review.comments],
-  );
   const quote = selectionDraft?.quote || "";
 
   const captureSelection = () => {
@@ -94,7 +80,7 @@ export function ReviewEditor({
       current && review.comments.some((item) => item.id === current) ? current : null
     ));
     return () => clearReviewHighlights(preview);
-  }, [review.comments, reviewRenderVersion]);
+  }, [review.body, review.comments]);
 
   useEffect(() => {
     const preview = documentRef.current?.querySelector<HTMLElement>(".markdown-preview");
@@ -192,7 +178,6 @@ export function ReviewEditor({
       >
         <div className="review-selection-hint">Select text in the document to leave feedback.</div>
         <MarkdownPreview
-          key={reviewRenderVersion}
           content={`${review.frontmatter}${review.body}`}
           sourcePath={sourcePath}
           bundleRoot={bundleRoot}

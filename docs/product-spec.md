@@ -364,6 +364,8 @@ coverage
 - **REVIEW-017:** Quando uma passagem não puder ser localizada com segurança, o
   comentário permanece visível com estado `Passage changed`; o aplicativo não
   escolhe uma ocorrência ambígua.
+- **REVIEW-018:** Adicionar, remover ou limpar comentários não deve recriar a
+  superfície renderizada nem alterar a posição de leitura do documento.
 
 ### 10.8 Preview Markdown
 
