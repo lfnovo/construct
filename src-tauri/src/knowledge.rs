@@ -2,8 +2,8 @@ use crate::{
     diagnostics::Diagnostics,
     index::{
         self, ActivityKind, BuildContextPackRequest, ContextPackResponse, IndexStatus,
-        IndexedDocumentView, KnowledgeSearchRequest, KnowledgeSearchResponse,
-        LocationActivityRequest, LocationActivityResponse, LocationOverview,
+        IndexedDocumentView, KnowledgeSearchRequest, KnowledgeSearchResponse, ListDocumentsRequest,
+        ListDocumentsResponse, LocationActivityRequest, LocationActivityResponse, LocationOverview,
         RelatedDocumentsRequest, RelatedDocumentsResponse, SearchFacets, SearchFacetsRequest,
         SearchIndexRequest, SearchResult, SyncLocationRequest,
     },
@@ -127,6 +127,13 @@ impl KnowledgeClient {
         request: KnowledgeSearchRequest,
     ) -> Result<KnowledgeSearchResponse, String> {
         self.call("searchKnowledge", request).await
+    }
+
+    pub(crate) async fn list_documents(
+        &self,
+        request: ListDocumentsRequest,
+    ) -> Result<ListDocumentsResponse, String> {
+        self.call("listDocuments", request).await
     }
 
     pub(crate) async fn search_facets(
@@ -599,6 +606,11 @@ async fn dispatch(service: &index::IndexService, request: IpcRequest) -> Result<
         "searchKnowledge" => encode(
             service
                 .search_knowledge(decode::<KnowledgeSearchRequest>(request.payload)?)
+                .await?,
+        ),
+        "listDocuments" => encode(
+            service
+                .list_documents(decode::<ListDocumentsRequest>(request.payload)?)
                 .await?,
         ),
         "searchFacets" => encode(

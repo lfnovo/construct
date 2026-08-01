@@ -168,6 +168,19 @@ full-text ranking. It supports filters for:
 Search returns compact candidates, not arbitrary filesystem reads. Normal
 responses use Location ID and relative path.
 
+### `construct_list_documents`
+
+Enumerates indexed documents without requiring a text query. The result is
+complete for the supplied filters rather than relevance-ranked. It supports an
+exact type, technical role, status, any of a set of tags, and a relative path
+prefix within one allowed Location.
+
+Results are ordered by `relativePath`. A response that has more documents
+returns an opaque `nextCursor`; pass that value back unchanged as `cursor` to
+read the next page. Cursors are tied to the filters and active index generation,
+so Construct rejects them if either changes instead of returning an inconsistent
+page. An empty match returns an empty `documents` array.
+
 ### `construct_read_document`
 
 Reads one saved indexed Markdown document by allowed Location ID and relative
@@ -208,7 +221,8 @@ For a new session:
 1. call `construct_list_locations`;
 2. call `construct_get_location_overview` for the relevant Location;
 3. use recent logs and activity to understand current work;
-4. search for the concrete question;
+4. enumerate by metadata when the task asks for a complete set, or search for a
+   concrete question when relevance ranking is useful;
 5. read only the strongest candidates;
 6. follow direct relationships when useful;
 7. build a context pack when a downstream task needs a bounded handoff.

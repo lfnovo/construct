@@ -165,6 +165,8 @@ declaring a file as non-concept does not make it unsearchable.
 - complete visible Markdown bodies, typed frontmatter, headings, and a clean
   full-text search projection;
 - weighted field-specific full-text indexes and exact metadata filters;
+- deterministic document enumeration by structured metadata, relative path,
+  and generation-bound opaque cursors without a full-text query;
 - a batched local lexical fallback over the active generation when full-text
   execution fails or its required schema is demonstrably unavailable, with the
   same filters and field weights;

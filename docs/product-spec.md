@@ -596,6 +596,7 @@ relações diretas, context packs e o acesso MCP.
 - **INDEX-012:** Nenhum conteúdo, caminho, query ou métrica do índice pode ser enviado a serviços remotos.
 - **INDEX-013:** O índice de cada Local deve manter seus próprios links derivados; nenhuma tabela ou consulta pode misturar relações de Locais diferentes.
 - **INDEX-014:** Reconciliações incrementais comuns devem manter o último índice saudável publicamente `ready` ou `degraded`; `indexing` fica reservado para builds sem geração ativa e rebuilds explícitos com `buildingGeneration`.
+- **INDEX-015:** O índice deve permitir enumeração completa e determinística de documentos por metadados estruturados e prefixo de caminho, sem consulta textual, com paginação por cursor opaco vinculado à geração ativa.
 
 ### 10.18 Acesso local para agentes
 
@@ -604,7 +605,7 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-003:** O MCP inicial é somente leitura para arquivos fonte e não expõe create, edit, save, delete, move, rename, shell, Git, SQL, banco bruto ou leitura arbitrária do filesystem.
 - **AGENT-004:** Cada execução MCP exige allowlist explícita de IDs de Locais registrados. Respostas normais usam ID do Local e caminho relativo, nunca caminho absoluto.
 - **AGENT-005:** O transporte entre adapters e serviço usa IPC local autenticado e protegido pelas permissões do usuário. Nenhum listener de rede deve ser aberto e nenhum conteúdo deve ser enviado a serviços remotos.
-- **AGENT-006:** O primeiro contrato MCP expõe listagem de Locais, overview, activity, busca, leitura de documento, documentos relacionados, context pack e status do índice.
+- **AGENT-006:** O contrato MCP expõe listagem de Locais, overview, activity, enumeração determinística de documentos, busca, leitura de documento, documentos relacionados, context pack e status do índice.
 - **AGENT-007:** Cada Local mantém um cache derivado diário de 15 dias com contadores separados para mudanças reais, leituras servidas e inclusão em context packs. Hits de busca e rebuilds não contam como atividade.
 - **AGENT-008:** O overview deve combinar contagens por type, tag e role, saúde de links, findings, atividade recente e entradas recentes dos `log.md` reservados pelo OKF, inclusive em scopes aninhados.
 - **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 07 e nunca são misturados silenciosamente ao conteúdo fonte.
@@ -616,6 +617,7 @@ relações diretas, context packs e o acesso MCP.
   antes de iniciar a interface, enquanto `okf`, `service` e `mcp serve`
   permanecem anexados ao console com stdin, stdout, stderr e códigos de saída
   preservados.
+- **AGENT-015:** `construct_list_documents` deve enumerar um Local sem query textual, filtrar por role, type, status, tags e prefixo de caminho, ordenar por caminho relativo e rejeitar cursores incompatíveis com filtros ou geração ativa.
 
 ### 10.19 Handoff para terminal externo
 

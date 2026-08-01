@@ -1,8 +1,8 @@
 use crate::{
     index::{
         BuildContextPackRequest, ContextDocumentRef, KnowledgeSearchFilters,
-        KnowledgeSearchRequest, LocationActivityRequest, RelatedDocumentsRequest,
-        SyncLocationRequest,
+        KnowledgeSearchRequest, ListDocumentsRequest, LocationActivityRequest,
+        RelatedDocumentsRequest, SyncLocationRequest,
     },
     knowledge::{
         argument_value, default_data_dir, load_locations, KnowledgeClient, LocationDefinition,
@@ -84,6 +84,28 @@ struct SearchArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ListDocumentsArgs {
+    location_id: String,
+    #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
+    r#type: Option<String>,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    path_prefix: String,
+    #[serde(default = "default_list_limit")]
+    limit: usize,
+    #[serde(default)]
+    cursor: Option<String>,
+    #[serde(default = "default_order_by")]
+    order_by: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DocumentArgs {
     location_id: String,
     relative_path: String,
@@ -116,6 +138,14 @@ fn default_days() -> usize {
 
 fn default_limit() -> usize {
     20
+}
+
+fn default_list_limit() -> usize {
+    100
+}
+
+fn default_order_by() -> String {
+    "relativePath".to_string()
 }
 
 fn default_context_characters() -> usize {
@@ -301,7 +331,7 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
                     "name": location.name,
                     "okfBundle": location.okf_bundle,
                     "index": status,
-                    "capabilities": ["overview", "activity", "search", "read", "related", "context"]
+                    "capabilities": ["overview", "activity", "list", "search", "read", "related", "context"]
                 }));
             }
             Ok(json!({ "locations": output }))
@@ -337,6 +367,26 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
                         query: args.query,
                         filters: args.filters,
                         limit: args.limit,
+                    })
+                    .await?,
+            )
+        }
+        "construct_list_documents" => {
+            let args: ListDocumentsArgs = decode(arguments)?;
+            ensure_allowed(state, &args.location_id)?;
+            encode(
+                state
+                    .client
+                    .list_documents(ListDocumentsRequest {
+                        location_id: args.location_id,
+                        role: args.role,
+                        r#type: args.r#type,
+                        status: args.status,
+                        tags: args.tags,
+                        path_prefix: args.path_prefix,
+                        limit: args.limit,
+                        cursor: args.cursor,
+                        order_by: args.order_by,
                     })
                     .await?,
             )
@@ -454,6 +504,26 @@ fn tool_definitions() -> Value {
                         },
                         "additionalProperties": false
                     }
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "construct_list_documents",
+            "description": "Enumerate indexed documents without a text query. Results use exact metadata filters, deterministic relative-path ordering, and opaque cursor pagination. Multiple tags match when a document contains any supplied tag.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["locationId"],
+                "properties": {
+                    "locationId": { "type": "string" },
+                    "role": { "type": "string" },
+                    "type": { "type": "string" },
+                    "status": { "type": "string" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "maxItems": 100 },
+                    "pathPrefix": { "type": "string", "default": "" },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 100 },
+                    "cursor": { "type": "string" },
+                    "orderBy": { "type": "string", "enum": ["relativePath"], "default": "relativePath" }
                 },
                 "additionalProperties": false
             }
@@ -643,5 +713,23 @@ mod tests {
             result["content"][0]["text"],
             "This Location is not in the MCP allowlist."
         );
+    }
+
+    #[test]
+    fn exposes_deterministic_document_enumeration() {
+        let definitions = tool_definitions();
+        let tool = definitions
+            .as_array()
+            .expect("tool definitions")
+            .iter()
+            .find(|tool| tool["name"] == "construct_list_documents")
+            .expect("list documents tool");
+
+        assert_eq!(tool["inputSchema"]["required"], json!(["locationId"]));
+        assert_eq!(
+            tool["inputSchema"]["properties"]["orderBy"]["enum"],
+            json!(["relativePath"])
+        );
+        assert_eq!(tool["inputSchema"]["properties"]["limit"]["maximum"], 100);
     }
 }
