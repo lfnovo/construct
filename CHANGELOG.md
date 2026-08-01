@@ -6,6 +6,29 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-08-01
+
+### Added
+
+- Added deterministic, query-free MCP document enumeration with exact metadata
+  and path-prefix filters, stable relative-path ordering, and cursor pagination.
+- Added desktop path opening through `construct .`, directory paths, and Markdown
+  files, including single-instance forwarding and safe launcher installation on
+  macOS and Linux.
+
+### Changed
+
+- Ordered Explore type and tag facets by occurrence count, limited the initial
+  tag list to the 20 most frequent values, and improved the Location title
+  contrast in light mode.
+- Added manual PATH guidance for the desktop launcher on Windows.
+
+### Fixed
+
+- Preserved the Review reading position when comments or highlights change.
+- Recovered unavailable Locations before opening terminal-requested files and
+  handled Windows verbatim paths consistently.
+
 ## [0.1.7] - 2026-07-30
 
 ### Added
