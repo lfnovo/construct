@@ -81,7 +81,7 @@ try {
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
 
   const tools = await request("tools/list", {});
-  if (tools.result.tools.length !== 8) throw new Error("Expected eight MCP tools.");
+  if (tools.result.tools.length !== 9) throw new Error("Expected nine MCP tools.");
 
   const listed = structured(await request("tools/call", {
     name: "construct_list_locations",
@@ -119,6 +119,28 @@ try {
   }));
   if (search.results[0].relativePath !== "alpha.md") throw new Error("Knowledge search failed.");
 
+  const listedDocuments = structured(await request("tools/call", {
+    name: "construct_list_documents",
+    arguments: { locationId: "smoke-location", limit: 1 },
+  }));
+  if (
+    listedDocuments.documents[0].relativePath !== "alpha.md"
+    || !listedDocuments.nextCursor
+  ) {
+    throw new Error("Document enumeration failed.");
+  }
+  const nextListedDocuments = structured(await request("tools/call", {
+    name: "construct_list_documents",
+    arguments: {
+      locationId: "smoke-location",
+      limit: 1,
+      cursor: listedDocuments.nextCursor,
+    },
+  }));
+  if (nextListedDocuments.documents[0].relativePath !== "beta.md") {
+    throw new Error("Document enumeration pagination failed.");
+  }
+
   const read = structured(await request("tools/call", {
     name: "construct_read_document",
     arguments: { locationId: "smoke-location", relativePath: "alpha.md" },
@@ -150,7 +172,17 @@ try {
     throw new Error("Hot-memory counters were not kept separately.");
   }
 
-  const output = JSON.stringify({ listed, overview, search, read, related, context, activity });
+  const output = JSON.stringify({
+    listed,
+    overview,
+    search,
+    listedDocuments,
+    nextListedDocuments,
+    read,
+    related,
+    context,
+    activity,
+  });
   if (output.includes(sourceDir) || output.includes(dataDir)) {
     throw new Error("An absolute local path leaked into a normal MCP result.");
   }
