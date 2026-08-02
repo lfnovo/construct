@@ -27,6 +27,12 @@ await writeFile(
   }),
 );
 
+const service = spawn(binary, ["service", "--data-dir", dataDir], {
+  stdio: ["ignore", "ignore", "pipe"],
+});
+let serviceStderr = "";
+service.stderr.on("data", (chunk) => { serviceStderr += chunk.toString(); });
+
 const child = spawn(binary, [
   "mcp",
   "serve",
@@ -55,7 +61,9 @@ function request(method, params) {
   return new Promise((resolvePromise, reject) => {
     const timeout = setTimeout(() => {
       pending.delete(String(id));
-      reject(new Error(`Timed out waiting for ${method}. stderr: ${stderr}`));
+      reject(new Error(
+        `Timed out waiting for ${method}. MCP stderr: ${stderr}. Service stderr: ${serviceStderr}`,
+      ));
     }, 20_000);
     pending.set(String(id), {
       resolve(message) {
@@ -68,7 +76,10 @@ function request(method, params) {
 
 function structured(message) {
   if (message.error) throw new Error(JSON.stringify(message.error));
-  if (message.result?.isError) throw new Error(message.result.content?.[0]?.text || "Tool failed");
+  if (message.result?.isError) {
+    const detail = message.result.content?.[0]?.text || "Tool failed";
+    throw new Error(`${detail}\nService stderr: ${serviceStderr}`);
+  }
   return message.result?.structuredContent;
 }
 
@@ -189,7 +200,10 @@ try {
   process.stdout.write("Construct MCP smoke passed.\n");
 } finally {
   child.kill("SIGTERM");
+  service.kill("SIGTERM");
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
-  spawnSync("pkill", ["-f", `${binary} service --data-dir ${dataDir}`]);
+  if (service.exitCode === null) {
+    spawnSync("pkill", ["-f", `${binary} service --data-dir ${dataDir}`]);
+  }
   await rm(root, { recursive: true, force: true });
 }

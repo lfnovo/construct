@@ -310,9 +310,9 @@ On macOS, Windows, and Unix:
 5. restart or reload the client if it does not discover newly added servers.
 
 The generated server can read only the chosen scope. It exposes overview,
-recent activity, search, document reading, direct relationships, context-pack
-assembly, and index status. It cannot edit files or run Git, shell, or database
-queries.
+recent activity, deterministic document enumeration, search, document reading,
+direct relationships, context-pack assembly, and index status. It cannot edit
+files or run Git, shell, or database queries.
 
 See the [local MCP guide](mcp.md) for setup, manual allowlists, tools, and trust
 boundaries.

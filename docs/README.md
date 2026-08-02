@@ -8,9 +8,9 @@ used by people and coding agents.
 - [User guide](user-guide.md) — install and open Construct, add Locations,
   navigate, edit safely, review documents, search knowledge, and inspect OKF
   bundles.
-- [CLI and OKF lint](cli.md) — install the standalone executable, validate OKF
-  repositories locally or in CI, configure exclusions, and interpret exit
-  codes.
+- [CLI and OKF lint](cli.md) — install the executable, open desktop Locations
+  or Markdown files from a terminal, validate OKF repositories locally or in
+  CI, configure exclusions, and interpret exit codes.
 - [Local MCP access](mcp.md) — connect a coding agent to explicitly allowed
   Construct Locations through the read-only stdio server.
 

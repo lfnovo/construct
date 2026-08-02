@@ -1016,8 +1016,9 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 - O usuário escolhe explicitamente o Local atual, um conjunto de Locais ou
   todos os Locais; a interface nunca amplia o acesso silenciosamente.
 - O servidor recusa iniciar sem allowlist explícita ou `--allow-all`.
-- O agente pode consultar Locations, overview, activity, busca, documento,
-  relações, context pack e status do índice.
+- O agente pode consultar Locations, overview, activity, enumeração
+  determinística de documentos, busca, documento, relações, context pack e
+  status do índice.
 - Respostas normais não expõem caminhos absolutos.
 - O MCP não oferece mutação de arquivos, Git write, shell, SQL ou leitura
   arbitrária do filesystem.
@@ -1161,3 +1162,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.15 | 2026-07-29 | Handoff seguro para terminal externo por adaptadores conhecidos e diretório relativo validado dentro de um Local. |
 | 0.16 | 2026-07-29 | Inicialização desktop no Windows desacoplada do console, preservando console e stdio para CLI, serviço e MCP no executável compartilhado. |
 | 0.17 | 2026-08-01 | Abertura de Locais e arquivos pelo terminal, instância desktop única, fila de cold start e instalação segura do launcher. |
+| 0.18 | 2026-08-01 | Documentação pública e RFCs reconciliados com a enumeração MCP de documentos, abertura desktop pelo terminal e distribuição preview atual. |
