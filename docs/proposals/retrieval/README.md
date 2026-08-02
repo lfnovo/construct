@@ -1,6 +1,6 @@
 # Local retrieval and agent access
 
-**Status:** In progress — RFCs 01–06 first deliveries implemented
+**Status:** Current preview — RFCs 01–06 first deliveries implemented
 
 **Date:** 2026-07-26
 
@@ -50,7 +50,7 @@ evidence and low-risk experiments behind these RFCs.
 | [03 — Knowledge search experience](03-knowledge-search-experience.md) | Implemented | How should people search content without weakening quick file navigation? | RFC 02 |
 | [04 — Graph and context retrieval](04-graph-context-retrieval.md) | First delivery implemented; advanced expansion deferred | How should links improve discovery and produce bounded context packs? | RFCs 01–03 |
 | [05 — Local agent access](05-local-agent-access.md) | First delivery implemented | How should agents use the same retrieval core through CLI and MCP? | RFCs 02 and 04 |
-| [06 — Stateless OKF linter](06-okf-linter.md) | CLI, Health, Linux distribution, and GitHub Action implemented; compatible tagged candidate pending | How should agents and CI validate an OKF bundle on demand without persisting state? | RFC 01 and safe Markdown discovery |
+| [06 — Stateless OKF linter](06-okf-linter.md) | CLI, Health, Linux distribution, and GitHub Action implemented in tagged previews | How should agents and CI validate an OKF bundle on demand without persisting state? | RFC 01 and safe Markdown discovery |
 | [07 — Review integration](07-review-integration.md) | Proposed | How should persisted review comments participate without polluting knowledge? | RFCs 02, 04, and 05 |
 
 ## Shared invariants
@@ -87,12 +87,12 @@ Every RFC in this set must preserve these rules:
   outside user repositories.
 - Ship content search and index status in the desktop app.
 
-### Phase 1.5 — Local agent pilot
+### Phase 1.5 — Local agent access delivered in preview
 
-- Expose local read-only overview, activity, search, get, related, context, and
-  status operations.
+- Expose local read-only overview, activity, deterministic enumeration, search,
+  get, related, context, and status operations.
 - Validate whether agents open fewer files and use less context.
-- Keep packaging experimental; do not promise a stable public MCP contract yet.
+- Keep the public MCP contract marked preview until stable signed releases.
 
 ### Phase 2 — Graph and context
 

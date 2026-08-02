@@ -6,6 +6,19 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-08-01
+
+### Changed
+
+- Reconciled the README, user guide, product specification, and retrieval RFCs
+  with desktop path opening, the nine-tool MCP surface, and the current preview
+  distribution status.
+
+### Fixed
+
+- Made the MCP smoke test start its isolated local service, require all nine
+  tools, and verify deterministic document enumeration with cursor pagination.
+
 ## [0.1.8] - 2026-08-01
 
 ### Added

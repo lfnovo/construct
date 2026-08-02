@@ -28,6 +28,9 @@ agents bounded read-only access to the same local knowledge.
   context pack.
 - **Explore OKF bundles:** inspect open-ended metadata, types, tags, links,
   backlinks, graph structure, and health findings for OKF v0.1 and v0.2.
+- **Move between app and terminal:** open registered Locations in a supported
+  terminal, or use `construct .` and `construct <file.md>` to return to the
+  desktop at the right place.
 - **Support agents and CI:** run the stateless `construct okf lint` CLI or expose
   explicitly allowed Locations through the read-only local MCP server.
 
@@ -84,6 +87,13 @@ automatically generated “Source code” archives are not installers. The
 Microsoft Defender SmartScreen instructions.
 
 ## CLI and agent access
+
+Open a desktop-capable build at the current directory or a saved Markdown file:
+
+```bash
+construct .
+construct ./knowledge/index.md
+```
 
 Validate an OKF bundle without opening the app or creating Construct state:
 

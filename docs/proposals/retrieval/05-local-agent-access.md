@@ -14,6 +14,7 @@ second mutation path or requiring manual filesystem traversal?
 An agent should be able to ask Construct:
 
 - which registered locations are available;
+- which documents match exact metadata and path filters;
 - which documents are relevant to a query;
 - what one saved document contains;
 - which documents link to or from it;
@@ -92,15 +93,14 @@ knowledge subcommands remain a later adapter over the same typed client.
 - every request has result, content, graph-depth, and execution-time limits;
 - access is limited to registered locations and may use a narrower allowlist.
 
-## Proposed operations
-
-Names are provisional.
+## Implemented operations
 
 | Operation | Purpose |
 | --- | --- |
 | `construct_list_locations` | List allowed locations, capabilities, and index state |
 | `construct_get_location_overview` | Return hot memory, metadata counts, link health, and recent logs |
 | `construct_get_location_activity` | Return bounded 1–15 day changed, served, and context activity |
+| `construct_list_documents` | Enumerate one allowed Location with exact metadata filters and cursor pagination |
 | `construct_search_knowledge` | Search saved Markdown with visible filters and explanations |
 | `construct_read_document` | Read one saved document by location and relative path |
 | `construct_get_related_documents` | Return bounded backlinks and outgoing links |
