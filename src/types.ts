@@ -39,6 +39,8 @@ export type TerminalApplicationId =
   | "iterm2"
   | "ghostty"
   | "wezterm"
+  | "warp"
+  | "system-default"
   | "windows-terminal";
 
 export type TerminalApplication = {

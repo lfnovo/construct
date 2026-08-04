@@ -6,6 +6,31 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-04
+
+### Added
+
+- Added bundled JetBrains Mono typography for application chrome and source
+  editing, plus Source Serif 4 for Markdown preview and visual editing.
+- Added Warp terminal handoff on macOS and Windows, with the Windows system
+  default console host available as a reliable fallback.
+
+### Changed
+
+- Made the OKF Graph use the available vertical workspace and respond to window
+  resizing while preserving a usable minimum height.
+- Made floating surfaces and source-editor colors follow the active light or
+  dark theme consistently.
+
+### Fixed
+
+- Restored readable source text, cursor, active-line, and selection contrast in
+  both themes.
+- Opened Ghostty on macOS through Launch Services with an explicit working
+  directory, matching Ghostty's supported native launch path.
+- Made the MCP release smoke wait for the isolated index to become ready instead
+  of depending on process startup timing.
+
 ## [0.1.9] - 2026-08-01
 
 ### Changed

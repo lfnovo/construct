@@ -112,7 +112,11 @@ On macOS, the first supported set should be small and explicit:
 - Apple Terminal;
 - iTerm2;
 - Ghostty;
-- WezTerm.
+- WezTerm;
+- Warp.
+
+On Windows, Construct should always offer the system-default console host and
+detect Windows Terminal and Warp when their reviewed adapters are available.
 
 Construct should detect installed supported applications and present readable
 names. A missing configured application produces an English error and offers

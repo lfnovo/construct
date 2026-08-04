@@ -200,6 +200,18 @@ A área principal contém um ou mais Painéis. Cada Painel possui:
 - conteúdo do arquivo;
 - estados de carregamento, erro, conflito e arquivo indisponível.
 
+Os temas claro e escuro devem manter contraste legível em texto primário,
+texto secundário, dicas de teclado, campos e resultados de superfícies
+flutuantes. Essas superfícies acompanham o tema ativo em vez de misturar
+cores fixas de temas diferentes.
+
+O chrome da aplicação — sidebar, abas, barras, busca, metadados e superfícies
+flutuantes — usa JetBrains Mono empacotada com o aplicativo. Preview e edição
+visual usam Source Serif 4, também empacotada, para dar ao documento uma
+superfície editorial confortável para leitura longa; código, caminhos e Source
+continuam usando a fonte monoespaçada. Cores de texto, cursor, linha ativa e
+seleção do Source devem ser definidas por tema e manter contraste em ambos.
+
 ## 10. Requisitos funcionais
 
 ### 10.1 Locais
@@ -578,6 +590,7 @@ O aplicativo deve oferecer consumo não destrutivo e tolerante do [Open Knowledg
 - **OKF-039:** A integração oficial com GitHub Actions deve ser apenas uma embalagem versionada sobre o CLI: selecionar o artefato da plataforma, validar `SHA256SUMS`, usar cache, executar JSON, apresentar summary/annotations e propagar o exit code sem duplicar regras de conformidade.
 - **OKF-040:** Explore deve exibir inicialmente as 20 tags mais frequentes, oferecer expansão e recolhimento da lista completa e manter visível uma tag ativa mesmo quando ela estiver fora desse recorte.
 - **OKF-041:** Os filtros de `type` e tag no Explore devem ser ordenados por frequência decrescente e usar o nome em ordem alfabética como desempate determinístico.
+- **OKF-042:** A área visual do Graph deve crescer para ocupar o espaço vertical disponível no Explore e acompanhar o redimensionamento da janela, preservando uma altura mínima utilizável e scroll quando a janela não comportar todo o conteúdo.
 
 ### 10.17 Índice local derivado
 
@@ -640,9 +653,10 @@ relações diretas, context packs e o acesso MCP.
   agent e não observa comandos, histórico, output ou processos do terminal.
 - **TERM-007:** A operação não é exposta por MCP, Markdown renderizado, Review,
   busca ou context packs.
-- **TERM-008:** macOS suporta Apple Terminal, iTerm2, Ghostty e WezTerm quando
-  instalados. Windows suporta Windows Terminal quando disponível. Linux
-  desktop permanece fora do escopo atual.
+- **TERM-008:** macOS suporta Apple Terminal, iTerm2, Ghostty, WezTerm e Warp
+  quando instalados. Windows oferece o host de console padrão do sistema e
+  suporta Windows Terminal e Warp quando disponíveis. Linux desktop permanece
+  fora do escopo atual.
 - **TERM-009:** Falha ou remoção do aplicativo preferido produz erro recuperável
   em inglês e permite escolher outro aplicativo instalado.
 - **TERM-010:** Abrir o terminal não modifica documentos, Histórico, índice,
@@ -1139,6 +1153,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-08-01 | Limitar a visualização inicial de tags no Explore às 20 mais frequentes, com expansão explícita e preservação do filtro ativo. |
 | 2026-08-01 | Ordenar os filtros de types e tags no Explore pela quantidade de conceitos, com desempate alfabético. |
 | 2026-08-01 | Permitir abrir Locais e Markdown pelo comando `construct <caminho>`, reutilizando uma única instância desktop e oferecendo instalação segura do launcher em Settings. |
+| 2026-08-04 | Ampliar o handoff externo com Warp no macOS e Windows e usar o host de console padrão como fallback nativo no Windows. |
 
 ## 24. Histórico do documento
 
@@ -1163,3 +1178,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.16 | 2026-07-29 | Inicialização desktop no Windows desacoplada do console, preservando console e stdio para CLI, serviço e MCP no executável compartilhado. |
 | 0.17 | 2026-08-01 | Abertura de Locais e arquivos pelo terminal, instância desktop única, fila de cold start e instalação segura do launcher. |
 | 0.18 | 2026-08-01 | Documentação pública e RFCs reconciliados com a enumeração MCP de documentos, abertura desktop pelo terminal e distribuição preview atual. |
+| 0.19 | 2026-08-04 | Detecção de Warp no macOS e Windows, fallback para o host de console padrão no Windows e seletor de terminal consistente entre temas. |

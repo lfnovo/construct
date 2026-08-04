@@ -49,12 +49,29 @@ export function CodeEditor({ tabId, value, readOnly, onChange, onSave }: Props) 
           updateListener,
           editableCompartment.current.of(EditorView.editable.of(!readOnly)),
           EditorView.theme({
-            "&": { height: "100%", fontSize: "13px" },
+            "&": {
+              height: "100%",
+              backgroundColor: "var(--bg)",
+              color: "var(--text)",
+              fontSize: "13px",
+            },
             ".cm-scroller": { overflow: "auto", fontFamily: "var(--font-mono)" },
-            ".cm-content": { padding: "18px 0 80px" },
+            ".cm-content": {
+              padding: "18px 0 80px",
+              caretColor: "var(--accent)",
+              color: "var(--text)",
+            },
+            ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
             ".cm-gutters": { backgroundColor: "var(--surface)", borderRight: "1px solid var(--border)", color: "var(--muted)" },
             ".cm-activeLineGutter": { backgroundColor: "var(--surface-hover)" },
-            ".cm-activeLine": { backgroundColor: "rgba(99, 102, 241, .07)" },
+            ".cm-activeLine": { backgroundColor: "var(--editor-active-line)" },
+            "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+              backgroundColor: "var(--editor-selection)",
+            },
+            ".cm-content ::selection": {
+              backgroundColor: "var(--editor-selection)",
+              color: "var(--text)",
+            },
           }),
         ],
       }),
