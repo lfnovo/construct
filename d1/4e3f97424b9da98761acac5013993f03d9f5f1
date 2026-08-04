@@ -1,0 +1,70 @@
+src/App.tsx
+  s_954343fc536a43::t_a72c1d07518d8e 174
+  s_954343fc536a43::t_1b5eda1f632a2e 1415
+src-tauri/src/terminal.rs
+  s_954343fc536a43::t_fce441fdd30fa9 8-10,82-83
+  s_954343fc536a43::t_f2a9f6f0b6d357 18-19,33-35,49-52,66-81,124,126-129,131-137,139-144,147-152,155-158,268-276,298-354,357-367
+  s_954343fc536a43::t_644eddc11f4fc5 121,172-186,204-225,392-406,431,447-455
+  s_954343fc536a43::t_9c697c39f32052 123,187-203,408-430,432-433
+  s_954343fc536a43::t_972d7a4303293c 122
+  s_954343fc536a43::t_3f1840cd8ed715 125
+  s_954343fc536a43::t_b55443271a9fba 171
+  s_954343fc536a43::t_166cad4c8781a0 407
+  s_954343fc536a43::t_8e4274da95421f 434
+src/styles.css
+  s_954343fc536a43::t_6fc1a517fd1ae1 14-15,17,36-37,186,210-211,224-226,233
+  s_954343fc536a43::t_a72c1d07518d8e 125-130,310,313,398
+  s_954343fc536a43::t_40ef6c27558f0d 18-19,22
+  s_954343fc536a43::t_fce441fdd30fa9 317,334
+src/main.tsx
+  s_954343fc536a43::t_40ef6c27558f0d 3
+  s_954343fc536a43::t_6fc1a517fd1ae1 4
+src-tauri/tauri.conf.json
+  s_954343fc536a43::t_4bbb2ffefa81b0 4
+scripts/mcp-smoke.mjs
+  s_954343fc536a43::t_21b1fe1711d02a 86-112,124
+docs/proposals/terminal-integration.md
+  s_954343fc536a43::t_1b5eda1f632a2e 115-119
+CHANGELOG.md
+  s_954343fc536a43::t_4bbb2ffefa81b0 9-30,33
+  s_954343fc536a43::t_f0d7ddfcdc6bb6 31-32
+package.json
+  s_954343fc536a43::t_4bbb2ffefa81b0 4
+  s_954343fc536a43::t_f6492b924885e2 41
+  s_954343fc536a43::t_5a2884e15cc7ea 42
+docs/user-guide.md
+  s_954343fc536a43::t_1b5eda1f632a2e 146-154
+docs/product-spec.md
+  s_954343fc536a43::t_40ef6c27558f0d 208-209,214
+  s_954343fc536a43::t_6fc1a517fd1ae1 210-213
+  s_954343fc536a43::t_a72c1d07518d8e 203-207,593
+  s_954343fc536a43::t_1b5eda1f632a2e 656-659,1156,1181
+src/types.ts
+  s_954343fc536a43::t_fce441fdd30fa9 42-43
+src-tauri/Cargo.toml
+  s_954343fc536a43::t_4bbb2ffefa81b0 3
+src/CodeEditor.tsx
+  s_954343fc536a43::t_6fc1a517fd1ae1 52-57,59-64,67-74
+docs/architecture.md
+  s_954343fc536a43::t_1b5eda1f632a2e 96-98
+src-tauri/Cargo.lock
+  s_954343fc536a43::t_95c40c366d06b5 928
+package-lock.json
+  s_954343fc536a43::t_2e850f60f6bd52 3,9,18-19,1362-1379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "d14e3f97424b9da98761acac5013993f03d9f5f1",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
