@@ -143,12 +143,15 @@ Construct detects these applications on macOS:
 - Terminal;
 - iTerm2;
 - Ghostty;
-- WezTerm.
+- WezTerm;
+- Warp.
 
-On Windows, the preview detects Windows Terminal. The first time more than one
-supported application is available, Construct asks which one to use and keeps
-only that application ID in local workspace settings. Use **Choose terminal
-application…** from a Location, file, or tab context menu to change it.
+On Windows, Construct always offers **System default**, which opens the system
+shell in the terminal host selected by Windows. It also detects Windows Terminal
+and Warp when installed. The first time more than one supported application is
+available, Construct asks which one to use and keeps only that application ID in
+local workspace settings. Use **Choose terminal application…** from a Location,
+file, or tab context menu to change it.
 
 The handoff is deliberately narrow:
 

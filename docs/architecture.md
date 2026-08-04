@@ -93,8 +93,9 @@ Console namespaces such as `construct okf`, `construct service`, and
 - detects a reviewed set of installed applications;
 - translates a terminal ID and validated directory into structured process
   arguments;
-- supports Apple Terminal, iTerm2, Ghostty, and WezTerm on macOS plus Windows
-  Terminal on Windows;
+- supports Apple Terminal, iTerm2, Ghostty, WezTerm, and Warp on macOS;
+- supports the Windows default console host, Windows Terminal, and Warp on
+  Windows;
 - never accepts document content, arbitrary executables, or command strings.
 
 The frontend asks with a Location ID and relative directory.

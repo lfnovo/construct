@@ -83,6 +83,33 @@ function structured(message) {
   return message.result?.structuredContent;
 }
 
+async function waitForReadyLocation() {
+  const deadline = Date.now() + 20_000;
+  let lastError = new Error("The local service did not report a ready index.");
+  while (Date.now() < deadline) {
+    try {
+      const listed = structured(await request("tools/call", {
+        name: "construct_list_locations",
+        arguments: {},
+      }));
+      const location = listed.locations[0];
+      if (
+        location?.id === "smoke-location"
+        && location.index.state === "ready"
+        && location.index.complete === true
+        && location.index.buildingGeneration === null
+      ) {
+        return listed;
+      }
+      lastError = new Error("A completed incremental index must remain publicly ready.");
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+  }
+  throw new Error(`Timed out waiting for the MCP index. ${lastError.message}`);
+}
+
 try {
   await request("initialize", {
     protocolVersion: "2025-03-26",
@@ -94,18 +121,7 @@ try {
   const tools = await request("tools/list", {});
   if (tools.result.tools.length !== 9) throw new Error("Expected nine MCP tools.");
 
-  const listed = structured(await request("tools/call", {
-    name: "construct_list_locations",
-    arguments: {},
-  }));
-  if (listed.locations[0].id !== "smoke-location") throw new Error("Location allowlist failed.");
-  if (
-    listed.locations[0].index.state !== "ready"
-    || listed.locations[0].index.complete !== true
-    || listed.locations[0].index.buildingGeneration !== null
-  ) {
-    throw new Error("A completed incremental index must remain publicly ready.");
-  }
+  const listed = await waitForReadyLocation();
 
   const denied = await request("tools/call", {
     name: "construct_get_location_overview",
