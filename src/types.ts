@@ -25,6 +25,30 @@ export type GitDiff = {
   message: string | null;
 };
 
+export type GitRemoteState =
+  | "notChecked"
+  | "matchesHead"
+  | "matchesTracking"
+  | "changed"
+  | "unavailable"
+  | "noUpstream";
+
+export type LocationGitStatus = {
+  available: boolean;
+  repoRoot: string | null;
+  branch: string | null;
+  upstream: string | null;
+  headRevision: string | null;
+  trackingRevision: string | null;
+  dirty: boolean;
+  changedFiles: number;
+  ahead: number;
+  behind: number;
+  remoteState: GitRemoteState;
+  checkedAtMs: number | null;
+  message: string | null;
+};
+
 export type LocationRecord = {
   id: string;
   path: string;

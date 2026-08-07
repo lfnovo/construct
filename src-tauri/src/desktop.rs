@@ -68,6 +68,35 @@ struct GitInfo {
     has_head: bool,
 }
 
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+enum GitRemoteState {
+    NotChecked,
+    MatchesHead,
+    MatchesTracking,
+    Changed,
+    Unavailable,
+    NoUpstream,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocationGitStatus {
+    available: bool,
+    repo_root: Option<String>,
+    branch: Option<String>,
+    upstream: Option<String>,
+    head_revision: Option<String>,
+    tracking_revision: Option<String>,
+    dirty: bool,
+    changed_files: usize,
+    ahead: u32,
+    behind: u32,
+    remote_state: GitRemoteState,
+    checked_at_ms: Option<i64>,
+    message: Option<String>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GitDiff {
@@ -209,10 +238,143 @@ fn require_allowed(path: &str, state: &WatchState) -> Result<PathBuf, String> {
 
 fn run_git(path: &Path, arguments: &[&str]) -> Result<std::process::Output, String> {
     Command::new("git")
-        .current_dir(path.parent().unwrap_or(path))
+        .current_dir(if path.is_dir() {
+            path
+        } else {
+            path.parent().unwrap_or(path)
+        })
         .args(arguments)
         .output()
         .map_err(|error| format!("Could not run Git: {error}"))
+}
+
+fn git_stdout(root: &Path, arguments: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(arguments)
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn parse_ahead_behind(value: &str) -> Option<(u32, u32)> {
+    let mut counts = value.split_whitespace();
+    let ahead = counts.next()?.parse().ok()?;
+    let behind = counts.next()?.parse().ok()?;
+    (counts.next().is_none()).then_some((ahead, behind))
+}
+
+fn classify_remote_head(
+    head_sha: Option<&str>,
+    tracking_sha: Option<&str>,
+    remote_sha: &str,
+) -> GitRemoteState {
+    if head_sha == Some(remote_sha) {
+        GitRemoteState::MatchesHead
+    } else if tracking_sha == Some(remote_sha) {
+        GitRemoteState::MatchesTracking
+    } else {
+        GitRemoteState::Changed
+    }
+}
+
+fn location_git_status(root: &Path) -> LocationGitStatus {
+    let Ok(repo_root) = git_root(root) else {
+        return LocationGitStatus {
+            available: false,
+            repo_root: None,
+            branch: None,
+            upstream: None,
+            head_revision: None,
+            tracking_revision: None,
+            dirty: false,
+            changed_files: 0,
+            ahead: 0,
+            behind: 0,
+            remote_state: GitRemoteState::NotChecked,
+            checked_at_ms: None,
+            message: None,
+        };
+    };
+    let branch = git_stdout(&repo_root, &["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    let upstream = git_stdout(
+        &repo_root,
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        ],
+    );
+    let head_revision = git_stdout(&repo_root, &["rev-parse", "HEAD"]);
+    let tracking_revision = upstream
+        .as_ref()
+        .and_then(|upstream| git_stdout(&repo_root, &["rev-parse", upstream]));
+    let (ahead, behind) = upstream
+        .as_ref()
+        .and_then(|_| {
+            git_stdout(
+                &repo_root,
+                &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+            )
+        })
+        .and_then(|value| parse_ahead_behind(&value))
+        .unwrap_or((0, 0));
+    let changed_files = git_stdout(
+        &repo_root,
+        &["status", "--porcelain=1", "--untracked-files=normal"],
+    )
+    .map(|value| value.lines().filter(|line| !line.is_empty()).count())
+    .unwrap_or(0);
+
+    LocationGitStatus {
+        available: true,
+        repo_root: Some(repo_root.to_string_lossy().to_string()),
+        branch,
+        upstream: upstream.clone(),
+        head_revision,
+        tracking_revision,
+        dirty: changed_files > 0,
+        changed_files,
+        ahead,
+        behind,
+        remote_state: if upstream.is_some() {
+            GitRemoteState::NotChecked
+        } else {
+            GitRemoteState::NoUpstream
+        },
+        checked_at_ms: None,
+        message: None,
+    }
+}
+
+async fn remote_head(root: &Path, remote: &str, merge_ref: &str) -> Result<String, String> {
+    let mut command = tokio::process::Command::new("git");
+    command
+        .current_dir(root)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .args(["ls-remote", "--exit-code", "--refs", remote, merge_ref])
+        .kill_on_drop(true);
+    let output = tokio::time::timeout(std::time::Duration::from_secs(8), command.output())
+        .await
+        .map_err(|_| "Remote check timed out.".to_string())?
+        .map_err(|_| "Could not start the Git remote check.".to_string())?;
+    if !output.status.success() {
+        return Err(if output.status.code() == Some(2) {
+            "The upstream branch was not found on the remote.".to_string()
+        } else {
+            "Could not contact the Git remote.".to_string()
+        });
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| "The Git remote returned no branch head.".to_string())
 }
 
 fn git_root(path: &Path) -> Result<PathBuf, String> {
@@ -783,6 +945,57 @@ fn get_git_info(path: String, state: State<WatchState>) -> Result<GitInfo, Strin
 }
 
 #[tauri::command]
+async fn get_location_git_status(
+    location_id: String,
+    check_remote: bool,
+    state: State<'_, WatchState>,
+) -> Result<LocationGitStatus, String> {
+    let location_root = registered_directory(&location_id, "", &state)?;
+    let mut status = location_git_status(&location_root);
+    if !status.available || !check_remote {
+        return Ok(status);
+    }
+
+    let Some(repo_root) = status.repo_root.as_ref().map(PathBuf::from) else {
+        return Ok(status);
+    };
+    let Some(branch) = status.branch.as_ref() else {
+        status.remote_state = GitRemoteState::NoUpstream;
+        return Ok(status);
+    };
+    let remote_key = format!("branch.{branch}.remote");
+    let merge_key = format!("branch.{branch}.merge");
+    let Some(remote) = git_stdout(&repo_root, &["config", "--get", &remote_key]) else {
+        status.remote_state = GitRemoteState::NoUpstream;
+        return Ok(status);
+    };
+    let Some(merge_ref) = git_stdout(&repo_root, &["config", "--get", &merge_key]) else {
+        status.remote_state = GitRemoteState::NoUpstream;
+        return Ok(status);
+    };
+    if remote == "." {
+        status.remote_state = GitRemoteState::NoUpstream;
+        return Ok(status);
+    }
+
+    status.checked_at_ms = Some(Utc::now().timestamp_millis());
+    match remote_head(&repo_root, &remote, &merge_ref).await {
+        Ok(remote_sha) => {
+            status.remote_state = classify_remote_head(
+                status.head_revision.as_deref(),
+                status.tracking_revision.as_deref(),
+                &remote_sha,
+            );
+        }
+        Err(message) => {
+            status.remote_state = GitRemoteState::Unavailable;
+            status.message = Some(message);
+        }
+    }
+    Ok(status)
+}
+
+#[tauri::command]
 fn get_git_diff(
     path: String,
     content: Option<String>,
@@ -980,6 +1193,7 @@ pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
             read_image_data_url,
             write_markdown_file,
             get_git_info,
+            get_location_git_status,
             get_git_diff,
             reveal_in_file_manager,
             open_external_url,
@@ -1014,6 +1228,47 @@ mod tests {
         assert!(is_markdown(Path::new("notes.MARKDOWN")));
         assert!(!is_markdown(Path::new("notes.txt")));
         assert!(!is_markdown(Path::new("notes")));
+    }
+
+    #[test]
+    fn parses_git_ahead_and_behind_counts() {
+        assert_eq!(parse_ahead_behind("3\t7"), Some((3, 7)));
+        assert_eq!(parse_ahead_behind("0 0"), Some((0, 0)));
+        assert_eq!(parse_ahead_behind("3"), None);
+        assert_eq!(parse_ahead_behind("ahead behind"), None);
+    }
+
+    #[test]
+    fn classifies_remote_heads_without_claiming_unknown_distance() {
+        assert_eq!(
+            classify_remote_head(Some("head"), Some("tracking"), "head"),
+            GitRemoteState::MatchesHead
+        );
+        assert_eq!(
+            classify_remote_head(Some("head"), Some("tracking"), "tracking"),
+            GitRemoteState::MatchesTracking
+        );
+        assert_eq!(
+            classify_remote_head(Some("head"), Some("tracking"), "unseen"),
+            GitRemoteState::Changed
+        );
+    }
+
+    #[test]
+    fn git_root_accepts_a_repository_directory() {
+        let root = temporary_root();
+        let initialized = Command::new("git")
+            .current_dir(&root)
+            .args(["init", "--quiet"])
+            .status()
+            .expect("initialize temporary repository");
+        assert!(initialized.success());
+        assert_eq!(
+            git_root(&root).expect("find repository from directory"),
+            root.canonicalize().expect("canonicalize repository")
+        );
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
     }
 
     #[test]

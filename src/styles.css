@@ -11,6 +11,8 @@
   --accent-soft: rgba(139, 140, 248, .18);
   --danger: #f08080;
   --success: #7bdaa5;
+  --warning: #e0ae55;
+  --remote: #80a8f9;
   --editor-active-line: rgba(139, 140, 248, .08);
   --editor-selection: #424477;
   --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -33,6 +35,8 @@
   --muted: #666674;
   --accent: #5759c9;
   --accent-soft: rgba(87, 89, 201, .13);
+  --warning: #8a5d0a;
+  --remote: #3567b7;
   --editor-active-line: rgba(87, 89, 201, .07);
   --editor-selection: #cfd0f4;
 }
@@ -87,6 +91,15 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .location-row .okf-toggle + button { margin-left: 1px; }
 .location-row .index-status { display: grid; place-items: center; flex: 0 0 auto; width: 18px; height: 18px; margin-left: auto; padding: 0; border-radius: 4px; }
 .location-row .okf-toggle + .index-status, .location-row .index-status + button { margin-left: 0; }
+.location-row .git-status-button { display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; min-width: 25px; height: 18px; margin-left: auto; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); color: var(--muted); font-size: 9px; line-height: 1; }
+.location-row .git-status-button:hover { border-color: currentColor; background: var(--surface-hover); }
+.location-row .git-status-button.clean { color: var(--success); }
+.location-row .git-status-button.local { color: var(--warning); }
+.location-row .git-status-button.remote { color: var(--remote); }
+.location-row .git-status-button.diverged { color: var(--danger); }
+.location-row .git-status-button.warning { color: var(--warning); }
+.location-row .git-status-button i { width: 4px; height: 4px; border-radius: 50%; background: var(--warning); }
+.location-row .git-status-button + .okf-toggle, .location-row .git-status-button + .index-status { margin-left: 0; }
 .location-row .index-status:hover { background: var(--surface-raised); }
 .location-row .index-status span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .location-row .index-status.ready span { background: var(--success); }
@@ -313,6 +326,19 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .quick-open-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: start center; padding-top: 13vh; background: rgba(0,0,0,.38); }.quick-open { width: min(680px, calc(100vw - 40px)); overflow: hidden; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.45); }.quick-open input { width: 100%; border: 0; border-bottom: 1px solid var(--border); outline: 0; padding: 14px 16px; background: var(--surface); color: var(--text); caret-color: var(--accent); font-size: 14px; }.quick-open input::placeholder { color: var(--muted); }.quick-results { max-height: 330px; overflow: auto; padding: 5px; }.quick-results button { width: 100%; display: flex; flex-direction: column; gap: 3px; text-align: left; border: 0; border-radius: 5px; padding: 9px 11px; background: transparent; color: var(--text); cursor: pointer; }.quick-results button:hover, .quick-results button.active { background: var(--surface-hover); }.quick-results button span { font-size: 13px; }.quick-results button small, .quick-results p { color: var(--muted); font-size: 11px; }
 .toast { position: fixed; z-index: 12; bottom: 18px; left: 50%; transform: translateX(-50%); max-width: min(640px, calc(100vw - 40px)); padding: 9px 13px; border: 1px solid var(--border-strong); border-radius: 6px; background: #2d2d34; color: white; box-shadow: 0 8px 30px rgba(0,0,0,.3); font-size: 12px; }
 .context-backdrop { position: fixed; inset: 0; z-index: 20; }.context-menu { position: fixed; min-width: 170px; padding: 4px; border: 1px solid var(--border-strong); border-radius: 6px; background: #29292f; box-shadow: 0 12px 40px rgba(0,0,0,.42); }.context-menu button { display: block; width: 100%; padding: 7px 9px; border: 0; border-radius: 4px; background: transparent; text-align: left; color: var(--text); font-size: 12px; cursor: pointer; }.context-menu button:hover { background: var(--surface-hover); }
+.git-status-popover { position: fixed; width: 245px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface); color: var(--text); box-shadow: 0 12px 40px rgba(0,0,0,.42); }
+.git-status-popover header { display: flex; align-items: center; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.git-status-popover header strong { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.git-status-popover header button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
+.git-status-popover header button:hover { background: var(--surface-hover); color: var(--text); }
+.git-status-popover dl { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px 8px; margin: 10px 0; font-size: 10px; line-height: 1.35; }
+.git-status-popover dt { color: var(--muted); }
+.git-status-popover dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.git-status-popover > p { margin: 0 0 10px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.git-status-popover footer { display: flex; gap: 6px; }
+.git-status-popover footer button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: 1; min-height: 27px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-raised); color: var(--text); font-size: 9px; cursor: pointer; }
+.git-status-popover footer button:hover { border-color: var(--accent); background: var(--accent-soft); }
+.git-status-popover footer button:disabled { opacity: .55; cursor: default; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 21; display: grid; place-items: center; background: rgba(0,0,0,.48); }.confirm-modal { width: min(390px, calc(100vw - 40px)); padding: 20px; border: 1px solid var(--border-strong); border-radius: 9px; background: #26262c; box-shadow: 0 20px 70px rgba(0,0,0,.5); }.confirm-modal h2 { margin: 0 0 7px; font-size: 17px; }.confirm-modal p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }.confirm-modal > div { display: flex; justify-content: flex-end; gap: 8px; }.confirm-modal button { border: 1px solid var(--border-strong); border-radius: 5px; padding: 6px 10px; background: var(--surface-raised); color: var(--text); font-size: 12px; cursor: pointer; }.confirm-modal .danger-button { color: #ffc1c7; }.confirm-modal .primary-button { border-color: #696be0; background: #5154c7; color: white; }
 .terminal-picker-modal { width: min(420px, calc(100vw - 40px)); padding: 20px; border: 1px solid var(--border-strong); border-radius: 9px; background: #26262c; color: var(--text); box-shadow: 0 20px 70px rgba(0,0,0,.5); }
 .terminal-picker-modal h2 { margin: 0; font-size: 17px; }
