@@ -1,0 +1,50 @@
+src/gitStatus.ts
+  s_954343fc536a43::t_e028adf7236d32 1-10,27-96
+  s_954343fc536a43::t_a45455982138ae 11-15,19-26
+  s_954343fc536a43::t_ee65089493eb42 16-18
+tests/git-status.test.mjs
+  s_954343fc536a43::t_e028adf7236d32 1-2,4-9,12-53,78
+  s_954343fc536a43::t_ee65089493eb42 10-11,65-77
+  s_954343fc536a43::t_a45455982138ae 3,54-64
+src-tauri/src/desktop.rs
+  s_954343fc536a43::t_41f57cbebbe6a5 270-283,1239-1254
+  s_954343fc536a43::t_fb01e197e21a0f 984-988
+  s_954343fc536a43::t_ee65089493eb42 89-90,291-292,312-315,338-339
+  s_954343fc536a43::t_e338f8d8f82f1c 305-310,318-323
+  s_954343fc536a43::t_3f802372998fab 71
+  s_954343fc536a43::t_ccd1441ddf3baf 72-88,91-99,241-245,251-269,284-290,293-304,311,316-317,324-337,340-379,947-983,989-997,1196,1233-1238,1255-1272
+  s_954343fc536a43::t_644c9d6edbe70b 1273
+docs/product-spec.md
+  s_954343fc536a43::t_852f6e2509c822 469-473,1162,1188
+src/App.tsx
+  s_954343fc536a43::t_d52cb89f12735e 1412-1423
+  s_954343fc536a43::t_c6694abfc7e68a 816,818
+  s_954343fc536a43::t_09fdbbd9ea6a29 1302-1308
+  s_954343fc536a43::t_03f53cf5ae361f 1327-1338
+  s_954343fc536a43::t_cf8955967bc72d 4,11,30,48,241-242,271,277,294-323,900,955,965,1008,1012-1022
+src/api.ts
+  s_954343fc536a43::t_e028adf7236d32 5,51-52
+docs/architecture.md
+  s_954343fc536a43::t_dc7c1a0c6d3ae8 108-115
+src/styles.css
+  s_954343fc536a43::t_2a7a848bd74177 14-15,38-39,94-102,329-341
+src/types.ts
+  s_954343fc536a43::t_e028adf7236d32 28-40,43-51
+  s_954343fc536a43::t_ee65089493eb42 41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "02644323923b34ac0b9fb3778bc499eb184ed8b1",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
