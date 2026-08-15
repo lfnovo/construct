@@ -1,0 +1,25 @@
+docs/architecture.md
+  s_954343fc536a43::t_8ee85691d4cc33 112-114
+tests/git-status.test.mjs
+  s_954343fc536a43::t_fec9511aed31b1 25-28
+src-tauri/src/desktop.rs
+  s_954343fc536a43::t_fec9511aed31b1 246,255,361
+src/App.tsx
+  s_954343fc536a43::t_fec9511aed31b1 295-297,307-313,1333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ee476f4778355b9c1b46bb10ef2ee5af8472b427",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
