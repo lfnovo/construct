@@ -292,7 +292,9 @@ export default function App() {
   const notify = useCallback((message: string) => { setNotice(message); window.setTimeout(() => setNotice((current) => current === message ? null : current), 4200); }, []);
 
   const refreshLocationGitStatus = useCallback(async (location: LocationRecord, checkRemote: boolean) => {
-    setCheckingGitLocationIds((current) => new Set(current).add(location.id));
+    if (checkRemote) {
+      setCheckingGitLocationIds((current) => new Set(current).add(location.id));
+    }
     try {
       const next = await api.getLocationGitStatus(location.id, checkRemote);
       setLocationGitStatuses((current) => ({
@@ -302,11 +304,13 @@ export default function App() {
     } catch {
       // Missing and temporarily unavailable Locations are reflected elsewhere in the row.
     } finally {
-      setCheckingGitLocationIds((current) => {
-        const next = new Set(current);
-        next.delete(location.id);
-        return next;
-      });
+      if (checkRemote) {
+        setCheckingGitLocationIds((current) => {
+          const next = new Set(current);
+          next.delete(location.id);
+          return next;
+        });
+      }
     }
   }, []);
 
@@ -1326,7 +1330,7 @@ export default function App() {
           <div className="section-title"><button aria-expanded={!collapsedSections.locations} onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
           {!collapsedSections.locations && <div className="sidebar-section-content"><div className="location-list">{locations.length ? locations.map((location) => {
             const gitStatus = locationGitStatuses[location.id];
-            const gitPresentation = gitStatusPresentation(gitStatus, checkingGitLocationIds.has(location.id));
+            const gitPresentation = gitStatusPresentation(gitStatus);
             return <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} onContextMenu={(event) => { event.preventDefault(); setLocationContext({ location, x: event.clientX, y: event.clientY }); }} title={location.path}>
               <span className={`availability ${location.available ? "online" : "offline"}`} />
               <span className="location-name">{location.name}</span>

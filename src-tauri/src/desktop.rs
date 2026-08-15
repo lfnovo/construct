@@ -243,6 +243,7 @@ fn run_git(path: &Path, arguments: &[&str]) -> Result<std::process::Output, Stri
         } else {
             path.parent().unwrap_or(path)
         })
+        .env("GIT_OPTIONAL_LOCKS", "0")
         .args(arguments)
         .output()
         .map_err(|error| format!("Could not run Git: {error}"))
@@ -251,6 +252,7 @@ fn run_git(path: &Path, arguments: &[&str]) -> Result<std::process::Output, Stri
 fn git_stdout(root: &Path, arguments: &[&str]) -> Option<String> {
     let output = Command::new("git")
         .current_dir(root)
+        .env("GIT_OPTIONAL_LOCKS", "0")
         .args(arguments)
         .output()
         .ok()?;
@@ -356,6 +358,7 @@ async fn remote_head(root: &Path, remote: &str, merge_ref: &str) -> Result<Strin
     command
         .current_dir(root)
         .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_OPTIONAL_LOCKS", "0")
         .args(["ls-remote", "--exit-code", "--refs", remote, merge_ref])
         .kill_on_drop(true);
     let output = tokio::time::timeout(std::time::Duration::from_secs(8), command.output())

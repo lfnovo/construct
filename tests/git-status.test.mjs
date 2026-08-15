@@ -22,6 +22,10 @@ test("hides Git status for folders outside a repository", () => {
   assert.equal(gitStatusPresentation({ ...clean, available: false }), null);
 });
 
+test("keeps the last known indicator visible while refresh happens elsewhere", () => {
+  assert.equal(gitStatusPresentation(clean)?.label, "✓");
+});
+
 test("prioritizes a changed remote over a dirty working tree", () => {
   assert.deepEqual(
     gitStatusPresentation({ ...clean, dirty: true, changedFiles: 2, remoteState: "changed" }),

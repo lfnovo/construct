@@ -26,10 +26,8 @@ export function mergeLocationGitStatus(
 
 export function gitStatusPresentation(
   status: LocationGitStatus | undefined,
-  checking = false,
 ): GitStatusPresentation | null {
   if (!status?.available) return null;
-  if (checking) return { label: "…", tone: "muted", title: "Checking Git status…" };
 
   const dirtySuffix = status.dirty
     ? ` ${status.changedFiles} uncommitted ${status.changedFiles === 1 ? "file" : "files"}.`
