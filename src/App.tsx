@@ -1336,8 +1336,10 @@ export default function App() {
               <span className="location-name">{location.name}</span>
               {gitPresentation && <button className={`git-status-button ${gitPresentation.tone}`} onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setGitStatusPopover({ locationId: location.id, x: Math.max(8, bounds.right - 245), y: Math.min(window.innerHeight - 245, bounds.bottom + 4) }); }} title={gitPresentation.title} aria-label={`${location.name} Git status: ${gitPresentation.title}`}><GitBranch size={11} /><span>{gitPresentation.label}</span>{gitStatus?.dirty && gitPresentation.label !== "●" && <i />}</button>}
               {location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}
-              <button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button>
-              <button onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setLocationContext({ location, x: bounds.right - 220, y: bounds.bottom }); }} title={`Actions for ${location.name}`} aria-label={`Actions for ${location.name}`}><MoreHorizontal size={14} /></button>
+              <span className="location-trailing-action">
+                <button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button>
+                <button className="location-actions-button" onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setLocationContext({ location, x: bounds.right - 220, y: bounds.bottom }); }} title={`Actions for ${location.name}`} aria-label={`Actions for ${location.name}`}><MoreHorizontal size={14} /></button>
+              </span>
             </div>;
           }) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div></div>}
         </section>
