@@ -1,0 +1,48 @@
+docs/README.md
+  s_954343fc536a43::t_f186171c5425d8 6-14,50-59
+README.md
+  s_954343fc536a43::t_f186171c5425d8 16-17,31-33,68-93
+docs/architecture.md
+  s_954343fc536a43::t_afaa62cd8d1ed5 54,56,72-73,120-123
+  s_954343fc536a43::t_ff8f54dac950fd 124
+docs/product-spec.md
+  s_954343fc536a43::t_afaa62cd8d1ed5 924-926,1005-1008,1055
+SECURITY.md
+  s_954343fc536a43::t_afaa62cd8d1ed5 41-44
+docs/cli.md
+  s_954343fc536a43::t_418d0f8de0c06d 289-292
+docs/development.md
+  s_954343fc536a43::t_d47a0d544f022f 24-26,202-204,207-208,264-265
+docs/releasing.md
+  s_954343fc536a43::t_418d0f8de0c06d 63,65,91-93
+  s_954343fc536a43::t_d47a0d544f022f 29-31,76-77,82,123-126
+docs/proposals/retrieval/06-okf-linter.md
+  s_954343fc536a43::t_afaa62cd8d1ed5 3-4,668-670
+docs/proposals/terminal-integration.md
+  s_954343fc536a43::t_09faf472c15c50 178
+  s_954343fc536a43::t_75123bb67a473f 3,7-8,28,73,81,89,107-109,111,119-120,137-138,159,177,193,206-207,503,509,517,519,587-589,593-595
+CHANGELOG.md
+  s_954343fc536a43::t_cce722e9883280 9-16
+docs/mcp.md
+  s_954343fc536a43::t_418d0f8de0c06d 26
+docs/user-guide.md
+  s_954343fc536a43::t_03e128906f114a 18,68-75,78-88,134-163,189-192,437-442,490-499
+  s_954343fc536a43::t_418d0f8de0c06d 76-77,96-97
+  s_954343fc536a43::t_8147ac20be44f5 500
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "2fd319286839ec838a0ea0d991ae4f9c5af7af21",
+  "prompts": {},
+  "sessions": {
+    "s_954343fc536a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6cea-7daf-72a1-94de-12a3c5b95ee2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
