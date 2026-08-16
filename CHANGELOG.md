@@ -6,6 +6,21 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-16
+
+### Added
+
+- Added a compact Git status indicator to repository-backed Locations, showing
+  clean, dirty, ahead, behind, diverged, and remote-check warning states.
+- Added read-only remote freshness checks that compare refs without fetching,
+  pulling, pushing, or changing the repository.
+
+### Fixed
+
+- Prevented background Git refreshes from making the Location indicator flicker.
+- Kept the index status and Location actions aligned in one stable trailing slot
+  so hovering no longer shifts the row contents.
+
 ## [0.2.0] - 2026-08-04
 
 ### Added
