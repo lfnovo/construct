@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { OkfBundleSnapshot, OkfInspection } from "./okf";
 import type {
   ContextDocumentRef, ContextPackResponse, FileContent, FileEntry, FileSystemChange,
-  GitDiff, GitInfo, IndexedDocument,
+  GitDiff, GitInfo, IndexedDocument, LocationGitStatus,
   IndexSearchResult, IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResponse,
   CliInstallResult, DesktopOpenRequest, LocationRecord, OpenTerminalResult, RelatedDocumentsResponse, SavedWorkspace,
   SearchFacets, TerminalApplication, TerminalApplicationId,
@@ -48,6 +48,8 @@ export const api = {
   readImageDataUrl: (path: string) => invoke<string>("read_image_data_url", { path }),
   writeMarkdownFile: (path: string, content: string) => invoke<void>("write_markdown_file", { request: { path, content } }),
   getGitInfo: (path: string) => invoke<GitInfo>("get_git_info", { path }),
+  getLocationGitStatus: (locationId: string, checkRemote = false) =>
+    invoke<LocationGitStatus>("get_location_git_status", { locationId, checkRemote }),
   getGitDiff: (path: string, content?: string) => invoke<GitDiff>("get_git_diff", { path, content }),
   revealInFileManager: (path: string) => invoke<void>("reveal_in_file_manager", { path }),
   openExternalUrl: (url: string) => invoke<void>("open_external_url", { url }),

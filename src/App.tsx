@@ -1,13 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, History, List, MapPin, MoreHorizontal, Moon, Network, PanelLeftClose, PanelLeftOpen, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, GitBranch, History, List, MapPin, MoreHorizontal, Moon, Network, PanelLeftClose, PanelLeftOpen, RefreshCw, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { DocumentModeSurface } from "./DocumentModeSurface";
 import { buildTypeColorMap, sortFacetsByCount, TAG_PREVIEW_LIMIT, toggleFilterValue, visibleTagFacets, type ExploreFilters } from "./explore";
 import { HealthWorkspace } from "./HealthWorkspace";
 import { deduplicateHistory } from "./history";
+import { gitStatusPresentation, mergeLocationGitStatus, remoteStatusDescription } from "./gitStatus";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { formatOkfValue, type OkfBundleIndex, type OkfConcept, type OkfInspection } from "./okf";
@@ -26,7 +27,7 @@ import {
 import { relativeDirectoryForFile, selectedTerminal } from "./terminal";
 import type {
   CliInstallResult, DesktopOpenRequest, DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
-  IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationRecord,
+  IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationGitStatus, LocationRecord,
   Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, SidebarPanelSizes, SidebarSectionId,
   TabMode, TerminalApplication, TerminalApplicationId,
 } from "./types";
@@ -44,6 +45,7 @@ const modeLabels: Record<TabMode, string> = {
 const emptyPane = (id: string = crypto.randomUUID()): Pane => ({ id, tabs: [], activeTabId: null });
 const defaultPane = emptyPane("main");
 const defaultLayout: LayoutNode = { type: "pane", paneId: "main" };
+const GIT_REMOTE_REFRESH_TTL_MS = 5 * 60_000;
 
 function getPaneIds(node: LayoutNode): string[] {
   return node.type === "pane" ? [node.paneId] : [...getPaneIds(node.first), ...getPaneIds(node.second)];
@@ -236,6 +238,8 @@ export default function App() {
   const [showOkfInspector, setShowOkfInspector] = useState(false);
   const [okfIndexes, setOkfIndexes] = useState<Record<string, OkfBundleIndex>>({});
   const [indexStatuses, setIndexStatuses] = useState<Record<string, IndexStatus>>({});
+  const [locationGitStatuses, setLocationGitStatuses] = useState<Record<string, LocationGitStatus>>({});
+  const [checkingGitLocationIds, setCheckingGitLocationIds] = useState<Set<string>>(new Set());
   const [okfInspections, setOkfInspections] = useState<Record<string, { content: string; inspection: OkfInspection }>>({});
   const [exploreLocationId, setExploreLocationId] = useState<string | null>(null);
   const [exploreFilters, setExploreFilters] = useState<ExploreFilters>({ types: [] });
@@ -264,11 +268,13 @@ export default function App() {
   const [fileContext, setFileContext] = useState<{ file: FileEntry; locationId: string; x: number; y: number } | null>(null);
   const [tabContext, setTabContext] = useState<{ tab: DocumentTab; paneId: string; x: number; y: number } | null>(null);
   const [locationContext, setLocationContext] = useState<{ location: LocationRecord; x: number; y: number } | null>(null);
+  const [gitStatusPopover, setGitStatusPopover] = useState<{ locationId: string; x: number; y: number } | null>(null);
   const [pendingClose, setPendingClose] = useState<{ paneId: string; tabId: string } | null>(null);
   const locationsRef = useRef(locations);
   const filesRef = useRef(filesByLocation);
   const panesRef = useRef(panes);
   const refreshTimer = useRef<number | undefined>(undefined);
+  const lastGitRemoteRefreshAt = useRef(0);
   const policyRefreshRequested = useRef(false);
   const okfIndexSignatures = useRef<Record<string, string>>({});
   const quickOpenResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -284,6 +290,40 @@ export default function App() {
   panesRef.current = panes;
 
   const notify = useCallback((message: string) => { setNotice(message); window.setTimeout(() => setNotice((current) => current === message ? null : current), 4200); }, []);
+
+  const refreshLocationGitStatus = useCallback(async (location: LocationRecord, checkRemote: boolean) => {
+    if (checkRemote) {
+      setCheckingGitLocationIds((current) => new Set(current).add(location.id));
+    }
+    try {
+      const next = await api.getLocationGitStatus(location.id, checkRemote);
+      setLocationGitStatuses((current) => ({
+        ...current,
+        [location.id]: mergeLocationGitStatus(current[location.id], next, checkRemote),
+      }));
+    } catch {
+      // Missing and temporarily unavailable Locations are reflected elsewhere in the row.
+    } finally {
+      if (checkRemote) {
+        setCheckingGitLocationIds((current) => {
+          const next = new Set(current);
+          next.delete(location.id);
+          return next;
+        });
+      }
+    }
+  }, []);
+
+  const refreshGitStatuses = useCallback(async (targetLocations: LocationRecord[], checkRemote: boolean) => {
+    if (checkRemote) lastGitRemoteRefreshAt.current = Date.now();
+    for (let index = 0; index < targetLocations.length; index += 3) {
+      await Promise.allSettled(
+        targetLocations.slice(index, index + 3).map((location) => (
+          refreshLocationGitStatus(location, checkRemote)
+        )),
+      );
+    }
+  }, [refreshLocationGitStatus]);
 
   const launchTerminal = useCallback(async (
     application: TerminalApplication,
@@ -777,8 +817,9 @@ export default function App() {
       : hasCachedEntries
         ? filesRef.current[location.id]
         : await refreshLocation(location, "reconciliation");
+    void refreshLocationGitStatus(location, true);
     return { location, entries };
-  }, [configureLocations, refreshLocation]);
+  }, [configureLocations, refreshLocation, refreshLocationGitStatus]);
 
   const addLocation = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false, title: "Add folder to watch" });
@@ -860,6 +901,7 @@ export default function App() {
     setSelectedLocationId((current) => current === locationId ? next[0]?.id || null : current);
     setFilesByLocation((current) => { const nextFiles = { ...current }; delete nextFiles[locationId]; return nextFiles; });
     setIndexStatuses((current) => { const nextStatuses = { ...current }; delete nextStatuses[locationId]; return nextStatuses; });
+    setLocationGitStatuses((current) => { const nextStatuses = { ...current }; delete nextStatuses[locationId]; return nextStatuses; });
     await configureLocations(next);
   }, [configureLocations, notify]);
 
@@ -914,6 +956,7 @@ export default function App() {
         setPanes(hydrated);
         setReady(true);
         workspaceRevealed = true;
+        void refreshGitStatuses(restoredLocations, true);
         void Promise.allSettled(
           restoredLocations.map((location) => refreshLocation(location, "reconciliation")),
         );
@@ -923,7 +966,7 @@ export default function App() {
       }
     })();
     return () => { mounted = false; };
-  }, [configureLocations, notify, refreshLocation]);
+  }, [configureLocations, notify, refreshGitStatuses, refreshLocation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -966,10 +1009,21 @@ export default function App() {
         const forceOkf = policyRefreshRequested.current;
         policyRefreshRequested.current = false;
         void refreshAll("external", forceOkf);
+        void refreshGitStatuses(locationsRef.current, false);
       }, 450);
     });
     return () => { void unlisten.then((dispose) => dispose()); };
-  }, [refreshAll]);
+  }, [refreshAll, refreshGitStatuses]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const refreshOnFocus = () => {
+      const checkRemote = Date.now() - lastGitRemoteRefreshAt.current >= GIT_REMOTE_REFRESH_TTL_MS;
+      void refreshGitStatuses(locationsRef.current, checkRemote);
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
+  }, [ready, refreshGitStatuses]);
 
   useEffect(() => {
     if (!ready) return;
@@ -1249,6 +1303,13 @@ export default function App() {
     </section>;
   };
 
+  const gitPopoverLocation = gitStatusPopover
+    ? locations.find((location) => location.id === gitStatusPopover.locationId)
+    : undefined;
+  const gitPopoverDetails = gitPopoverLocation
+    ? locationGitStatuses[gitPopoverLocation.id]
+    : undefined;
+
   if (!ready) return <main className="startup"><div className="startup-mark">✦</div><p>Preparing your workspace…</p></main>;
 
   return <main className={`app-shell ${sidebarHidden ? "sidebar-hidden" : ""}`} data-theme={theme} style={{ gridTemplateColumns: sidebarHidden ? "38px minmax(0, 1fr)" : `${sidebarWidth}px 5px minmax(0, 1fr)` }}>
@@ -1267,9 +1328,20 @@ export default function App() {
           style={collapsedSections.locations ? undefined : { flexGrow: sidebarPanelSizes.locations }}
         >
           <div className="section-title"><button aria-expanded={!collapsedSections.locations} onClick={() => setCollapsedSections((current) => ({ ...current, locations: !current.locations }))}>{collapsedSections.locations ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button><MapPin size={13} /><span>LOCATIONS</span><button className="add-button" onClick={() => void addLocation()} title="Add folder"><CirclePlus size={15} /></button></div>
-          {!collapsedSections.locations && <div className="sidebar-section-content"><div className="location-list">{locations.length ? locations.map((location) => <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} onContextMenu={(event) => { event.preventDefault(); setLocationContext({ location, x: event.clientX, y: event.clientY }); }} title={location.path}>
-            <span className={`availability ${location.available ? "online" : "offline"}`} /><span className="location-name">{location.name}</span>{location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}<button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button><button onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setLocationContext({ location, x: bounds.right - 220, y: bounds.bottom }); }} title={`Actions for ${location.name}`} aria-label={`Actions for ${location.name}`}><MoreHorizontal size={14} /></button>
-          </div>) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div></div>}
+          {!collapsedSections.locations && <div className="sidebar-section-content"><div className="location-list">{locations.length ? locations.map((location) => {
+            const gitStatus = locationGitStatuses[location.id];
+            const gitPresentation = gitStatusPresentation(gitStatus);
+            return <div key={location.id} draggable className={`location-row ${location.id === selectedLocationId ? "selected" : ""}`} onDragStart={(event) => event.dataTransfer.setData("application/construct-location", location.id)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const movedId = event.dataTransfer.getData("application/construct-location"); if (!movedId || movedId === location.id) return; setLocations((current) => { const moved = current.find((item) => item.id === movedId); if (!moved) return current; const remaining = current.filter((item) => item.id !== movedId); const index = remaining.findIndex((item) => item.id === location.id); remaining.splice(index, 0, moved); return remaining; }); }} onClick={() => setSelectedLocationId(location.id)} onContextMenu={(event) => { event.preventDefault(); setLocationContext({ location, x: event.clientX, y: event.clientY }); }} title={location.path}>
+              <span className={`availability ${location.available ? "online" : "offline"}`} />
+              <span className="location-name">{location.name}</span>
+              {gitPresentation && <button className={`git-status-button ${gitPresentation.tone}`} onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setGitStatusPopover({ locationId: location.id, x: Math.max(8, bounds.right - 245), y: Math.min(window.innerHeight - 245, bounds.bottom + 4) }); }} title={gitPresentation.title} aria-label={`${location.name} Git status: ${gitPresentation.title}`}><GitBranch size={11} /><span>{gitPresentation.label}</span>{gitStatus?.dirty && gitPresentation.label !== "●" && <i />}</button>}
+              {location.okfBundle && <span className="okf-toggle active" title="OKF bundle detected automatically">OKF</span>}
+              <span className="location-trailing-action">
+                <button className={`index-status ${indexStatuses[location.id]?.state || "notIndexed"}`} onClick={(event) => { event.stopPropagation(); void rebuildLocationIndex(location); }} title={indexStatusTitle(indexStatuses[location.id])} aria-label={`Rebuild index for ${location.name}`}><span /></button>
+                <button className="location-actions-button" onClick={(event) => { event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setLocationContext({ location, x: bounds.right - 220, y: bounds.bottom }); }} title={`Actions for ${location.name}`} aria-label={`Actions for ${location.name}`}><MoreHorizontal size={14} /></button>
+              </span>
+            </div>;
+          }) : <div className="empty-sidebar">Add your project folders to get started.</div>}</div></div>}
         </section>
         {previousExpandedSidebarSection("files") && <div className="sidebar-panel-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Locations and Files" onPointerDown={(event) => resizeSidebarPanels(event, previousExpandedSidebarSection("files")!, "files")} />}
         <section
@@ -1343,6 +1415,18 @@ export default function App() {
         onMouseEnter={() => setQuickOpenSelection(index)}
         onClick={() => { void openFile(file); setQuickOpen(false); }}
       ><span>{file.name}</span><small>{locations.find((location) => location.id === file.locationId)?.name} · {file.relativePath}</small></button>)}{!fileResults.length && <p>No files found.</p>}</div></div></div>}
+    {gitStatusPopover && gitPopoverLocation && gitPopoverDetails && <div className="context-backdrop" onMouseDown={() => setGitStatusPopover(null)}><div className="git-status-popover" role="dialog" aria-label={`${gitPopoverLocation.name} Git status`} style={{ left: gitStatusPopover.x, top: gitStatusPopover.y }} onMouseDown={(event) => event.stopPropagation()}>
+      <header><GitBranch size={14} /><strong>{gitPopoverLocation.name}</strong><button onClick={() => setGitStatusPopover(null)} title="Close Git status" aria-label="Close Git status"><X size={13} /></button></header>
+      <dl>
+        <dt>Branch</dt><dd>{gitPopoverDetails.branch || "Detached HEAD"}</dd>
+        <dt>Working tree</dt><dd>{gitPopoverDetails.dirty ? `${gitPopoverDetails.changedFiles} uncommitted ${gitPopoverDetails.changedFiles === 1 ? "file" : "files"}` : "Clean"}</dd>
+        <dt>Local commits</dt><dd>{gitPopoverDetails.ahead || gitPopoverDetails.behind ? `${gitPopoverDetails.ahead ? `↑${gitPopoverDetails.ahead} ahead` : ""}${gitPopoverDetails.ahead && gitPopoverDetails.behind ? " · " : ""}${gitPopoverDetails.behind ? `↓${gitPopoverDetails.behind} behind` : ""}` : "No known difference"}</dd>
+        <dt>Remote</dt><dd>{remoteStatusDescription(gitPopoverDetails)}</dd>
+        <dt>Checked</dt><dd>{gitPopoverDetails.checkedAtMs ? formatWhen(gitPopoverDetails.checkedAtMs) : "Not yet"}</dd>
+      </dl>
+      <p>Remote checks read branch references only. Counts use the last fetched tracking reference.</p>
+      <footer><button disabled={checkingGitLocationIds.has(gitPopoverLocation.id)} onClick={() => void refreshLocationGitStatus(gitPopoverLocation, true)}><RefreshCw size={12} /> {checkingGitLocationIds.has(gitPopoverLocation.id) ? "Checking…" : "Check again"}</button><button onClick={() => { requestTerminal({ locationId: gitPopoverLocation.id, relativeDirectory: "" }); setGitStatusPopover(null); }}><SquareTerminal size={12} /> Open Terminal</button></footer>
+    </div></div>}
     {locationContext && <div className="context-backdrop" onMouseDown={() => setLocationContext(null)}><div className="context-menu" style={{ left: locationContext.x, top: locationContext.y }} onMouseDown={(event) => event.stopPropagation()}>
       <button onClick={() => { requestTerminal({ locationId: locationContext.location.id, relativeDirectory: "" }); setLocationContext(null); }}><SquareTerminal size={13} /> Open terminal at Location</button>
       <button onClick={() => { openTerminalSettings(); setLocationContext(null); }}><Settings2 size={13} /> Choose terminal application…</button>

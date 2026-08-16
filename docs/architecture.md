@@ -105,6 +105,16 @@ before calling an adapter. Starting the external application ends Construct's
 involvement: commands, output, history, and process lifetime belong to the
 terminal.
 
+Location-level Git freshness remains behind the same native read-only boundary.
+Local working-tree and tracking-reference inspection runs against the registered
+repository. Remote freshness uses `git ls-remote` with a short timeout and
+disabled terminal prompts; it compares branch object IDs without fetching
+objects or updating local references. All background Git commands disable
+optional locks so read-only status inspection cannot touch the index and feed
+back into filesystem monitoring. The frontend treats ahead/behind counts as
+relative to the user's last fetch and does not claim an exact remote distance
+when the advertised remote object is not available locally.
+
 `src-tauri/src/okf.rs` owns the shared, read-only OKF interpretation:
 
 - tolerant YAML frontmatter parsing for v0.1, v0.2, and future metadata;

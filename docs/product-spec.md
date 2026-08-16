@@ -466,6 +466,11 @@ flowchart LR
 - **GIT-012:** O status Git pode ser exibido na árvore e nas abas por indicadores para modificado, adicionado, renomeado e não rastreado.
 - **GIT-013:** O aplicativo deve atualizar status e diff após mudanças no arquivo ou no estado relevante do repositório.
 - **GIT-014:** Submódulos e worktrees devem ser tratados como repositórios próprios quando o Git assim os reconhecer.
+- **GIT-015:** Cada Location dentro de um repositório deve exibir um indicador compacto para working tree suja, commits locais conhecidos e mudança detectada na branch remota.
+- **GIT-016:** A consulta remota deve ser somente leitura, comparar apenas referências com `git ls-remote` e nunca executar `fetch`, `pull`, `push` ou atualizar referências locais.
+- **GIT-017:** Contagens ahead/behind são relativas à última tracking reference buscada pelo usuário; quando a referência remota mudou depois disso, a interface não deve inventar uma contagem exata.
+- **GIT-018:** O status local deve ser atualizado após eventos do filesystem e ao focar o aplicativo. A consulta de rede deve usar timeout, concorrência limitada, intervalo mínimo e também oferecer refresh explícito.
+- **GIT-019:** Falha de rede, upstream ausente e detached HEAD devem produzir estados explicativos sem bloquear o uso da Location.
 
 ### 10.13 Localização de arquivos e busca de conhecimento
 
@@ -1154,6 +1159,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-08-01 | Ordenar os filtros de types e tags no Explore pela quantidade de conceitos, com desempate alfabético. |
 | 2026-08-01 | Permitir abrir Locais e Markdown pelo comando `construct <caminho>`, reutilizando uma única instância desktop e oferecendo instalação segura do launcher em Settings. |
 | 2026-08-04 | Ampliar o handoff externo com Warp no macOS e Windows e usar o host de console padrão como fallback nativo no Windows. |
+| 2026-08-07 | Exibir a situação Git por Location e consultar a branch remota por referências somente leitura, sem fetch, pull ou push. |
 
 ## 24. Histórico do documento
 
@@ -1179,3 +1185,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.17 | 2026-08-01 | Abertura de Locais e arquivos pelo terminal, instância desktop única, fila de cold start e instalação segura do launcher. |
 | 0.18 | 2026-08-01 | Documentação pública e RFCs reconciliados com a enumeração MCP de documentos, abertura desktop pelo terminal e distribuição preview atual. |
 | 0.19 | 2026-08-04 | Detecção de Warp no macOS e Windows, fallback para o host de console padrão no Windows e seletor de terminal consistente entre temas. |
+| 0.20 | 2026-08-07 | Sinal visual de sincronização Git por Location, com estado local, comparação remota read-only e detalhes acionáveis. |
