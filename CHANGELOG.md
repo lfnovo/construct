@@ -6,6 +6,14 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+### Documentation
+
+- Refreshed the README and documentation for the v0.3 preview, including
+  cross-platform installation, Location Git freshness, terminal handoff, and
+  current release artifacts.
+- Corrected the Windows index/MCP status and documented the narrow read-only
+  Git remote lookup without overstating Construct's offline boundary.
+
 ## [0.3.0] - 2026-08-16
 
 ### Added

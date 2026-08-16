@@ -15,6 +15,7 @@ The preview currently has these platform boundaries:
 | --- | --- | --- | --- |
 | Desktop Markdown workspace | Yes | Preview | No |
 | Open an external terminal at a Location | Yes | Preview | No |
+| Read-only Location Git freshness | Yes | Preview | No |
 | Stateless `construct okf lint` CLI | Yes | Yes | Yes |
 | Local full-text index | Yes | Yes | No |
 | Local MCP server | Yes | Yes | No |
@@ -64,6 +65,27 @@ Published preview releases are public at
 **Pre-release** label. A URL containing `untagged-...` points to a private draft
 for maintainers and will not work for other users.
 
+For macOS:
+
+1. Choose `Construct_<version>_aarch64.dmg` for Apple Silicon or
+   `Construct_<version>_x64.dmg` for an Intel Mac, then also download
+   `SHA256SUMS`.
+2. In Terminal, calculate the checksum for the downloaded DMG:
+
+   ```bash
+   VERSION=X.Y.Z
+   shasum -a 256 "Construct_${VERSION}_aarch64.dmg"
+   ```
+
+   Replace the filename with the Intel asset when applicable.
+3. Compare the result with the matching line in `SHA256SUMS`.
+4. Open the DMG and drag Construct to **Applications**.
+
+Because the macOS preview is ad-hoc signed and not notarized, Gatekeeper may
+ask for an additional confirmation. After verifying the release and checksum,
+use Finder's **Open** action for Construct and confirm the per-app prompt. Do
+not disable Gatekeeper globally.
+
 For Windows x64:
 
 1. Open the preview release and expand **Assets**.
@@ -71,7 +93,8 @@ For Windows x64:
 3. In PowerShell, calculate the installer checksum:
 
    ```powershell
-   (Get-FileHash .\Construct_<version>_x64-setup.exe -Algorithm SHA256).Hash.ToLower()
+   $version = "X.Y.Z"
+   (Get-FileHash ".\Construct_${version}_x64-setup.exe" -Algorithm SHA256).Hash.ToLower()
    ```
 
 4. Compare the result with the installer line in `SHA256SUMS`.
@@ -108,6 +131,36 @@ are not followed.
 Removing a Location from Construct removes its derived local index but never
 deletes the folder or its Markdown files.
 
+### Understand a Location's Git signal
+
+Git-backed Locations show a compact branch indicator. Choose it to see the
+branch, working-tree state, known local difference, remote freshness, and the
+time of the last remote check.
+
+Common signals are:
+
+| Signal | Meaning |
+| --- | --- |
+| `✓` | Local `HEAD` matches the advertised remote branch and the working tree is clean |
+| `●` | The working tree contains uncommitted files |
+| `↑n` | Local commits are ahead of the last fetched upstream reference |
+| `↓n` | The last fetched upstream reference contains commits not in local `HEAD` |
+| `↑n↓n` | Local `HEAD` and the last fetched upstream have diverged |
+| `↓` or `↑↓` | The remote branch changed after the last fetch, so the exact distance is not known locally |
+| `—` | No upstream branch is configured |
+| `?` | The remote was not checked or could not be reached |
+
+A small amber dot beside another signal means the working tree is also dirty.
+Construct refreshes local state after observed filesystem changes and when the
+app regains focus. Remote checks are rate-limited, use a short timeout, and can
+be repeated explicitly with **Check again**.
+
+The signal is awareness, not synchronization. Remote checks read the branch
+object ID with `git ls-remote`; Construct never fetches objects, changes local
+references, stages, commits, pulls, or pushes. Ahead and behind counts therefore
+describe the upstream reference from your last fetch. Use your preferred Git
+client or **Open Terminal** when you decide to synchronize.
+
 ### 2. Open and arrange documents
 
 Select a file under **Files** to open it in the active pane. You can:
@@ -133,10 +186,10 @@ lint](cli.md) for installation details and supported inputs.
 
 ### Open the terminal where the work is
 
-Use the terminal button in the **Locations** header to open the selected
-Location in an installed terminal application. From a document, use the
-terminal button in its toolbar or **Open terminal here** in the file or tab
-context menu to start in that document's containing folder.
+Open a Location's actions menu and choose **Open terminal at Location** to start
+there in an installed terminal application. From a document, use the terminal
+button in its toolbar or **Open terminal here** in the file or tab context menu
+to start in that document's containing folder.
 
 Construct detects these applications on macOS:
 
@@ -381,9 +434,12 @@ The registered Markdown files remain in their original folders and remain the
 source of truth. Removing or rebuilding an index does not change those files.
 
 Construct does not send document content, paths, search queries, or index
-metrics to a remote service. An external MCP client controls what happens to
-content after it requests it from Construct, so configure clients and model
-providers according to your own privacy requirements.
+metrics to a remote service. The one core network-aware feature is the optional
+Git freshness check: it asks the upstream configured by the repository for one
+branch reference and does not transmit Markdown content or update the local
+repository. An external MCP client controls what happens to content after it
+requests it from Construct, so configure clients and model providers according
+to your own privacy requirements.
 
 ## Troubleshooting
 
@@ -430,6 +486,17 @@ Confirm that:
   `--allow-all`;
 - the client was restarted or reloaded after configuration;
 - the installed Construct version supports local IPC on your operating system.
+
+### A Location's Git signal is stale or shows `?`
+
+Open the indicator and choose **Check again**. A missing network connection,
+remote authentication that requires an interactive prompt, a detached `HEAD`,
+or a branch without an upstream can prevent comparison. Construct reports that
+state without blocking the Location.
+
+If the remote changed, Construct intentionally shows the change without an
+exact commit count until you fetch with your normal Git tool. It will never run
+that fetch for you.
 
 ### A preview installer is blocked by the operating system
 

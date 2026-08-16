@@ -26,9 +26,9 @@ Each `vX.Y.Z` release candidate produces:
 
 | Platform | Desktop application | Standalone CLI |
 | --- | --- | --- |
-| macOS Apple Silicon | ad-hoc-signed preview DMG | `construct_X.Y.Z_aarch64-apple-darwin.tar.gz` |
-| macOS Intel | ad-hoc-signed preview DMG | `construct_X.Y.Z_x86_64-apple-darwin.tar.gz` |
-| Windows x64 | unsigned preview NSIS setup | `construct_X.Y.Z_x86_64-pc-windows-msvc.zip` |
+| macOS Apple Silicon | `Construct_X.Y.Z_aarch64.dmg` | `construct_X.Y.Z_aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `Construct_X.Y.Z_x64.dmg` | `construct_X.Y.Z_x86_64-apple-darwin.tar.gz` |
+| Windows x64 | `Construct_X.Y.Z_x64-setup.exe` | `construct_X.Y.Z_x86_64-pc-windows-msvc.zip` |
 | Linux x64 | Not shipped | `construct_X.Y.Z_x86_64-unknown-linux-gnu.tar.gz` |
 
 The release also contains `SHA256SUMS` for every generated installer and CLI
@@ -60,8 +60,9 @@ application or CLI downloads.
 4. Validate the intended tag and source:
 
 ```bash
+VERSION=X.Y.Z
 npm ci
-npm run release:check -- v0.1.0
+npm run release:check -- "v${VERSION}"
 npm run validate
 npm run build
 git status --short
@@ -72,10 +73,13 @@ git status --short
    - Markdown Preview, Edit, Review, and Source;
    - explicit save and an external-edit conflict;
    - Git Diff availability;
+   - Location Git signals for clean, dirty, ahead/behind, and unavailable
+     remotes, including explicit **Check again**;
    - Search and OKF Explore List, Graph, and Health;
    - `construct okf lint` in text and JSON modes;
    - local MCP startup and its smoke script;
    - dark and light themes;
+   - terminal selection plus Location and document-directory handoff;
    - Finder and Dock icon.
 
 ## Create the release candidate
@@ -84,8 +88,9 @@ Create an annotated semantic-version tag only after the release commit passes
 the local checklist:
 
 ```bash
-git tag -a v0.1.0 -m "Construct 0.1.0"
-git push origin v0.1.0
+VERSION=X.Y.Z
+git tag -a "v${VERSION}" -m "Construct ${VERSION}"
+git push origin "v${VERSION}"
 ```
 
 The workflow:
@@ -115,6 +120,10 @@ Before publishing:
 - verify Linux exit codes `0`, `1`, and `2` on a clean Ubuntu runner;
 - run the release-pinned `okf-lint-action` against a fixture repository;
 - run the MCP smoke path from the standalone CLI;
+- verify Location Git freshness remains read-only and does not fetch or modify
+  repository state;
+- open each supported terminal available on the test machine from a Location
+  and from a nested document;
 - confirm the release notes and known limitations;
 - confirm that no unsigned artifact is described as trusted.
 

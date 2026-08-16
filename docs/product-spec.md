@@ -921,7 +921,9 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 - `.constructignore` versionável para política de conformidade OKF;
 - linter OKF CLI stateless com texto, JSON e thresholds de CI;
 - MCP stdio local, read-only e allowlisted no macOS, Windows e Unix;
-- overview e atividade local de 15 dias para orientar agentes.
+- overview e atividade local de 15 dias para orientar agentes;
+- sinal compacto de working tree e freshness Git por Location, incluindo
+  comparação read-only da referência remota;
 - handoff explícito para um terminal externo suportado na raiz de um Local ou na
   pasta de um documento.
 
@@ -1000,6 +1002,10 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 - Eventos persistem entre execuções e expiram depois de 30 dias.
 - Um arquivo em Git oferece comparação com `HEAD`.
 - Um arquivo fora de Git não oferece diff.
+- Cada Location em Git apresenta working tree, diferença conhecida contra a
+  última tracking reference e mudança detectada na referência remota.
+- Uma referência remota alterada não é apresentada como distância exata antes
+  de o usuário fazer fetch em sua ferramenta Git.
 - Nenhuma ação Git de escrita é executada pelo aplicativo.
 
 ### 19.7 Buscar e montar contexto
@@ -1046,7 +1052,7 @@ deve ensinar o fluxo, apoiada pelo guia de usuário.
 
 ### 19.10 Continuar o trabalho em um terminal
 
-- A ação do cabeçalho abre o Local selecionado no terminal preferido.
+- A ação do Local abre sua raiz no terminal preferido.
 - A toolbar e os menus de contexto abrem a pasta do documento, não o arquivo.
 - Na primeira ação com múltiplos terminais instalados, o usuário escolhe qual
   usar e a escolha é restaurada após reiniciar.

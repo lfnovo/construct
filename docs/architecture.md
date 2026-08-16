@@ -51,7 +51,9 @@ The frontend lives in `src/`.
 | `history.ts` | File identity across repeated changes and renames |
 | `explore.ts` | OKF filters and stable visual type assignment |
 | `health.ts` | Pure health scopes, summaries, finding grouping, filtering, and agent-report serialization |
+| `gitStatus.ts` | Pure Location Git-status presentation and stable local/remote refresh merging |
 | `search.ts` | Pure search-filter, recent-query, identity, and relative-reference serialization helpers |
+| `terminal.ts` | Terminal preference selection and document-directory derivation |
 | `api.ts` | Typed Tauri command facade |
 | `types.ts` | Persisted and runtime domain types |
 
@@ -67,8 +69,8 @@ Pure domain logic should stay outside `App.tsx` so it can be tested without a we
 - safe reads and explicit writes;
 - workspace persistence;
 - read-only Git inspection;
-- Finder and external-link integration.
-- registered Location identity and terminal-launch authorization.
+- Finder and external-link integration;
+- registered Location identity and terminal-launch authorization;
 - desktop path-request queuing and installation of the fixed `construct`
   launcher in a standard user command directory.
 
@@ -114,6 +116,11 @@ optional locks so read-only status inspection cannot touch the index and feed
 back into filesystem monitoring. The frontend treats ahead/behind counts as
 relative to the user's last fetch and does not claim an exact remote distance
 when the advertised remote object is not available locally.
+
+This reference lookup is the only network-aware behavior owned by the core
+desktop application. It sends no document content and is not a synchronization
+engine. The local index, search, diagnostics, and MCP service do not require or
+open a network connection.
 
 `src-tauri/src/okf.rs` owns the shared, read-only OKF interpretation:
 
