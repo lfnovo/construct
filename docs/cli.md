@@ -286,10 +286,10 @@ deliberately. The Action:
 5. writes a job summary and optional source annotations;
 6. preserves the CLI's public exit code.
 
-The first Action-compatible release supports Linux x64, macOS Apple Silicon,
-macOS Intel, and Windows x64 GitHub-hosted runners. Unknown platforms and
-unknown JSON schema versions fail clearly. `annotations: false` suppresses only
-the presentation layer; it does not alter linting or the job summary.
+Current preview releases support Linux x64, macOS Apple Silicon, macOS Intel,
+and Windows x64 GitHub-hosted runners. Unknown platforms and unknown JSON
+schema versions fail clearly. `annotations: false` suppresses only the
+presentation layer; it does not alter linting or the job summary.
 
 ### Build and lint from the repository source
 

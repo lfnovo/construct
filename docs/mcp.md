@@ -23,7 +23,7 @@ Each Location has its own physical embedded database. The MCP process receives
 an explicit allowlist of registered Location IDs, reconciles their saved files,
 and can query only those indexes.
 
-No network listener is opened. Construct itself makes no outbound request.
+No network listener is opened, and the MCP server makes no outbound request.
 The MCP client controls where retrieved content goes after it leaves Construct.
 
 ## Recommended setup

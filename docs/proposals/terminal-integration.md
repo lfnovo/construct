@@ -1,9 +1,10 @@
 # RFC — Terminal integration
 
-**Status:** Accepted for the external launcher. Embedded terminal remains
-Proposed.
+**Status:** External launcher implemented. Embedded terminal remains Proposed.
 
 **Date:** 2026-07-29
+
+**Last reconciled:** 2026-08-16
 
 **Scope:** The external launcher is authorized for implementation. The
 PTY-backed embedded terminal still requires a separate acceptance decision.
@@ -24,7 +25,7 @@ second can turn Construct into a more complete agent workspace, but introduces
 a process-hosting subsystem and a substantially larger security and
 cross-platform surface.
 
-## Proposed decision
+## Decision
 
 Adopt a progressive, hybrid path:
 
@@ -69,7 +70,7 @@ Those are product capabilities, not merely a faster way to run `cd`.
 
 | Concern | External application | Embedded terminal |
 | --- | --- | --- |
-| User experience | Opens Terminal, iTerm, Ghostty, WezTerm, or another supported app | Appears as a tab or split inside Construct |
+| User experience | Opens Terminal, iTerm2, Ghostty, WezTerm, Warp, or a supported Windows host | Appears as a tab or split inside Construct |
 | Initial effort | Low | Medium to high |
 | Existing configuration | Reuses the user's shell, theme, fonts, plugins, history, and shortcuts | Construct must expose or choose terminal settings |
 | Interactive programs | Delegated to a mature terminal | Construct must correctly support PTYs, ANSI, resizing, signals, and full-screen TUIs |
@@ -77,7 +78,7 @@ Those are product capabilities, not merely a faster way to run `cd`.
 | Security boundary | Construct launches a predefined app at a path | Construct hosts a shell with the user's full operating-system authority |
 | Workspace integration | Handoff only | Native tabs, splits, and session identity |
 | macOS delivery | Small native adapter | Frontend emulator plus native PTY manager |
-| Windows delivery | Adapter for Windows Terminal or configured application | ConPTY integration and Windows-specific lifecycle testing |
+| Windows delivery | System-default console host plus Windows Terminal and Warp adapters | ConPTY integration and Windows-specific lifecycle testing |
 | Failure impact | Terminal launch fails independently | A terminal failure can affect Construct responsiveness or shutdown |
 | Product differentiation | Useful convenience | Makes Construct a more complete agent workspace |
 
@@ -85,7 +86,7 @@ Those are product capabilities, not merely a faster way to run `cd`.
 
 ### User experience
 
-Construct should offer two commands:
+Construct offers two commands:
 
 - **Open terminal at Location** — starts in the root of the active Location.
 - **Open terminal here** — starts in the directory containing the active
@@ -103,11 +104,11 @@ must never launch a terminal automatically.
 
 ### Terminal preference
 
-The first delivery should offer a **Choose terminal application…** action from
-the Location and document context menus. A future general Settings surface may
-present the same preference without changing its persisted contract.
+The **Choose terminal application…** action is available from Location and
+document context menus and from Settings. All entry points share the same
+persisted preference.
 
-On macOS, the first supported set should be small and explicit:
+On macOS, the supported set is small and explicit:
 
 - Apple Terminal;
 - iTerm2;
@@ -115,8 +116,8 @@ On macOS, the first supported set should be small and explicit:
 - WezTerm;
 - Warp.
 
-On Windows, Construct should always offer the system-default console host and
-detect Windows Terminal and Warp when their reviewed adapters are available.
+On Windows, Construct always offers the system-default console host and detects
+Windows Terminal and Warp when installed.
 
 Construct should detect installed supported applications and present readable
 names. A missing configured application produces an English error and offers
@@ -133,8 +134,8 @@ The frontend sends identity, not an unrestricted command:
 ```ts
 type OpenTerminalRequest = {
   locationId: string;
-  relativeDirectory?: string;
-  terminalApp?: TerminalApplication;
+  relativeDirectory: string;
+  terminalApplicationId: TerminalApplicationId;
 };
 ```
 
@@ -155,7 +156,7 @@ An illustrative response:
 
 ```ts
 type OpenTerminalResult = {
-  application: string;
+  application: TerminalApplication;
   locationId: string;
   relativeDirectory: string;
 };
@@ -173,7 +174,8 @@ Location and path validation
         ↓
 Terminal adapter selection
         ↓
-Apple Terminal / iTerm2 / Ghostty / WezTerm / Windows Terminal
+Apple Terminal / iTerm2 / Ghostty / WezTerm / Warp /
+Windows default / Windows Terminal / Warp
 ```
 
 Adapters must not:
@@ -188,7 +190,7 @@ Adapters must not:
 ### macOS behavior
 
 Phase 1 targets macOS as the primary desktop environment and carries the same
-typed contract to the Windows preview through Windows Terminal.
+typed contract to the Windows preview through its supported adapters.
 
 The implementation should prefer application launch APIs or argument arrays
 over constructing a shell command string. Terminal-specific automation should
@@ -201,8 +203,8 @@ process state.
 
 ### Windows behavior
 
-The same product command supports Windows through Windows Terminal when
-installed.
+The same product command supports the Windows system-default console host,
+Windows Terminal, and Warp.
 
 The Windows adapter must:
 
@@ -498,13 +500,13 @@ Provisional targets:
 
 ## Rollout
 
-### Stage 1 — Launcher spike
+### Stage 1 — Launcher spike (delivered)
 
 - validate the supported macOS terminal launch mechanisms;
 - confirm packaged-app behavior;
 - validate directory paths containing spaces and Unicode.
 
-### Stage 2 — External launcher product slice
+### Stage 2 — External launcher product slice (delivered)
 
 - add typed native request and adapters;
 - add terminal preference;
@@ -512,9 +514,9 @@ Provisional targets:
 - add errors, tests, and user-guide documentation;
 - ship macOS support.
 
-### Stage 3 — Windows launcher
+### Stage 3 — Windows launcher (delivered)
 
-- add Windows Terminal and fallback behavior;
+- add the system-default fallback, Windows Terminal, and Warp;
 - validate in the distributed Windows package;
 - update installation and user documentation.
 
@@ -582,14 +584,15 @@ Provisional targets:
 5. Terminal integration is not exposed to MCP or agents.
 6. An embedded terminal requires a real PTY and a first-class tab type.
 7. Embedded sessions and output are ephemeral by default.
-8. The first supported applications are Apple Terminal, iTerm2, Ghostty,
-   WezTerm, and Windows Terminal on their respective platforms.
+8. The supported applications are Apple Terminal, iTerm2, Ghostty, WezTerm,
+   and Warp on macOS, plus the system-default host, Windows Terminal, and Warp
+   on Windows.
 9. The first action asks for an explicit choice when multiple supported
    terminals are installed and automatically uses the only available adapter
    otherwise.
-10. Location-root handoff appears in the Locations header and Location context
-    menu. Document-directory handoff appears in the toolbar plus file and tab
-    context menus.
+10. Location-root handoff appears in the Location actions menu.
+    Document-directory handoff appears in the toolbar plus file and tab context
+    menus.
 11. No keyboard shortcut or command-palette entry is assigned in the first
     delivery.
 

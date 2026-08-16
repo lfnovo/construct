@@ -21,8 +21,9 @@ Required:
 - platform prerequisites for Tauri 2.
 
 On Windows, install the Tauri prerequisites and Visual Studio C++ build tools.
-The desktop workspace and stateless linter compile there, but local indexing
-and MCP are currently Unix-only.
+The desktop workspace, local index, stateless linter, and MCP compile there.
+The local knowledge service uses a user-scoped named pipe on Windows and a
+Unix-domain socket on macOS/Unix.
 
 ## Set up the repository
 
@@ -198,9 +199,13 @@ coverage.
 | `src/SearchWorkspace.tsx` | Local knowledge search and context selection |
 | `src/HealthWorkspace.tsx` | Interactive OKF lint findings |
 | `src/MarkdownPreview.tsx` | Sanitized Markdown, Mermaid, images, and links |
-| `src/*.ts` | Pure frontend domain helpers and typed native contracts |
+| `src/gitStatus.ts` | Pure Location Git-status presentation and refresh merging |
+| `src/terminal.ts` | Terminal preference and document-directory helpers |
+| `src/*.ts` | Other pure frontend domain helpers and typed native contracts |
 | `src-tauri/src/lib.rs` | Shared feature boundary and command dispatch |
 | `src-tauri/src/desktop.rs` | Tauri commands, filesystem, watcher, state, and Git |
+| `src-tauri/src/desktop_open.rs` | Safe desktop path requests and single-instance handoff |
+| `src-tauri/src/terminal.rs` | Installed-terminal detection and reviewed launch adapters |
 | `src-tauri/src/okf.rs` | Shared tolerant OKF parser |
 | `src-tauri/src/okf_lint.rs` | Stateless CLI validation |
 | `src-tauri/src/okf_policy.rs` | `.constructignore` conformance policy |
@@ -256,6 +261,8 @@ For user-visible desktop changes, exercise the relevant journey in the app:
 - quick-open and knowledge search;
 - OKF Explore List, Graph, and Health;
 - index rebuild and failure recovery;
+- clean, dirty, ahead, behind, changed-remote, and unavailable Git signals;
+- terminal selection and Location/document directory handoff;
 - dark and light themes;
 - Finder and external-link actions;
 - local MCP startup when the change touches retrieval.

@@ -38,7 +38,10 @@ Construct is expected to:
 - require explicit MCP Location allowlists;
 - expose no source mutation, shell, Git write, arbitrary SQL, or arbitrary
   filesystem read through MCP;
-- make no outbound request from the core application or MCP server.
+- keep the local index and MCP server free of outbound network requests;
+- limit core-app network behavior to a read-only Git reference lookup against
+  the upstream already configured by the repository, without sending document
+  content or fetching objects.
 
 The initial macOS release workflow uses ad-hoc signing only. It does not
 establish developer identity or provide notarization. Windows artifacts are not

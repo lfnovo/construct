@@ -13,8 +13,8 @@ desktop knowledge workspace. Read and edit Markdown, review documents with
 agent-ready comments, follow recent changes, search across projects, and give
 agents bounded read-only access to the same local knowledge.
 
-> **Status:** early preview. The core workflows are usable, but trusted app
-> signing, Windows hardening, and large-workspace validation are still in
+> **Status:** public preview. The core workflows are usable on macOS and
+> Windows, but trusted app signing and large-workspace validation are still in
 > progress. Preview artifacts may trigger operating-system trust warnings.
 
 ## What you can do
@@ -28,6 +28,9 @@ agents bounded read-only access to the same local knowledge.
   context pack.
 - **Explore OKF bundles:** inspect open-ended metadata, types, tags, links,
   backlinks, graph structure, and health findings for OKF v0.1 and v0.2.
+- **See repository freshness:** read compact clean, dirty, ahead, behind, and
+  diverged signals for each Git-backed Location without letting Construct
+  fetch, pull, push, or change repository state.
 - **Move between app and terminal:** open registered Locations in a supported
   terminal, or use `construct .` and `construct <file.md>` to return to the
   desktop at the right place.
@@ -39,28 +42,6 @@ or hide file changes behind autosave. Markdown files remain the source of
 truth.
 
 ## Get started
-
-### Run from source
-
-The most reliable preview path today is to run Construct from source on macOS.
-You need macOS 13 or newer, Node.js 22, Xcode Command Line Tools, and `rustup`.
-
-```bash
-git clone https://github.com/lfnovo/construct.git
-cd construct
-npm ci
-npm run dev
-```
-
-When Construct opens:
-
-1. add a folder from the **Locations** header;
-2. select a Markdown file in **Files**;
-3. press `⌘P` to quick-open another file or `⌘⇧F` to search its contents;
-4. switch between **Preview**, **Edit**, **Review**, **Source**, and **Diff**.
-
-The [user guide](docs/user-guide.md) explains the workspace, editing safety,
-search, OKF exploration, keyboard shortcuts, and troubleshooting.
 
 ### Preview downloads
 
@@ -84,7 +65,32 @@ On Windows, download the asset ending in `_x64-setup.exe`. The
 `x86_64-pc-windows-msvc.zip` asset is the standalone CLI, and GitHub's
 automatically generated “Source code” archives are not installers. The
 [user guide](docs/user-guide.md#install-a-tagged-preview) includes checksum and
-Microsoft Defender SmartScreen instructions.
+operating-system trust instructions for macOS and Windows.
+
+When Construct opens:
+
+1. add a folder from the **Locations** header;
+2. select a Markdown file in **Files**;
+3. press `⌘P` to quick-open another file or `⌘⇧F` to search its contents;
+4. switch between **Preview**, **Edit**, **Review**, **Source**, and **Diff**;
+5. choose a Git indicator beside a Location to inspect local and remote
+   freshness without synchronizing the repository.
+
+The [user guide](docs/user-guide.md) explains installation, the workspace,
+editing safety, Git awareness, search, OKF exploration, keyboard shortcuts,
+and troubleshooting.
+
+### Run from source
+
+For development or a source-reviewed installation, use macOS 13 or newer,
+Node.js 22, Xcode Command Line Tools, and `rustup`:
+
+```bash
+git clone https://github.com/lfnovo/construct.git
+cd construct
+npm ci
+npm run dev
+```
 
 ## CLI and agent access
 

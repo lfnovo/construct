@@ -1,7 +1,7 @@
 # RFC 06 — Stateless OKF linter
 
-**Status:** CLI, desktop Health, Linux x64 distribution, and GitHub Action
-implemented; tagged Action-compatible candidate and oracle comparison pending
+**Status:** CLI, desktop Health, Linux x64 distribution, tagged previews, and
+GitHub Action implemented; agent workflow trial and oracle comparison pending
 
 **Decision owner:** Product, OKF compatibility, CLI, and release engineering
 
@@ -665,9 +665,9 @@ Measure:
 - **Implemented:** release-pinned GitHub Action with checksum verification,
   cache, job summary, annotations, and CLI exit-code propagation;
 - **Implemented:** minimal pinned Action and manual-download CI examples;
-- **Pending:** run the first Action-compatible tagged candidate on clean hosted
-  runners;
-- **Pending:** smoke-test the Action against that published release;
+- **Implemented:** Action-compatible tagged candidates run on hosted runners;
+- **Implemented:** the Action smoke path runs against published preview
+  releases;
 - **Pending:** compare behavior with the independent oracle corpus.
 
 Profiles, SARIF, package-manager distribution, and any fix mode remain separate
