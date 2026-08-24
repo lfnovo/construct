@@ -285,6 +285,8 @@ struct IndexMeta {
     failed_documents: usize,
     complete: bool,
     last_reconciled_at: Option<String>,
+    #[serde(default)]
+    storage_bytes: Option<u64>,
     error: Option<String>,
 }
 
@@ -779,7 +781,7 @@ impl IndexStatus {
         }
     }
 
-    fn from_meta(meta: IndexMeta, storage_bytes: u64) -> Self {
+    fn from_meta(meta: IndexMeta) -> Self {
         Self {
             location_id: meta.location_id,
             state: meta.state,
@@ -792,7 +794,7 @@ impl IndexStatus {
             removed_documents: 0,
             complete: meta.complete,
             last_reconciled_at: meta.last_reconciled_at,
-            storage_bytes,
+            storage_bytes: meta.storage_bytes.unwrap_or_default(),
             error: meta.error,
         }
     }
@@ -826,6 +828,15 @@ impl IndexService {
         validate_location_id(location_id)?;
         let digest = blake3::hash(location_id.as_bytes()).to_hex();
         Ok(self.base_dir.join(digest.as_str()).join("surrealdb"))
+    }
+
+    pub(crate) async fn opened_storage_paths(&self) -> Vec<PathBuf> {
+        self.indexes
+            .lock()
+            .await
+            .values()
+            .map(|index| index.path.clone())
+            .collect()
     }
 
     async fn open(&self, location_id: &str) -> Result<Arc<LocationIndex>, String> {
@@ -912,10 +923,15 @@ impl IndexService {
             return Ok(IndexStatus::not_indexed(location_id));
         }
         let index = self.open(location_id).await?;
-        let Some(meta) = read_meta(&index.db).await? else {
+        let Some(mut meta) = read_meta(&index.db).await? else {
             return Ok(IndexStatus::not_indexed(location_id));
         };
-        Ok(IndexStatus::from_meta(meta, directory_size(&index.path)))
+        let storage_bytes = directory_size(&index.path);
+        if meta.storage_bytes != Some(storage_bytes) {
+            meta.storage_bytes = Some(storage_bytes);
+            write_meta(&index.db, &meta).await?;
+        }
+        Ok(IndexStatus::from_meta(meta))
     }
 
     pub(crate) async fn sync(
@@ -945,7 +961,7 @@ impl IndexService {
                             "reason": "minimumReconcileInterval"
                         }),
                     );
-                    return Ok(IndexStatus::from_meta(meta, directory_size(&index.path)));
+                    return Ok(IndexStatus::from_meta(meta));
                 }
             }
         }
@@ -989,7 +1005,10 @@ impl IndexService {
                     .map(|meta| meta.failed_documents)
                     .unwrap_or_default(),
                 complete: degraded,
-                last_reconciled_at: previous.and_then(|meta| meta.last_reconciled_at),
+                last_reconciled_at: previous
+                    .as_ref()
+                    .and_then(|meta| meta.last_reconciled_at.clone()),
+                storage_bytes: previous.as_ref().and_then(|meta| meta.storage_bytes),
                 error: Some(error.clone()),
             };
             let _ = write_meta(&index.db, &meta).await;
@@ -1053,6 +1072,7 @@ impl IndexService {
             last_reconciled_at: previous
                 .as_ref()
                 .and_then(|value| value.last_reconciled_at.clone()),
+            storage_bytes: previous.as_ref().and_then(|value| value.storage_bytes),
             error: None,
         };
         if full_build {
@@ -1162,7 +1182,9 @@ impl IndexService {
             }
             cleanup_activity(&index.db).await?;
         }
-        let mut status = IndexStatus::from_meta(meta, directory_size(&index.path));
+        meta.storage_bytes = Some(directory_size(&index.path));
+        write_meta(&index.db, &meta).await?;
+        let mut status = IndexStatus::from_meta(meta);
         status.changed_documents = changed.len();
         status.removed_documents = removed.len();
         Ok(status)
@@ -4364,6 +4386,81 @@ REMOVE INDEX IF EXISTS document_metadata_search ON TABLE document;
             .expect("document exists");
         assert!(changed.body.contains("After"));
 
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn skipped_reconciliation_uses_persisted_storage_without_scanning() {
+        let data = temporary_root("cached-storage-data");
+        let source = temporary_root("cached-storage-source");
+        fs::write(source.join("one.md"), "# One\nCached storage").expect("write document");
+        let location_id = "cached-storage-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        let initial = service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("initial sync");
+        assert!(initial.storage_bytes > 0);
+
+        let probe_dir = service
+            .storage_path(location_id)
+            .expect("resolve storage path")
+            .join("size-probe");
+        fs::create_dir_all(&probe_dir).expect("create size probe directory");
+        fs::write(probe_dir.join("payload"), vec![b'x'; 8 * 1024]).expect("write size probe");
+
+        let mut coalesced_request = request(location_id, &source);
+        coalesced_request.minimum_reconcile_interval_ms = 60_000;
+        let coalesced = service
+            .sync(coalesced_request, source.clone())
+            .await
+            .expect("coalesce recent sync");
+        assert_eq!(coalesced.storage_bytes, initial.storage_bytes);
+
+        let refreshed = service.status(location_id).await.expect("refresh status");
+        assert!(refreshed.storage_bytes >= initial.storage_bytes + 8 * 1024);
+
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn missing_persisted_storage_migrates_with_a_compatible_default() {
+        let data = temporary_root("storage-migration-data");
+        let source = temporary_root("storage-migration-source");
+        fs::write(source.join("one.md"), "# One\nMigration").expect("write document");
+        let location_id = "storage-migration-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("initial sync");
+        let index = service.open(location_id).await.expect("open index");
+        index
+            .db
+            .query("UPDATE index_meta:state UNSET storage_bytes;")
+            .await
+            .expect("remove storage metadata")
+            .check()
+            .expect("check storage metadata migration setup");
+        let migrated = read_meta(&index.db)
+            .await
+            .expect("read legacy metadata")
+            .expect("legacy metadata exists");
+        assert_eq!(migrated.storage_bytes, None);
+
+        let refreshed = service.status(location_id).await.expect("refresh status");
+        assert!(refreshed.storage_bytes > 0);
+        let persisted = read_meta(&index.db)
+            .await
+            .expect("read migrated metadata")
+            .expect("migrated metadata exists");
+        assert_eq!(persisted.storage_bytes, Some(refreshed.storage_bytes));
+
+        drop(index);
         drop(service);
         fs::remove_dir_all(data).expect("remove data");
         fs::remove_dir_all(source).expect("remove source");

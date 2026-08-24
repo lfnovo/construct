@@ -11,10 +11,10 @@ use crate::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{collections::HashSet, path::PathBuf, time::Duration};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
 const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
-const MCP_RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
+const MCP_RECONCILE_INTERVAL: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Debug, PartialEq)]
 struct McpToolError {
@@ -51,6 +51,7 @@ struct McpState {
     client: KnowledgeClient,
     locations: Vec<LocationDefinition>,
     allowed_ids: HashSet<String>,
+    reconcile_interval: Duration,
 }
 
 #[derive(Deserialize)]
@@ -200,28 +201,26 @@ async fn run_mcp(data_dir: PathBuf, allow_all: bool, requested: Vec<String>) -> 
     }
     let client = KnowledgeClient::new(data_dir)?;
     for location in &locations {
-        let _ = sync_location(&client, location).await;
+        let _ = sync_location(&client, location, MCP_RECONCILE_INTERVAL).await;
     }
     let state = McpState {
-        client: client.clone(),
+        client,
         allowed_ids: locations
             .iter()
             .map(|location| location.id.clone())
             .collect(),
-        locations: locations.clone(),
+        locations,
+        reconcile_interval: MCP_RECONCILE_INTERVAL,
     };
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(MCP_RECONCILE_INTERVAL).await;
-            for location in &locations {
-                let _ = sync_location(&client, location).await;
-            }
-        }
-    });
+    serve_mcp(state, tokio::io::stdin(), tokio::io::stdout()).await
+}
 
-    let stdin = tokio::io::stdin();
-    let mut lines = BufReader::new(stdin).lines();
-    let mut stdout = tokio::io::stdout();
+async fn serve_mcp<R, W>(state: McpState, input: R, mut stdout: W) -> Result<(), String>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
+    let mut lines = BufReader::new(input).lines();
     while let Some(line) = lines
         .next_line()
         .await
@@ -254,6 +253,7 @@ async fn run_mcp(data_dir: PathBuf, allow_all: bool, requested: Vec<String>) -> 
 async fn sync_location(
     client: &KnowledgeClient,
     location: &LocationDefinition,
+    minimum_interval: Duration,
 ) -> Result<(), String> {
     client
         .sync(SyncLocationRequest {
@@ -262,10 +262,31 @@ async fn sync_location(
             display_name: location.name.clone(),
             okf_bundle: location.okf_bundle,
             rebuild: false,
-            minimum_reconcile_interval_ms: MCP_RECONCILE_INTERVAL.as_millis() as u64,
+            minimum_reconcile_interval_ms: minimum_interval.as_millis() as u64,
         })
         .await
         .map(|_| ())
+}
+
+async fn reconcile_locations(state: &McpState, location_ids: &[String]) {
+    let mut reconciled = HashSet::new();
+    for location_id in location_ids {
+        if !reconciled.insert(location_id.as_str()) {
+            continue;
+        }
+        let Some(location) = state
+            .locations
+            .iter()
+            .find(|location| location.id == *location_id)
+        else {
+            continue;
+        };
+        let _ = sync_location(&state.client, location, state.reconcile_interval).await;
+    }
+}
+
+async fn reconcile_location(state: &McpState, location_id: &str) {
+    reconcile_locations(state, &[location_id.to_string()]).await;
 }
 
 async fn handle_message(state: &McpState, message: Value) -> Value {
@@ -339,11 +360,13 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
         "construct_get_location_overview" => {
             let args: LocationIdArgs = decode(arguments)?;
             ensure_allowed(state, &args.location_id)?;
+            reconcile_location(state, &args.location_id).await;
             encode(state.client.location_overview(&args.location_id).await?)
         }
         "construct_get_location_activity" => {
             let args: ActivityArgs = decode(arguments)?;
             ensure_allowed(state, &args.location_id)?;
+            reconcile_location(state, &args.location_id).await;
             encode(
                 state
                     .client
@@ -359,6 +382,7 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
         "construct_search_knowledge" => {
             let args: SearchArgs = decode(arguments)?;
             ensure_allowed_many(state, &args.location_ids)?;
+            reconcile_locations(state, &args.location_ids).await;
             encode(
                 state
                     .client
@@ -374,6 +398,7 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
         "construct_list_documents" => {
             let args: ListDocumentsArgs = decode(arguments)?;
             ensure_allowed(state, &args.location_id)?;
+            reconcile_location(state, &args.location_id).await;
             encode(
                 state
                     .client
@@ -394,6 +419,7 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
         "construct_read_document" => {
             let args: DocumentArgs = decode(arguments)?;
             ensure_allowed(state, &args.location_id)?;
+            reconcile_location(state, &args.location_id).await;
             encode(
                 state
                     .client
@@ -410,6 +436,7 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
         "construct_get_related_documents" => {
             let args: RelatedArgs = decode(arguments)?;
             ensure_allowed(state, &args.location_id)?;
+            reconcile_location(state, &args.location_id).await;
             encode(
                 state
                     .client
@@ -429,6 +456,7 @@ async fn call_tool(state: &McpState, name: &str, arguments: Value) -> Result<Val
                 .map(|document| document.location_id.clone())
                 .collect::<Vec<_>>();
             ensure_allowed_many(state, &ids)?;
+            reconcile_locations(state, &ids).await;
             encode(
                 state
                     .client
@@ -675,7 +703,10 @@ fn jsonrpc_error(id: Value, code: i32, message: &str) -> Value {
     })
 }
 
-async fn write_message(stdout: &mut tokio::io::Stdout, message: Value) -> Result<(), String> {
+async fn write_message<W: AsyncWrite + Unpin>(
+    stdout: &mut W,
+    message: Value,
+) -> Result<(), String> {
     let mut encoded = serde_json::to_vec(&message)
         .map_err(|error| format!("Could not encode MCP output: {error}"))?;
     encoded.push(b'\n');
@@ -692,6 +723,23 @@ async fn write_message(stdout: &mut tokio::io::Stdout, message: Value) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temporary_root(name: &str) -> PathBuf {
+        let label = name.chars().take(8).collect::<String>();
+        let path = PathBuf::from("/tmp").join(format!("cm-{label}-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&path).expect("create temporary root");
+        path
+    }
+
+    fn test_location(root: &std::path::Path) -> LocationDefinition {
+        LocationDefinition {
+            id: "mcp-location".to_string(),
+            path: root.to_string_lossy().to_string(),
+            name: "MCP Location".to_string(),
+            available: true,
+            okf_bundle: false,
+        }
+    }
 
     #[test]
     fn tool_errors_include_a_stable_structured_code() {
@@ -731,5 +779,97 @@ mod tests {
             json!(["relativePath"])
         );
         assert_eq!(tool["inputSchema"]["properties"]["limit"]["maximum"], 100);
+    }
+
+    #[tokio::test]
+    async fn stdin_eof_stops_the_adapter_promptly() {
+        let data = temporary_root("eof");
+        let client = KnowledgeClient::new(data.clone()).expect("create client");
+        let state = McpState {
+            client,
+            locations: Vec::new(),
+            allowed_ids: HashSet::new(),
+            reconcile_interval: MCP_RECONCILE_INTERVAL,
+        };
+
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            serve_mcp(state, tokio::io::empty(), tokio::io::sink()),
+        )
+        .await
+        .expect("adapter exits after EOF")
+        .expect("adapter exits cleanly");
+        std::fs::remove_dir_all(data).expect("remove data");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn indexed_tool_calls_reconcile_their_locations_and_keep_last_good_data() {
+        let data = temporary_root("request-reconcile-data");
+        let source = temporary_root("request-reconcile-source");
+        std::fs::write(source.join("one.md"), "# One\nBefore").expect("write document");
+        let service = tokio::spawn(crate::knowledge::run_test_service(
+            data.clone(),
+            Duration::from_millis(500),
+            Duration::from_millis(100),
+        ));
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if tokio::net::UnixStream::connect(data.join("knowledge-service.sock"))
+                    .await
+                    .is_ok()
+                {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("service becomes ready");
+
+        let client = KnowledgeClient::new(data.clone()).expect("create client");
+        let location = test_location(&source);
+        sync_location(&client, &location, Duration::ZERO)
+            .await
+            .expect("initial reconciliation");
+        let state = McpState {
+            client,
+            locations: vec![location.clone()],
+            allowed_ids: HashSet::from([location.id.clone()]),
+            reconcile_interval: Duration::ZERO,
+        };
+
+        std::fs::write(source.join("one.md"), "# One\nAfter").expect("update document");
+        let refreshed = call_tool(
+            &state,
+            "construct_read_document",
+            json!({ "locationId": location.id.clone(), "relativePath": "one.md" }),
+        )
+        .await
+        .expect("read refreshed document");
+        assert!(refreshed["body"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("After"));
+
+        std::fs::remove_dir_all(&source).expect("make source unavailable");
+        let last_good = call_tool(
+            &state,
+            "construct_read_document",
+            json!({ "locationId": location.id.clone(), "relativePath": "one.md" }),
+        )
+        .await
+        .expect("read last complete generation");
+        assert!(last_good["body"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("After"));
+
+        tokio::time::timeout(Duration::from_secs(3), service)
+            .await
+            .expect("service idles out")
+            .expect("join service")
+            .expect("service exits cleanly");
+        std::fs::remove_dir_all(data).expect("remove data");
     }
 }

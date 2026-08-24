@@ -623,7 +623,7 @@ relações diretas, context packs e o acesso MCP.
 ### 10.18 Acesso local para agentes
 
 - **AGENT-001:** O desktop e adaptadores de agentes devem usar um único serviço local como proprietário exclusivo das conexões embedded por Local.
-- **AGENT-002:** O mesmo executável pode operar nos modos desktop, serviço local e MCP stdio; o serviço deve continuar disponível quando a janela desktop estiver fechada.
+- **AGENT-002:** O mesmo executável pode operar nos modos desktop, serviço local e MCP stdio; o helper local é iniciado sob demanda por qualquer cliente, pode encerrar após cinco minutos sem requisição autenticada nem operação em andamento e deve reiniciar transparentemente no próximo uso. Fechar a janela desktop não pode interromper uma operação MCP ativa.
 - **AGENT-003:** O MCP inicial é somente leitura para arquivos fonte e não expõe create, edit, save, delete, move, rename, shell, Git, SQL, banco bruto ou leitura arbitrária do filesystem.
 - **AGENT-004:** Cada execução MCP exige allowlist explícita de IDs de Locais registrados. Respostas normais usam ID do Local e caminho relativo, nunca caminho absoluto.
 - **AGENT-005:** O transporte entre adapters e serviço usa IPC local autenticado e protegido pelas permissões do usuário. Nenhum listener de rede deve ser aberto e nenhum conteúdo deve ser enviado a serviços remotos.
@@ -633,13 +633,15 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 07 e nunca são misturados silenciosamente ao conteúdo fonte.
 - **AGENT-010:** A interface deve oferecer um ponto global para copiar uma configuração MCP pronta, exigindo escolha explícita entre o Local atual, um conjunto de Locais ou todos os Locais, e explicar que o cliente externo controla o destino do conteúdo recuperado.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
-- **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
+- **AGENT-012:** O MCP não mantém loop periódico de reconciliação. Depois de uma tentativa inicial, cada tool que consome conhecimento solicita best-effort apenas os Locais permitidos que endereça; o serviço coalesce essas solicitações por Local em uma janela mínima de 30 segundos e preserva a última geração completa quando uma atualização falha.
 - **AGENT-013:** O serviço usa socket Unix no macOS/Unix e named pipe no Windows, sempre com token por profile, sem listener de rede.
 - **AGENT-014:** No Windows, uma invocação desktop deve se desacoplar do console
   antes de iniciar a interface, enquanto `okf`, `service` e `mcp serve`
   permanecem anexados ao console com stdin, stdout, stderr e códigos de saída
   preservados.
 - **AGENT-015:** `construct_list_documents` deve enumerar um Local sem query textual, filtrar por role, type, status, tags e prefixo de caminho, ordenar por caminho relativo e rejeitar cursores incompatíveis com filtros ou geração ativa.
+- **AGENT-016:** Encerramento por ociosidade, SIGTERM em Unix ou Ctrl+C quando disponível no console do Windows deve parar novas operações, drenar trabalho autenticado por até dez segundos, liberar conexões embedded e remover o socket Unix sem apagar token, índices, workspace ou documentos. Tráfego malformado ou não autorizado não renova o prazo de ociosidade.
+- **AGENT-017:** O tamanho persistido do índice deve ser atualizado após sincronização efetiva ou refresh explícito de status. Uma sincronização pulada pela janela mínima retorna o valor em cache sem varredura recursiva do diretório do índice.
 
 ### 10.19 Handoff para terminal externo
 
