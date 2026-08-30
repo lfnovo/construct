@@ -1,0 +1,40 @@
+docs/architecture.md
+  s_d5b0b8d6195a18::t_b9c50c706401f4 215-217
+  s_d5b0b8d6195a18::t_61b612d9c19ced 236-246
+src-tauri/src/index.rs
+  s_d5b0b8d6195a18::t_2ab8127d7d009b 3866-3874,3891-3894
+  s_d5b0b8d6195a18::t_c9a4b70cea0852 845
+  s_d5b0b8d6195a18::t_b9c50c706401f4 20,96,100-101,840,846-861,3865,3875-3890
+src-tauri/src/mcp.rs
+  s_d5b0b8d6195a18::t_421b54c1c324bf 243
+  s_d5b0b8d6195a18::t_c5f00554560363 2,14-20,25,210,221-242,244-253,256,262-283,302-322,871
+docs/mcp.md
+  s_d5b0b8d6195a18::t_61b612d9c19ced 26-37,294-300,303-305
+docs/product-spec.md
+  s_d5b0b8d6195a18::t_61b612d9c19ced 636,645-646
+src-tauri/tests/mcp_startup.rs
+  s_d5b0b8d6195a18::t_421b54c1c324bf 98-100
+  s_d5b0b8d6195a18::t_0f84fe299ff354 1-29,31,33-97,101-152,156-188,199-242,249-263,268-275
+  s_d5b0b8d6195a18::t_61b612d9c19ced 30,32
+  s_d5b0b8d6195a18::t_1efd0649c72ba1 153-155,193-198,243-248,264-267
+  s_d5b0b8d6195a18::t_741066b9d20f4a 189-192
+scripts/mcp-smoke.mjs
+  s_d5b0b8d6195a18::t_741066b9d20f4a 1-2,8-9,37-65,257-258
+  s_d5b0b8d6195a18::t_b9c50c706401f4 154-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "13400b5aa02e53145c94a37b38788cd045ba20fc",
+  "prompts": {},
+  "sessions": {
+    "s_d5b0b8d6195a18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0351c-9ae2-7372-b3ba-0c1687817c65",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
