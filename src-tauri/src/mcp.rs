@@ -1,4 +1,5 @@
 use crate::{
+    diagnostics::Diagnostics,
     index::{
         BuildContextPackRequest, ContextDocumentRef, KnowledgeSearchFilters,
         KnowledgeSearchRequest, ListDocumentsRequest, LocationActivityRequest,
@@ -10,11 +11,18 @@ use crate::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{collections::HashSet, path::PathBuf, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    time::{Duration, Instant},
+};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
 const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
 const MCP_RECONCILE_INTERVAL: Duration = Duration::from_secs(30);
+const MCP_MAX_QUEUED_TOOL_CALLS: usize = 32;
 
 #[derive(Clone, Debug, PartialEq)]
 struct McpToolError {
@@ -199,10 +207,8 @@ async fn run_mcp(data_dir: PathBuf, allow_all: bool, requested: Vec<String>) -> 
             ));
         }
     }
+    let diagnostics = Diagnostics::new(data_dir.clone(), "construct");
     let client = KnowledgeClient::new(data_dir)?;
-    for location in &locations {
-        let _ = sync_location(&client, location, MCP_RECONCILE_INTERVAL).await;
-    }
     let state = McpState {
         client,
         allowed_ids: locations
@@ -212,20 +218,69 @@ async fn run_mcp(data_dir: PathBuf, allow_all: bool, requested: Vec<String>) -> 
         locations,
         reconcile_interval: MCP_RECONCILE_INTERVAL,
     };
-    serve_mcp(state, tokio::io::stdin(), tokio::io::stdout()).await
+    diagnostics.info(
+        "mcp_adapter_ready",
+        json!({ "allowedLocationCount": state.locations.len() }),
+    );
+    let initial_reconciliation = async {
+        let started = Instant::now();
+        let mut failures = 0;
+        for location in &state.locations {
+            if sync_location(&state.client, location, state.reconcile_interval)
+                .await
+                .is_err()
+            {
+                failures += 1;
+            }
+        }
+        diagnostics.info(
+            "mcp_initial_reconciliation_completed",
+            json!({ "failureCount": failures, "durationMs": started.elapsed().as_millis() }),
+        );
+    };
+    // Keep both futures in this scope: EOF drops our IPC wait, not another
+    // client's work in the shared service. No detached task or periodic loop.
+    let serving = serve_mcp(&state, tokio::io::stdin(), tokio::io::stdout());
+    tokio::pin!(serving);
+    let result = tokio::select! {
+        result = &mut serving => {
+            diagnostics.info("mcp_initial_reconciliation_cancelled", json!({}));
+            result
+        }
+        () = initial_reconciliation => serving.await,
+    };
+    diagnostics.info("mcp_adapter_stopped", json!({ "clean": result.is_ok() }));
+    result
 }
 
-async fn serve_mcp<R, W>(state: McpState, input: R, mut stdout: W) -> Result<(), String>
+async fn serve_mcp<R, W>(state: &McpState, input: R, mut stdout: W) -> Result<(), String>
 where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
 {
     let mut lines = BufReader::new(input).lines();
-    while let Some(line) = lines
-        .next_line()
-        .await
-        .map_err(|error| format!("Could not read MCP stdin: {error}"))?
-    {
+    let mut queued = VecDeque::new();
+    let mut active: Option<Pin<Box<dyn Future<Output = Value> + Send + '_>>> = None;
+    loop {
+        if active.is_none() {
+            if let Some(message) = queued.pop_front() {
+                active = Some(Box::pin(handle_message(state, message)));
+            }
+        }
+        let line = tokio::select! {
+            biased;
+            response = async { active.as_mut().expect("active tool call").await }, if active.is_some() => {
+                active = None;
+                write_message(&mut stdout, response).await?;
+                continue;
+            }
+            line = lines.next_line() => {
+                let Some(line) = line.map_err(|error| format!("Could not read MCP stdin: {error}"))? else {
+                    return Ok(());
+                };
+                line
+            }
+        };
         if line.trim().is_empty() {
             continue;
         }
@@ -244,10 +299,29 @@ where
         if id.is_none() {
             continue;
         }
-        let response = handle_message(&state, message).await;
+        if message.get("method").and_then(Value::as_str) == Some("tools/call") {
+            if active.is_none() {
+                active = Some(Box::pin(handle_message(state, message)));
+            } else if queued.len() < MCP_MAX_QUEUED_TOOL_CALLS {
+                queued.push_back(message);
+            } else {
+                write_message(
+                    &mut stdout,
+                    json!({
+                        "jsonrpc": "2.0", "id": id,
+                        "result": tool_error_result(McpToolError::new(
+                            "server_busy", "Too many pending tool calls. Retry after an earlier call completes."
+                        ))
+                    }),
+                )
+                .await?;
+            }
+            continue;
+        }
+        // Protocol discovery and ping never wait behind an indexed tool.
+        let response = handle_message(state, message).await;
         write_message(&mut stdout, response).await?;
     }
-    Ok(())
 }
 
 async fn sync_location(
@@ -794,7 +868,7 @@ mod tests {
 
         tokio::time::timeout(
             Duration::from_millis(100),
-            serve_mcp(state, tokio::io::empty(), tokio::io::sink()),
+            serve_mcp(&state, tokio::io::empty(), tokio::io::sink()),
         )
         .await
         .expect("adapter exits after EOF")

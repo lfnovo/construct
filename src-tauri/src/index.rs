@@ -17,7 +17,7 @@ use surrealdb::{
     types::SurrealValue,
     Surreal,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 
@@ -93,9 +93,11 @@ DEFINE INDEX IF NOT EXISTS document_metadata_search ON document FIELDS metadata_
 #[derive(Clone)]
 pub(crate) struct IndexService {
     base_dir: PathBuf,
-    indexes: Arc<Mutex<HashMap<String, Arc<LocationIndex>>>>,
+    indexes: Arc<Mutex<HashMap<String, SharedLocationIndex>>>,
     diagnostics: Diagnostics,
 }
+
+type SharedLocationIndex = Arc<OnceCell<Arc<LocationIndex>>>;
 
 struct LocationIndex {
     db: Surreal<Db>,
@@ -835,14 +837,28 @@ impl IndexService {
             .lock()
             .await
             .values()
-            .map(|index| index.path.clone())
+            .filter_map(|index| index.get().map(|index| index.path.clone()))
             .collect()
     }
 
     async fn open(&self, location_id: &str) -> Result<Arc<LocationIndex>, String> {
-        if let Some(index) = self.indexes.lock().await.get(location_id).cloned() {
-            return Ok(index);
-        }
+        validate_location_id(location_id)?;
+        let index = self
+            .indexes
+            .lock()
+            .await
+            .entry(location_id.to_string())
+            .or_insert_with(|| Arc::new(OnceCell::new()))
+            .clone();
+        // Initial reconciliation and queries can arrive together. Initialize
+        // each database once without blocking opens for unrelated Locations.
+        index
+            .get_or_try_init(|| self.open_database(location_id))
+            .await
+            .cloned()
+    }
+
+    async fn open_database(&self, location_id: &str) -> Result<Arc<LocationIndex>, String> {
         let location = Diagnostics::location_identity(location_id);
         let started = Instant::now();
         self.diagnostics.info(
@@ -902,11 +918,6 @@ impl IndexService {
             path,
             write_lock: Mutex::new(()),
         });
-        let mut indexes = self.indexes.lock().await;
-        let index = indexes
-            .entry(location_id.to_string())
-            .or_insert_with(|| index.clone())
-            .clone();
         self.diagnostics.info(
             "location_index_open_completed",
             json!({
@@ -3849,6 +3860,36 @@ mod tests {
             rebuild: false,
             minimum_reconcile_interval_ms: 0,
         }
+    }
+
+    #[tokio::test]
+    async fn concurrent_cold_opens_share_one_database_owner() {
+        let data = temporary_root("cold-open");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        let (first, second) = tokio::join!(service.open("cold"), service.open("cold"));
+        let first = first.expect("first cold open");
+        let second = second.expect("concurrent cold open must not contend for the database lock");
+        assert!(Arc::ptr_eq(&first, &second));
+        drop(first);
+        drop(second);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+    }
+
+    #[tokio::test]
+    async fn failed_cold_open_can_be_retried() {
+        let data = temporary_root("retry-open");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        let path = service.storage_path("retry").expect("storage path");
+        fs::create_dir_all(path.parent().unwrap()).expect("create parent");
+        fs::write(&path, "Not a directory").expect("block database directory");
+        assert!(service.open("retry").await.is_err());
+        fs::remove_file(&path).expect("remove synthetic obstruction");
+        let index = service.open("retry").await.expect("retry the failed open");
+        assert_eq!(service.opened_storage_paths().await, vec![path]);
+        drop(index);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
     }
 
     #[tokio::test]

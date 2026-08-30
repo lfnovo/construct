@@ -633,7 +633,7 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 07 e nunca são misturados silenciosamente ao conteúdo fonte.
 - **AGENT-010:** A interface deve oferecer um ponto global para copiar uma configuração MCP pronta, exigindo escolha explícita entre o Local atual, um conjunto de Locais ou todos os Locais, e explicar que o cliente externo controla o destino do conteúdo recuperado.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
-- **AGENT-012:** O MCP não mantém loop periódico de reconciliação. Depois de uma tentativa inicial, cada tool que consome conhecimento solicita best-effort apenas os Locais permitidos que endereça; o serviço coalesce essas solicitações por Local em uma janela mínima de 30 segundos e preserva a última geração completa quando uma atualização falha.
+- **AGENT-012:** O MCP não mantém loop periódico de reconciliação. Uma tentativa inicial best-effort ocorre em paralelo à disponibilização do protocolo; cada tool que consome conhecimento também solicita best-effort apenas os Locais permitidos que endereça. O serviço coalesce essas solicitações por Local em uma janela mínima de 30 segundos e preserva a última geração completa quando uma atualização falha.
 - **AGENT-013:** O serviço usa socket Unix no macOS/Unix e named pipe no Windows, sempre com token por profile, sem listener de rede.
 - **AGENT-014:** No Windows, uma invocação desktop deve se desacoplar do console
   antes de iniciar a interface, enquanto `okf`, `service` e `mcp serve`
@@ -642,6 +642,8 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-015:** `construct_list_documents` deve enumerar um Local sem query textual, filtrar por role, type, status, tags e prefixo de caminho, ordenar por caminho relativo e rejeitar cursores incompatíveis com filtros ou geração ativa.
 - **AGENT-016:** Encerramento por ociosidade, SIGTERM em Unix ou Ctrl+C quando disponível no console do Windows deve parar novas operações, drenar trabalho autenticado por até dez segundos, liberar conexões embedded e remover o socket Unix sem apagar token, índices, workspace ou documentos. Tráfego malformado ou não autorizado não renova o prazo de ociosidade.
 - **AGENT-017:** O tamanho persistido do índice deve ser atualizado após sincronização efetiva ou refresh explícito de status. Uma sincronização pulada pela janela mínima retorna o valor em cache sem varredura recursiva do diretório do índice.
+- **AGENT-018:** `initialize`, `ping` e `tools/list` devem responder sem aguardar reconciliação ou consulta ao índice; o catálogo disponível não implica índice pronto. EOF no stdin deve encerrar prontamente o adaptador inclusive durante a reconciliação inicial ou espera IPC, cancelando somente seu trabalho local e sem encerrar o serviço compartilhado.
+- **AGENT-019:** Cada adaptador deve serializar as tools, manter no máximo 32 chamadas adicionais em fila e responder a excesso com erro estruturado `server_busy`. A fila não pode impedir descoberta do protocolo, ping ou detecção de EOF. Diagnósticos locais devem distinguir prontidão do adaptador, conclusão/cancelamento da reconciliação inicial e encerramento, sem conteúdo ou caminhos.
 
 ### 10.19 Handoff para terminal externo
 
