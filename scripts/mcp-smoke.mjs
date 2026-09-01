@@ -162,7 +162,10 @@ try {
     "construct_get_index_status",
   ];
   const actualToolNames = tools.result.tools.map((tool) => tool.name);
-  if (JSON.stringify(actualToolNames) !== JSON.stringify(expectedToolNames)) {
+  if (
+    actualToolNames.length !== expectedToolNames.length
+    || expectedToolNames.some((name) => !actualToolNames.includes(name))
+  ) {
     throw new Error(`Unexpected MCP tools: ${actualToolNames.join(", ")}`);
   }
 

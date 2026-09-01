@@ -934,11 +934,11 @@ impl IndexService {
             return Ok(IndexStatus::not_indexed(location_id));
         }
         let index = self.open(location_id).await?;
+        let storage_bytes = directory_size(&index.path);
         let _guard = index.write_lock.lock().await;
         let Some(mut meta) = read_meta(&index.db).await? else {
             return Ok(IndexStatus::not_indexed(location_id));
         };
-        let storage_bytes = directory_size(&index.path);
         if meta.storage_bytes != Some(storage_bytes) {
             meta.storage_bytes = Some(storage_bytes);
             write_meta(&index.db, &meta).await?;

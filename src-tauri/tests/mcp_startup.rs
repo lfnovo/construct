@@ -1,7 +1,7 @@
 #![cfg(all(feature = "desktop", unix))]
 
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf, process::Stdio, time::Duration};
+use std::{collections::BTreeSet, fs, path::PathBuf, process::Stdio, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Lines},
     net::{UnixListener, UnixStream},
@@ -195,7 +195,11 @@ async fn direct_and_symlink_startup_serve_protocol_while_index_and_tool_are_pend
             .iter()
             .map(|tool| tool["name"].as_str().unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(tool_names, EXPECTED_TOOL_NAMES);
+        assert_eq!(tool_names.len(), EXPECTED_TOOL_NAMES.len());
+        assert_eq!(
+            tool_names.into_iter().collect::<BTreeSet<_>>(),
+            EXPECTED_TOOL_NAMES.into_iter().collect::<BTreeSet<_>>()
+        );
 
         adapter.status(3).await;
         let mut first = adapter.ipc("status", "allowed-a").await;

@@ -39,6 +39,9 @@ const TOKEN_NAME: &str = "knowledge-service.token";
 const LOCK_NAME: &str = "knowledge-service.lock";
 const SERVICE_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const SERVICE_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
+const SERVICE_START_TIMEOUT: Duration = Duration::from_secs(2);
+const SERVICE_RESTART_TIMEOUT: Duration = Duration::from_secs(12);
+const SERVICE_RETRY_INTERVAL: Duration = Duration::from_millis(50);
 const INDEX_RELEASE_TIMEOUT: Duration = Duration::from_secs(1);
 const SERVICE_SHUTTING_DOWN_ERROR: &str = "Construct's local service is shutting down.";
 
@@ -241,6 +244,7 @@ impl KnowledgeClient {
             Ok(response) => response,
             Err(mut error) => {
                 let mut recovered = None;
+                let mut restart_may_be_draining = error == SERVICE_SHUTTING_DOWN_ERROR;
                 for attempt in 1..=2 {
                     self.diagnostics.warn(
                         "knowledge_service_client_restart_requested",
@@ -251,13 +255,22 @@ impl KnowledgeClient {
                         }),
                     );
                     self.start_service()?;
-                    match connect_with_retry(&self.data_dir).await {
+                    match connect_with_retry(
+                        &self.data_dir,
+                        recovery_timeout(restart_may_be_draining),
+                    )
+                    .await
+                    {
                         Ok(stream) => match send_retryable_request(stream, &encoded).await {
                             Ok(response) => {
                                 recovered = Some(response);
                                 break;
                             }
-                            Err(retry_error) => error = retry_error,
+                            Err(retry_error) => {
+                                restart_may_be_draining |=
+                                    retry_error == SERVICE_SHUTTING_DOWN_ERROR;
+                                error = retry_error;
+                            }
                         },
                         Err(retry_error) => error = retry_error,
                     }
@@ -622,6 +635,15 @@ fn retryable_service_response(response: IpcResponse) -> Result<IpcResponse, Stri
     }
 }
 
+#[cfg(any(unix, windows))]
+fn recovery_timeout(restart_may_be_draining: bool) -> Duration {
+    if restart_may_be_draining {
+        SERVICE_RESTART_TIMEOUT
+    } else {
+        SERVICE_START_TIMEOUT
+    }
+}
+
 #[cfg(unix)]
 type LocalStream = UnixStream;
 #[cfg(windows)]
@@ -642,20 +664,18 @@ async fn connect(data_dir: &Path) -> Result<LocalStream, String> {
 }
 
 #[cfg(any(unix, windows))]
-async fn connect_with_retry(data_dir: &Path) -> Result<LocalStream, String> {
-    let mut last_error = String::new();
-    for _ in 0..40 {
-        match connect(data_dir).await {
+async fn connect_with_retry(data_dir: &Path, timeout: Duration) -> Result<LocalStream, String> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let error = match connect(data_dir).await {
             Ok(stream) => return Ok(stream),
-            Err(error) => last_error = error,
+            Err(error) => error,
+        };
+        if Instant::now() >= deadline {
+            return Err(error);
         }
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(SERVICE_RETRY_INTERVAL).await;
     }
-    Err(if last_error.is_empty() {
-        "Construct's local service did not become available.".to_string()
-    } else {
-        last_error
-    })
 }
 
 #[cfg(windows)]
@@ -826,14 +846,18 @@ async fn run_service_with_config(data_dir: PathBuf, config: ServiceConfig) -> Re
 
 #[cfg(any(unix, windows))]
 async fn wait_for_existing_service_or_lock(data_dir: &Path) -> Result<Option<File>, String> {
-    for _ in 0..40 {
+    let deadline = Instant::now() + SERVICE_RESTART_TIMEOUT;
+    loop {
         if let Some(lock) = acquire_singleton_lock(data_dir)? {
             return Ok(Some(lock));
         }
         if connect(data_dir).await.is_ok() {
             return Ok(None);
         }
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        if Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(SERVICE_RETRY_INTERVAL).await;
     }
     Err("Construct's local service did not become available for restart.".to_string())
 }
@@ -1209,6 +1233,8 @@ mod tests {
         let operation_error = retryable_service_response(error_response("Synthetic failure"))
             .expect("ordinary operation errors are returned without restarting the service");
         assert_eq!(operation_error.error.as_deref(), Some("Synthetic failure"));
+        assert!(recovery_timeout(true) > SERVICE_DRAIN_TIMEOUT);
+        assert_eq!(recovery_timeout(false), SERVICE_START_TIMEOUT);
     }
 
     #[tokio::test]
