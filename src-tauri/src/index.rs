@@ -934,6 +934,7 @@ impl IndexService {
             return Ok(IndexStatus::not_indexed(location_id));
         }
         let index = self.open(location_id).await?;
+        let _guard = index.write_lock.lock().await;
         let Some(mut meta) = read_meta(&index.db).await? else {
             return Ok(IndexStatus::not_indexed(location_id));
         };
@@ -3890,6 +3891,51 @@ mod tests {
         drop(index);
         drop(service);
         fs::remove_dir_all(data).expect("remove data");
+    }
+
+    #[tokio::test]
+    async fn status_waits_for_location_writes_before_updating_storage_metadata() {
+        let data = temporary_root("status-lock-data");
+        let source = temporary_root("status-lock-source");
+        fs::write(source.join("one.md"), "# One").expect("write source");
+        let location_id = "status-lock-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("create initial index");
+
+        let index = service.open(location_id).await.expect("open index");
+        let guard = index.write_lock.lock().await;
+        let status_service = service.clone();
+        let pending_status = tokio::spawn(async move { status_service.status(location_id).await });
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert!(
+            !pending_status.is_finished(),
+            "status must not read and rewrite metadata during a location write"
+        );
+
+        let mut latest = read_meta(&index.db)
+            .await
+            .expect("read metadata")
+            .expect("metadata exists");
+        latest.indexed_documents = 7;
+        write_meta(&index.db, &latest)
+            .await
+            .expect("write newer metadata");
+        drop(guard);
+
+        let status = pending_status
+            .await
+            .expect("join status")
+            .expect("read status after write");
+        assert_eq!(status.indexed_documents, 7);
+
+        drop(index);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
     }
 
     #[tokio::test]

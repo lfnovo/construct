@@ -10,6 +10,18 @@ use tokio::{
 };
 
 const DEADLINE: Duration = Duration::from_secs(2);
+const EXPECTED_MAX_QUEUED_TOOL_CALLS: u64 = 32;
+const EXPECTED_TOOL_NAMES: [&str; 9] = [
+    "construct_list_locations",
+    "construct_get_location_overview",
+    "construct_get_location_activity",
+    "construct_search_knowledge",
+    "construct_list_documents",
+    "construct_read_document",
+    "construct_get_related_documents",
+    "construct_build_context_pack",
+    "construct_get_index_status",
+];
 
 struct Adapter {
     child: Child,
@@ -177,7 +189,13 @@ async fn direct_and_symlink_startup_serve_protocol_while_index_and_tool_are_pend
             .send(json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }))
             .await;
         let tools = adapter.response(2).await;
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 9);
+        let tool_names = tools["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool["name"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(tool_names, EXPECTED_TOOL_NAMES);
 
         adapter.status(3).await;
         let mut first = adapter.ipc("status", "allowed-a").await;
@@ -256,10 +274,12 @@ async fn queued_tool_calls_are_bounded_without_blocking_control_or_eof() {
     adapter.initialize().await;
     adapter.status(100).await;
     let mut active = adapter.ipc("status", "allowed-a").await;
-    for id in 101..=133 {
+    let first_queued_id = 101;
+    let rejected_id = first_queued_id + EXPECTED_MAX_QUEUED_TOOL_CALLS;
+    for id in first_queued_id..=rejected_id {
         adapter.status(id).await;
     }
-    let rejected = adapter.response(133).await;
+    let rejected = adapter.response(rejected_id).await;
     assert_eq!(rejected["result"]["isError"], true);
     assert_eq!(
         rejected["result"]["structuredContent"]["error"]["code"],

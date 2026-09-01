@@ -40,6 +40,7 @@ const LOCK_NAME: &str = "knowledge-service.lock";
 const SERVICE_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const SERVICE_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
 const INDEX_RELEASE_TIMEOUT: Duration = Duration::from_secs(1);
+const SERVICE_SHUTTING_DOWN_ERROR: &str = "Construct's local service is shutting down.";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -233,7 +234,7 @@ impl KnowledgeClient {
         }
         encoded.push(b'\n');
         let response = match connect(&self.data_dir).await {
-            Ok(stream) => send_request(stream, &encoded).await,
+            Ok(stream) => send_retryable_request(stream, &encoded).await,
             Err(error) => Err(error),
         };
         let response = match response {
@@ -251,7 +252,7 @@ impl KnowledgeClient {
                     );
                     self.start_service()?;
                     match connect_with_retry(&self.data_dir).await {
-                        Ok(stream) => match send_request(stream, &encoded).await {
+                        Ok(stream) => match send_retryable_request(stream, &encoded).await {
                             Ok(response) => {
                                 recovered = Some(response);
                                 break;
@@ -602,6 +603,25 @@ async fn send_request(stream: LocalStream, encoded: &[u8]) -> Result<IpcResponse
         .map_err(|error| format!("Could not decode the local response: {error}"))
 }
 
+#[cfg(any(unix, windows))]
+async fn send_retryable_request(
+    stream: LocalStream,
+    encoded: &[u8],
+) -> Result<IpcResponse, String> {
+    retryable_service_response(send_request(stream, encoded).await?)
+}
+
+#[cfg(any(unix, windows))]
+fn retryable_service_response(response: IpcResponse) -> Result<IpcResponse, String> {
+    if response.protocol_version == PROTOCOL_VERSION
+        && response.error.as_deref() == Some(SERVICE_SHUTTING_DOWN_ERROR)
+    {
+        Err(SERVICE_SHUTTING_DOWN_ERROR.to_string())
+    } else {
+        Ok(response)
+    }
+}
+
 #[cfg(unix)]
 type LocalStream = UnixStream;
 #[cfg(windows)]
@@ -769,16 +789,19 @@ async fn run_service_with_config(data_dir: PathBuf, config: ServiceConfig) -> Re
     )?);
     let activity = ServiceActivity::new();
     let mut connections = JoinSet::new();
-    diagnostics.info("service_ready", json!({ "transport": "namedPipe" }));
     let shutdown = wait_for_shutdown(activity.clone(), config.idle_timeout);
     tokio::pin!(shutdown);
     let mut first_instance = true;
     let reason = loop {
+        let creating_first_instance = first_instance;
         let server = ServerOptions::new()
-            .first_pipe_instance(first_instance)
+            .first_pipe_instance(creating_first_instance)
             .create(&name)
             .map_err(|error| format!("Could not create Construct's local named pipe: {error}"))?;
         first_instance = false;
+        if creating_first_instance {
+            diagnostics.info("service_ready", json!({ "transport": "namedPipe" }));
+        }
         tokio::select! {
             connected = server.connect() => {
                 connected.map_err(|error| format!("Could not accept a local service request: {error}"))?;
@@ -976,7 +999,7 @@ where
                             Err(error) => error_response(&error),
                         }
                     }
-                    _ => error_response("Construct's local service is shutting down."),
+                    _ => error_response(SERVICE_SHUTTING_DOWN_ERROR),
                 }
             }
             Ok(_) => error_response("The local service request was not authorized."),
@@ -1176,6 +1199,16 @@ mod tests {
         let configuration =
             mcp_configuration(Path::new("/tmp/construct-profile"), &[], true).unwrap();
         assert!(configuration_arguments(&configuration).contains(&"--allow-all".to_string()));
+    }
+
+    #[test]
+    fn only_shutdown_responses_are_promoted_to_retryable_failures() {
+        let shutdown = retryable_service_response(error_response(SERVICE_SHUTTING_DOWN_ERROR));
+        assert_eq!(shutdown.err().as_deref(), Some(SERVICE_SHUTTING_DOWN_ERROR));
+
+        let operation_error = retryable_service_response(error_response("Synthetic failure"))
+            .expect("ordinary operation errors are returned without restarting the service");
+        assert_eq!(operation_error.error.as_deref(), Some("Synthetic failure"));
     }
 
     #[tokio::test]

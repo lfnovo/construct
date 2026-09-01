@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -47,20 +47,21 @@ async function stopProcess(processToStop) {
 }
 
 // Own the helper we started instead of racing the adapter's automatic spawn.
-if (process.platform !== "win32") {
-  try {
-    const deadline = Date.now() + 20_000;
-    while (!(await stat(join(dataDir, "knowledge-service.sock")).catch(() => null))?.isSocket()) {
-      if (Date.now() >= deadline || service.exitCode !== null || service.signalCode !== null) {
-        throw new Error(`The local service did not become ready. ${serviceStderr}`);
-      }
-      await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+try {
+  const deadline = Date.now() + 20_000;
+  const serviceLog = join(dataDir, "logs", "knowledge-service.log");
+  while (true) {
+    const diagnostics = await readFile(serviceLog, "utf8").catch(() => "");
+    if (diagnostics.includes('"event":"service_ready"')) break;
+    if (Date.now() >= deadline || service.exitCode !== null || service.signalCode !== null) {
+      throw new Error(`The local service did not become ready. ${serviceStderr}`);
     }
-  } catch (error) {
-    await stopProcess(service);
-    await rm(root, { recursive: true, force: true });
-    throw error;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
   }
+} catch (error) {
+  await stopProcess(service);
+  await rm(root, { recursive: true, force: true });
+  throw error;
 }
 
 const child = spawn(binary, [
@@ -149,7 +150,21 @@ try {
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
 
   const tools = await request("tools/list", {});
-  if (tools.result.tools.length !== 9) throw new Error("Expected nine MCP tools.");
+  const expectedToolNames = [
+    "construct_list_locations",
+    "construct_get_location_overview",
+    "construct_get_location_activity",
+    "construct_search_knowledge",
+    "construct_list_documents",
+    "construct_read_document",
+    "construct_get_related_documents",
+    "construct_build_context_pack",
+    "construct_get_index_status",
+  ];
+  const actualToolNames = tools.result.tools.map((tool) => tool.name);
+  if (JSON.stringify(actualToolNames) !== JSON.stringify(expectedToolNames)) {
+    throw new Error(`Unexpected MCP tools: ${actualToolNames.join(", ")}`);
+  }
 
   // Do not let readiness polling hide a lock error on the first cold query.
   const coldSearch = structured(await request("tools/call", {
