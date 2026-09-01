@@ -39,7 +39,6 @@ const TOKEN_NAME: &str = "knowledge-service.token";
 const LOCK_NAME: &str = "knowledge-service.lock";
 const SERVICE_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const SERVICE_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
-const SERVICE_START_TIMEOUT: Duration = Duration::from_secs(2);
 const SERVICE_RESTART_TIMEOUT: Duration = Duration::from_secs(12);
 const SERVICE_RETRY_INTERVAL: Duration = Duration::from_millis(50);
 const INDEX_RELEASE_TIMEOUT: Duration = Duration::from_secs(1);
@@ -244,7 +243,6 @@ impl KnowledgeClient {
             Ok(response) => response,
             Err(mut error) => {
                 let mut recovered = None;
-                let mut restart_may_be_draining = error == SERVICE_SHUTTING_DOWN_ERROR;
                 for attempt in 1..=2 {
                     self.diagnostics.warn(
                         "knowledge_service_client_restart_requested",
@@ -255,22 +253,16 @@ impl KnowledgeClient {
                         }),
                     );
                     self.start_service()?;
-                    match connect_with_retry(
-                        &self.data_dir,
-                        recovery_timeout(restart_may_be_draining),
-                    )
-                    .await
-                    {
+                    // A transport failure can mean the listener disappeared between the
+                    // initial connect and an idle shutdown. Give the lock owner enough time
+                    // to finish its bounded drain before a replacement becomes available.
+                    match connect_with_retry(&self.data_dir, restart_connection_timeout()).await {
                         Ok(stream) => match send_retryable_request(stream, &encoded).await {
                             Ok(response) => {
                                 recovered = Some(response);
                                 break;
                             }
-                            Err(retry_error) => {
-                                restart_may_be_draining |=
-                                    retry_error == SERVICE_SHUTTING_DOWN_ERROR;
-                                error = retry_error;
-                            }
+                            Err(retry_error) => error = retry_error,
                         },
                         Err(retry_error) => error = retry_error,
                     }
@@ -636,12 +628,8 @@ fn retryable_service_response(response: IpcResponse) -> Result<IpcResponse, Stri
 }
 
 #[cfg(any(unix, windows))]
-fn recovery_timeout(restart_may_be_draining: bool) -> Duration {
-    if restart_may_be_draining {
-        SERVICE_RESTART_TIMEOUT
-    } else {
-        SERVICE_START_TIMEOUT
-    }
+fn restart_connection_timeout() -> Duration {
+    SERVICE_RESTART_TIMEOUT
 }
 
 #[cfg(unix)]
@@ -1233,8 +1221,11 @@ mod tests {
         let operation_error = retryable_service_response(error_response("Synthetic failure"))
             .expect("ordinary operation errors are returned without restarting the service");
         assert_eq!(operation_error.error.as_deref(), Some("Synthetic failure"));
-        assert!(recovery_timeout(true) > SERVICE_DRAIN_TIMEOUT);
-        assert_eq!(recovery_timeout(false), SERVICE_START_TIMEOUT);
+    }
+
+    #[test]
+    fn restart_connection_timeout_covers_the_bounded_drain() {
+        assert!(restart_connection_timeout() > SERVICE_DRAIN_TIMEOUT);
     }
 
     #[tokio::test]
