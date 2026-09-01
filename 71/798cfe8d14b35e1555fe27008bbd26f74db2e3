@@ -1,0 +1,21 @@
+src-tauri/src/knowledge.rs
+  s_d5b0b8d6195a18::t_bd4ade1aa27ed7 256-258,265
+  s_d5b0b8d6195a18::t_688bbdabce3c03 1224-1227
+  s_d5b0b8d6195a18::t_d8ea394f85c6b6 259,631-632,1228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "71798cfe8d14b35e1555fe27008bbd26f74db2e3",
+  "prompts": {},
+  "sessions": {
+    "s_d5b0b8d6195a18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0351c-9ae2-7372-b3ba-0c1687817c65",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
