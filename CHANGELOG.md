@@ -6,6 +6,25 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-01
+
+### Changed
+
+- Made the local knowledge service start only when the desktop or MCP requests
+  it, stop after five idle minutes, and restart transparently on later use.
+- Kept MCP discovery responsive while initial reconciliation runs in the
+  background, and reconciled accessed Locations on indexed tool requests.
+- Bounded MCP indexed-tool execution to one active call plus 32 queued calls.
+
+### Fixed
+
+- Avoided recursive source scans when a recent reconciliation can reuse the
+  persisted index.
+- Preserved compatible existing index metadata and serialized status updates
+  with concurrent reconciliation writes.
+- Covered shutdown races across Unix sockets and Windows named pipes, including
+  requests that arrive during the bounded graceful-drain window.
+
 ## [0.3.0] - 2026-08-16
 
 ### Added
