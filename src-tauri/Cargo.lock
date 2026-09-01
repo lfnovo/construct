@@ -931,6 +931,7 @@ dependencies = [
  "blake3",
  "chrono",
  "dirs",
+ "fs2",
  "glob",
  "notify",
  "pulldown-cmark",

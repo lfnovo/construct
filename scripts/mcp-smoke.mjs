@@ -1,11 +1,12 @@
-import { spawn, spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 const binary = resolve(process.argv[2] || "src-tauri/target/debug/construct");
-const root = await mkdtemp(join(tmpdir(), "construct-mcp-smoke-"));
+// macOS's user temp directory can exceed the Unix socket path limit.
+const root = await mkdtemp(join(process.platform === "win32" ? tmpdir() : "/tmp", "construct-mcp-smoke-"));
 const dataDir = join(root, "data");
 const sourceDir = join(root, "source");
 await mkdir(dataDir, { recursive: true });
@@ -32,6 +33,36 @@ const service = spawn(binary, ["service", "--data-dir", dataDir], {
 });
 let serviceStderr = "";
 service.stderr.on("data", (chunk) => { serviceStderr += chunk.toString(); });
+
+async function stopProcess(processToStop) {
+  if (processToStop.exitCode !== null || processToStop.signalCode !== null) return;
+  const exited = new Promise((resolvePromise) => processToStop.once("exit", resolvePromise));
+  processToStop.kill("SIGTERM");
+  const forceStop = setTimeout(() => processToStop.kill("SIGKILL"), 15_000);
+  try {
+    await exited;
+  } finally {
+    clearTimeout(forceStop);
+  }
+}
+
+// Own the helper we started instead of racing the adapter's automatic spawn.
+try {
+  const deadline = Date.now() + 20_000;
+  const serviceLog = join(dataDir, "logs", "knowledge-service.log");
+  while (true) {
+    const diagnostics = await readFile(serviceLog, "utf8").catch(() => "");
+    if (diagnostics.includes('"event":"service_ready"')) break;
+    if (Date.now() >= deadline || service.exitCode !== null || service.signalCode !== null) {
+      throw new Error(`The local service did not become ready. ${serviceStderr}`);
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+  }
+} catch (error) {
+  await stopProcess(service);
+  await rm(root, { recursive: true, force: true });
+  throw error;
+}
 
 const child = spawn(binary, [
   "mcp",
@@ -119,7 +150,33 @@ try {
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
 
   const tools = await request("tools/list", {});
-  if (tools.result.tools.length !== 9) throw new Error("Expected nine MCP tools.");
+  const expectedToolNames = [
+    "construct_list_locations",
+    "construct_get_location_overview",
+    "construct_get_location_activity",
+    "construct_search_knowledge",
+    "construct_list_documents",
+    "construct_read_document",
+    "construct_get_related_documents",
+    "construct_build_context_pack",
+    "construct_get_index_status",
+  ];
+  const actualToolNames = tools.result.tools.map((tool) => tool.name);
+  if (
+    actualToolNames.length !== expectedToolNames.length
+    || expectedToolNames.some((name) => !actualToolNames.includes(name))
+  ) {
+    throw new Error(`Unexpected MCP tools: ${actualToolNames.join(", ")}`);
+  }
+
+  // Do not let readiness polling hide a lock error on the first cold query.
+  const coldSearch = structured(await request("tools/call", {
+    name: "construct_search_knowledge",
+    arguments: { locationIds: ["smoke-location"], query: "orbital", limit: 10 },
+  }));
+  if (coldSearch.results[0]?.relativePath !== "alpha.md") {
+    throw new Error("The first knowledge call must reconcile a cold index.");
+  }
 
   const listed = await waitForReadyLocation();
 
@@ -215,11 +272,7 @@ try {
   }
   process.stdout.write("Construct MCP smoke passed.\n");
 } finally {
-  child.kill("SIGTERM");
-  service.kill("SIGTERM");
-  await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
-  if (service.exitCode === null) {
-    spawnSync("pkill", ["-f", `${binary} service --data-dir ${dataDir}`]);
-  }
+  await stopProcess(child);
+  await stopProcess(service);
   await rm(root, { recursive: true, force: true });
 }

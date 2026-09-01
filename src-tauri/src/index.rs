@@ -17,7 +17,7 @@ use surrealdb::{
     types::SurrealValue,
     Surreal,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 
@@ -93,9 +93,11 @@ DEFINE INDEX IF NOT EXISTS document_metadata_search ON document FIELDS metadata_
 #[derive(Clone)]
 pub(crate) struct IndexService {
     base_dir: PathBuf,
-    indexes: Arc<Mutex<HashMap<String, Arc<LocationIndex>>>>,
+    indexes: Arc<Mutex<HashMap<String, SharedLocationIndex>>>,
     diagnostics: Diagnostics,
 }
+
+type SharedLocationIndex = Arc<OnceCell<Arc<LocationIndex>>>;
 
 struct LocationIndex {
     db: Surreal<Db>,
@@ -285,6 +287,8 @@ struct IndexMeta {
     failed_documents: usize,
     complete: bool,
     last_reconciled_at: Option<String>,
+    #[serde(default)]
+    storage_bytes: Option<u64>,
     error: Option<String>,
 }
 
@@ -779,7 +783,7 @@ impl IndexStatus {
         }
     }
 
-    fn from_meta(meta: IndexMeta, storage_bytes: u64) -> Self {
+    fn from_meta(meta: IndexMeta) -> Self {
         Self {
             location_id: meta.location_id,
             state: meta.state,
@@ -792,7 +796,7 @@ impl IndexStatus {
             removed_documents: 0,
             complete: meta.complete,
             last_reconciled_at: meta.last_reconciled_at,
-            storage_bytes,
+            storage_bytes: meta.storage_bytes.unwrap_or_default(),
             error: meta.error,
         }
     }
@@ -828,10 +832,33 @@ impl IndexService {
         Ok(self.base_dir.join(digest.as_str()).join("surrealdb"))
     }
 
+    pub(crate) async fn opened_storage_paths(&self) -> Vec<PathBuf> {
+        self.indexes
+            .lock()
+            .await
+            .values()
+            .filter_map(|index| index.get().map(|index| index.path.clone()))
+            .collect()
+    }
+
     async fn open(&self, location_id: &str) -> Result<Arc<LocationIndex>, String> {
-        if let Some(index) = self.indexes.lock().await.get(location_id).cloned() {
-            return Ok(index);
-        }
+        validate_location_id(location_id)?;
+        let index = self
+            .indexes
+            .lock()
+            .await
+            .entry(location_id.to_string())
+            .or_insert_with(|| Arc::new(OnceCell::new()))
+            .clone();
+        // Initial reconciliation and queries can arrive together. Initialize
+        // each database once without blocking opens for unrelated Locations.
+        index
+            .get_or_try_init(|| self.open_database(location_id))
+            .await
+            .cloned()
+    }
+
+    async fn open_database(&self, location_id: &str) -> Result<Arc<LocationIndex>, String> {
         let location = Diagnostics::location_identity(location_id);
         let started = Instant::now();
         self.diagnostics.info(
@@ -891,11 +918,6 @@ impl IndexService {
             path,
             write_lock: Mutex::new(()),
         });
-        let mut indexes = self.indexes.lock().await;
-        let index = indexes
-            .entry(location_id.to_string())
-            .or_insert_with(|| index.clone())
-            .clone();
         self.diagnostics.info(
             "location_index_open_completed",
             json!({
@@ -912,10 +934,16 @@ impl IndexService {
             return Ok(IndexStatus::not_indexed(location_id));
         }
         let index = self.open(location_id).await?;
-        let Some(meta) = read_meta(&index.db).await? else {
+        let storage_bytes = directory_size(&index.path);
+        let _guard = index.write_lock.lock().await;
+        let Some(mut meta) = read_meta(&index.db).await? else {
             return Ok(IndexStatus::not_indexed(location_id));
         };
-        Ok(IndexStatus::from_meta(meta, directory_size(&index.path)))
+        if meta.storage_bytes != Some(storage_bytes) {
+            meta.storage_bytes = Some(storage_bytes);
+            write_meta(&index.db, &meta).await?;
+        }
+        Ok(IndexStatus::from_meta(meta))
     }
 
     pub(crate) async fn sync(
@@ -945,7 +973,7 @@ impl IndexService {
                             "reason": "minimumReconcileInterval"
                         }),
                     );
-                    return Ok(IndexStatus::from_meta(meta, directory_size(&index.path)));
+                    return Ok(IndexStatus::from_meta(meta));
                 }
             }
         }
@@ -989,7 +1017,10 @@ impl IndexService {
                     .map(|meta| meta.failed_documents)
                     .unwrap_or_default(),
                 complete: degraded,
-                last_reconciled_at: previous.and_then(|meta| meta.last_reconciled_at),
+                last_reconciled_at: previous
+                    .as_ref()
+                    .and_then(|meta| meta.last_reconciled_at.clone()),
+                storage_bytes: previous.as_ref().and_then(|meta| meta.storage_bytes),
                 error: Some(error.clone()),
             };
             let _ = write_meta(&index.db, &meta).await;
@@ -1053,6 +1084,7 @@ impl IndexService {
             last_reconciled_at: previous
                 .as_ref()
                 .and_then(|value| value.last_reconciled_at.clone()),
+            storage_bytes: previous.as_ref().and_then(|value| value.storage_bytes),
             error: None,
         };
         if full_build {
@@ -1162,7 +1194,9 @@ impl IndexService {
             }
             cleanup_activity(&index.db).await?;
         }
-        let mut status = IndexStatus::from_meta(meta, directory_size(&index.path));
+        meta.storage_bytes = Some(directory_size(&index.path));
+        write_meta(&index.db, &meta).await?;
+        let mut status = IndexStatus::from_meta(meta);
         status.changed_documents = changed.len();
         status.removed_documents = removed.len();
         Ok(status)
@@ -3830,6 +3864,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_cold_opens_share_one_database_owner() {
+        let data = temporary_root("cold-open");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        let (first, second) = tokio::join!(service.open("cold"), service.open("cold"));
+        let first = first.expect("first cold open");
+        let second = second.expect("concurrent cold open must not contend for the database lock");
+        assert!(Arc::ptr_eq(&first, &second));
+        drop(first);
+        drop(second);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+    }
+
+    #[tokio::test]
+    async fn failed_cold_open_can_be_retried() {
+        let data = temporary_root("retry-open");
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        let path = service.storage_path("retry").expect("storage path");
+        fs::create_dir_all(path.parent().unwrap()).expect("create parent");
+        fs::write(&path, "Not a directory").expect("block database directory");
+        assert!(service.open("retry").await.is_err());
+        fs::remove_file(&path).expect("remove synthetic obstruction");
+        let index = service.open("retry").await.expect("retry the failed open");
+        assert_eq!(service.opened_storage_paths().await, vec![path]);
+        drop(index);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+    }
+
+    #[tokio::test]
+    async fn status_waits_for_location_writes_before_updating_storage_metadata() {
+        let data = temporary_root("status-lock-data");
+        let source = temporary_root("status-lock-source");
+        fs::write(source.join("one.md"), "# One").expect("write source");
+        let location_id = "status-lock-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("create initial index");
+
+        let index = service.open(location_id).await.expect("open index");
+        let guard = index.write_lock.lock().await;
+        let status_service = service.clone();
+        let pending_status = tokio::spawn(async move { status_service.status(location_id).await });
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert!(
+            !pending_status.is_finished(),
+            "status must not read and rewrite metadata during a location write"
+        );
+
+        let mut latest = read_meta(&index.db)
+            .await
+            .expect("read metadata")
+            .expect("metadata exists");
+        latest.indexed_documents = 7;
+        write_meta(&index.db, &latest)
+            .await
+            .expect("write newer metadata");
+        drop(guard);
+
+        let status = pending_status
+            .await
+            .expect("join status")
+            .expect("read status after write");
+        assert_eq!(status.indexed_documents, 7);
+
+        drop(index);
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
     async fn isolates_locations_and_indexes_visible_markdown() {
         let data = temporary_root("data");
         let first = temporary_root("first");
@@ -4364,6 +4473,81 @@ REMOVE INDEX IF EXISTS document_metadata_search ON TABLE document;
             .expect("document exists");
         assert!(changed.body.contains("After"));
 
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn skipped_reconciliation_uses_persisted_storage_without_scanning() {
+        let data = temporary_root("cached-storage-data");
+        let source = temporary_root("cached-storage-source");
+        fs::write(source.join("one.md"), "# One\nCached storage").expect("write document");
+        let location_id = "cached-storage-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        let initial = service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("initial sync");
+        assert!(initial.storage_bytes > 0);
+
+        let probe_dir = service
+            .storage_path(location_id)
+            .expect("resolve storage path")
+            .join("size-probe");
+        fs::create_dir_all(&probe_dir).expect("create size probe directory");
+        fs::write(probe_dir.join("payload"), vec![b'x'; 8 * 1024]).expect("write size probe");
+
+        let mut coalesced_request = request(location_id, &source);
+        coalesced_request.minimum_reconcile_interval_ms = 60_000;
+        let coalesced = service
+            .sync(coalesced_request, source.clone())
+            .await
+            .expect("coalesce recent sync");
+        assert_eq!(coalesced.storage_bytes, initial.storage_bytes);
+
+        let refreshed = service.status(location_id).await.expect("refresh status");
+        assert!(refreshed.storage_bytes >= initial.storage_bytes + 8 * 1024);
+
+        drop(service);
+        fs::remove_dir_all(data).expect("remove data");
+        fs::remove_dir_all(source).expect("remove source");
+    }
+
+    #[tokio::test]
+    async fn missing_persisted_storage_migrates_with_a_compatible_default() {
+        let data = temporary_root("storage-migration-data");
+        let source = temporary_root("storage-migration-source");
+        fs::write(source.join("one.md"), "# One\nMigration").expect("write document");
+        let location_id = "storage-migration-location";
+        let service = IndexService::new(data.join("indexes")).expect("create service");
+        service
+            .sync(request(location_id, &source), source.clone())
+            .await
+            .expect("initial sync");
+        let index = service.open(location_id).await.expect("open index");
+        index
+            .db
+            .query("UPDATE index_meta:state UNSET storage_bytes;")
+            .await
+            .expect("remove storage metadata")
+            .check()
+            .expect("check storage metadata migration setup");
+        let migrated = read_meta(&index.db)
+            .await
+            .expect("read legacy metadata")
+            .expect("legacy metadata exists");
+        assert_eq!(migrated.storage_bytes, None);
+
+        let refreshed = service.status(location_id).await.expect("refresh status");
+        assert!(refreshed.storage_bytes > 0);
+        let persisted = read_meta(&index.db)
+            .await
+            .expect("read migrated metadata")
+            .expect("migrated metadata exists");
+        assert_eq!(persisted.storage_bytes, Some(refreshed.storage_bytes));
+
+        drop(index);
         drop(service);
         fs::remove_dir_all(data).expect("remove data");
         fs::remove_dir_all(source).expect("remove source");

@@ -212,18 +212,48 @@ declaring a file as non-concept does not make it unsearchable.
 the embedded databases. It runs behind authenticated local IPC: a Unix-domain
 socket on macOS/Unix and a named pipe on Windows. The desktop's typed Tauri
 commands and the MCP stdio adapter call a `KnowledgeClient` over that transport;
-they never open SurrealKV directly. The same Construct executable has desktop,
+they never open SurrealKV directly. Concurrent cold opens share one per-Location
+initialization; failed opens can be retried without blocking unrelated Locations.
+The same Construct executable has desktop,
 `service`, `mcp serve`, and `okf lint` modes. Agent retrieval keeps working when
 the desktop window is closed, while validation can run without starting the
 service or reading any application data.
 
+The knowledge service is an on-demand helper, not an OS service. Any client may
+start it after a failed connection, and concurrent starters coordinate through
+a profile-scoped process lock so only one process owns the IPC endpoint and
+embedded connections. The helper stops after five minutes without an accepted
+authenticated request and without in-flight work. Idle shutdown, Unix SIGTERM,
+and console-attached Windows Ctrl+C stop acceptance first, allow up to ten
+seconds for authenticated operations to drain, release all index owners, and
+remove the Unix socket. Tokens, workspace state, derived indexes, and source
+documents remain in place. A later desktop or MCP request starts the helper and
+retries transparently; closing either client does not own or terminate the
+other client's active operation.
+
 The service token and IPC endpoint are scoped to the local user and application
 profile. No network listener is opened. MCP startup requires an explicit
-Location allowlist, reconciles those saved files, and periodically checks them
-while the client session is active. The central service coalesces recent
-background requests from multiple MCP clients per Location. Ordinary
-incremental reconciliation keeps the last healthy generation publicly ready or
-degraded; only initial builds and explicit rebuilds publish `indexing`.
+Location allowlist and starts one best-effort initial reconciliation alongside
+the stdio protocol loop. `initialize`, `ping`, and `tools/list` never wait for
+that reconciliation or an indexed tool call. Tool discovery means the protocol
+is ready, not that every index is ready. The adapter serializes tool calls and
+queues at most 32 additional calls; excess calls receive a structured
+`server_busy` error. EOF cancels the adapter's initial reconciliation, queued
+calls, and pending IPC waits without terminating the shared service or another
+client's work. Privacy-safe diagnostics distinguish adapter readiness, initial
+reconciliation completion/cancellation, and adapter exit.
+
+The MCP adapter owns no timer or background reconciliation loop. Before an indexed
+knowledge tool runs, it best-effort reconciles only the addressed allowed
+Locations; the service coalesces these requests with a 30-second minimum
+interval per Location. A failed refresh does not hide a usable last complete
+generation. Ordinary incremental reconciliation keeps that generation publicly
+ready or degraded; only initial builds and explicit rebuilds publish `indexing`.
+
+Index metadata persists its last measured storage size. Effective
+reconciliations and explicit status refreshes update the measurement; a sync
+coalesced by the minimum interval returns the cached value without recursively
+walking the index directory.
 
 The retrieval database also contains a disposable 15-day daily activity cache.
 Real saved-file changes, documents successfully served through MCP, and
