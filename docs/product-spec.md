@@ -378,6 +378,15 @@ coverage
   escolhe uma ocorrência ambígua.
 - **REVIEW-018:** Adicionar, remover ou limpar comentários não deve recriar a
   superfície renderizada nem alterar a posição de leitura do documento.
+- **REVIEW-019:** Digitar no campo de comentário não deve reprocessar o Markdown,
+  recriar links, imagens ou diagramas, nem modificar o buffer do documento antes
+  da ação explícita de adicionar o comentário.
+- **REVIEW-020:** Falhas na renderização devem ficar isoladas da aplicação e
+  oferecer `Open Source` e `Retry view`, preservando o buffer da aba. Uma falha
+  apenas na visualização do Review deve manter também o comentário em composição.
+- **REVIEW-021:** Diagnósticos de falha da visualização permanecem locais e
+  limitados; registram somente o modo afetado, sem conteúdo, caminhos ou texto
+  bruto de exceções. Não há salvamento automático nem migração do formato de review.
 
 ### 10.8 Preview Markdown
 
@@ -1164,6 +1173,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-08-01 | Permitir abrir Locais e Markdown pelo comando `construct <caminho>`, reutilizando uma única instância desktop e oferecendo instalação segura do launcher em Settings. |
 | 2026-08-04 | Ampliar o handoff externo com Warp no macOS e Windows e usar o host de console padrão como fallback nativo no Windows. |
 | 2026-08-07 | Exibir a situação Git por Location e consultar a branch remota por referências somente leitura, sem fetch, pull ou push. |
+| 2026-09-03 | Isolar a composição de comentários da renderização do Markdown, criar destaques declarativos e preservar acesso ao buffer em falhas de visualização, sem autosave. |
 
 ## 24. Histórico do documento
 
@@ -1190,3 +1200,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.18 | 2026-08-01 | Documentação pública e RFCs reconciliados com a enumeração MCP de documentos, abertura desktop pelo terminal e distribuição preview atual. |
 | 0.19 | 2026-08-04 | Detecção de Warp no macOS e Windows, fallback para o host de console padrão no Windows e seletor de terminal consistente entre temas. |
 | 0.20 | 2026-08-07 | Sinal visual de sincronização Git por Location, com estado local, comparação remota read-only e detalhes acionáveis. |
+| 0.21 | 2026-09-03 | Responsividade de Review, destaques seguros, isolamento de falhas e diagnósticos sem conteúdo. |

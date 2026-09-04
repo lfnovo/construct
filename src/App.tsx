@@ -5,6 +5,7 @@ import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileTe
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { DocumentModeSurface } from "./DocumentModeSurface";
+import { DocumentErrorBoundary } from "./DocumentErrorBoundary";
 import { buildTypeColorMap, sortFacetsByCount, TAG_PREVIEW_LIMIT, toggleFilterValue, visibleTagFacets, type ExploreFilters } from "./explore";
 import { HealthWorkspace } from "./HealthWorkspace";
 import { deduplicateHistory } from "./history";
@@ -1281,6 +1282,7 @@ export default function App() {
           {!!okf.findings.length && <ul className="okf-issues">{okf.findings.map((item) => <li key={`${item.code}-${item.message}`} className={item.severity} title={item.code}>{item.message}</li>)}</ul>}
         </aside>}
         <div className="document-content">
+          <DocumentErrorBoundary key={`${tab.id}:${tab.mode}`} mode={tab.mode} onRequestSource={() => changeTabMode(pane.id, tab, "source")}>
           <DocumentModeSurface
             key={`${tab.id}:${tab.mode}`}
             tabId={tab.id}
@@ -1294,10 +1296,11 @@ export default function App() {
                 <VisualEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onRequestSource={() => changeTabMode(pane.id, tab, "source")} />
               </Suspense>
             )}
-            {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} />}
+            {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} onRequestSource={() => changeTabMode(pane.id, tab, "source")} />}
             {tab.mode === "review" && <ReviewEditor content={tab.content} relativePath={tab.relativePath} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} readOnly={tab.deleted} onChange={changeContent} onOpenInternal={openPath} onRequestSource={() => changeTabMode(pane.id, tab, "source")} onNotify={notify} />}
             {tab.mode === "diff" && <DiffView tab={tab} />}
           </DocumentModeSurface>
+          </DocumentErrorBoundary>
         </div>
       </>}
     </section>;

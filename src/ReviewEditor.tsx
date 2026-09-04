@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MarkdownPreview } from "./MarkdownPreview";
 import {
   buildReviewPrompt,
@@ -6,13 +6,8 @@ import {
   splitReviewDocument,
   type ReviewComment,
 } from "./review";
-import {
-  buildRenderedTextIndex,
-  captureReviewAnchor,
-  clearReviewHighlights,
-  highlightReviewRange,
-} from "./reviewDom";
-import { normalizeReviewText, resolveReviewAnchor, type ReviewAnchor } from "./reviewAnchors";
+import { captureReviewAnchor } from "./reviewDom";
+import { normalizeReviewText, type ReviewAnchor } from "./reviewAnchors";
 
 type Props = {
   content: string;
@@ -48,6 +43,8 @@ export function ReviewEditor({
   const [comment, setComment] = useState("");
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [resolvedComments, setResolvedComments] = useState<Record<string, boolean>>({});
+  const [renderRevision, setRenderRevision] = useState(0);
+  const retryView = useCallback(() => setRenderRevision((current) => current + 1), []);
   const quote = selectionDraft?.quote || "";
 
   const captureSelection = () => {
@@ -67,28 +64,17 @@ export function ReviewEditor({
   useEffect(() => {
     const preview = documentRef.current?.querySelector<HTMLElement>(".markdown-preview");
     if (!preview) return;
-    clearReviewHighlights(preview);
-    const fullText = buildRenderedTextIndex(preview).text;
+    const highlightedIds = new Set(Array.from(preview.querySelectorAll<HTMLElement>("mark[data-review-id]"))
+      .map((mark) => mark.dataset.reviewId));
     const nextResolved: Record<string, boolean> = {};
-    review.comments.forEach((item, index) => {
-      const resolved = resolveReviewAnchor(fullText, item.quote, item.anchor);
-      nextResolved[item.id] = Boolean(resolved);
-      if (resolved) highlightReviewRange(preview, resolved, item.id, index + 1);
+    review.comments.forEach((item) => {
+      nextResolved[item.id] = highlightedIds.has(item.id);
     });
     setResolvedComments(nextResolved);
     setActiveReviewId((current) => (
       current && review.comments.some((item) => item.id === current) ? current : null
     ));
-    return () => clearReviewHighlights(preview);
-  }, [review.body, review.comments]);
-
-  useEffect(() => {
-    const preview = documentRef.current?.querySelector<HTMLElement>(".markdown-preview");
-    if (!preview) return;
-    preview.querySelectorAll<HTMLElement>("mark[data-review-id]").forEach((mark) => {
-      mark.classList.toggle("active", mark.dataset.reviewId === activeReviewId);
-    });
-  }, [activeReviewId, resolvedComments]);
+  }, [review.body, review.comments, renderRevision]);
 
   const selectCommentFromDocument = (reviewId: string) => {
     setActiveReviewId(reviewId);
@@ -110,9 +96,8 @@ export function ReviewEditor({
 
   const revealPassage = (reviewId: string) => {
     setActiveReviewId(reviewId);
-    const mark = documentRef.current?.querySelector<HTMLElement>(
-      `mark[data-review-id="${CSS.escape(reviewId)}"]`,
-    );
+    const mark = Array.from(documentRef.current?.querySelectorAll<HTMLElement>("mark[data-review-id]") || [])
+      .find((candidate) => candidate.dataset.reviewId === reviewId);
     mark?.scrollIntoView({ block: "center", behavior: "smooth" });
     mark?.focus({ preventScroll: true });
   };
@@ -182,6 +167,10 @@ export function ReviewEditor({
           sourcePath={sourcePath}
           bundleRoot={bundleRoot}
           onOpenInternal={onOpenInternal}
+          reviewComments={review.comments}
+          activeReviewId={activeReviewId}
+          onRequestSource={onRequestSource}
+          onRetryView={retryView}
         />
       </div>
       <aside className="review-panel">

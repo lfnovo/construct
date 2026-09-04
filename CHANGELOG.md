@@ -6,6 +6,15 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+### Fixed
+
+- Kept Review comment typing independent of full-document Markdown processing
+  and preserved links, inline code, images, and diagram component identities.
+- Replaced direct DOM highlight mutations with declarative review decorations,
+  preventing blank windows when adding comments or refreshing annotated text.
+- Isolated document-view failures with Source/retry recovery and content-free
+  local diagnostics while preserving explicit saves and existing review data.
+
 ## [0.3.1] - 2026-09-01
 
 ### Changed

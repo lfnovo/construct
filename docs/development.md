@@ -126,6 +126,12 @@ npm run build
 Rust linting, TypeScript checking, Node and Rust tests, Rust formatting checks,
 and the production web build.
 
+Web tests include mounted React components in a local jsdom environment,
+executed through `tsx`, as well as pure-domain tests. Review regressions exercise
+textarea input, comment submission, overlapping highlights, document refresh,
+DOM identity, explicit buffer changes, and error recovery. They do not replace
+browser/native smoke tests for layout, WebKit behavior, or filesystem saves.
+
 For documentation-only work, run the lightweight check directly. It uses only
 Node.js and does not install application dependencies or compile Rust:
 

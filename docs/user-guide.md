@@ -228,6 +228,13 @@ Removing one comment preserves the others. Removing the last comment deletes
 the review block and restores the original document content around it. Review
 actions follow the same explicit-save behavior as normal editing.
 
+Typing a comment does not modify or rerender the document. **Add comment**
+puts the note in the tab's buffer; **Save** writes that buffer to the Markdown
+file. If the document view fails, use **Retry view** or **Open Source** to
+continue with the current buffer. A Review preview failure leaves the comment
+composer available, so you can still add the pending note before switching
+modes. These recovery actions do not save automatically.
+
 Changing between Preview, Edit, Review, and Source keeps the current semantic
 passage in view when possible. Each mode also retains its latest scroll
 position while the tab remains open.
