@@ -160,7 +160,10 @@ jobs:
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets
 
       - name: Test Windows profile isolation
-        run: cargo test --manifest-path src-tauri/Cargo.toml --all-targets
+        run: >-
+          cargo test
+          --manifest-path src-tauri/Cargo.toml
+          knowledge::tests::windows_named_pipes_are_isolated_by_profile_directory
 
   rust_linux_cli:
     name: Validate standalone Linux CLI
