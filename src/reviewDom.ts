@@ -17,7 +17,7 @@ export function captureReviewAnchor(
   while (node) {
     // Match the prose projection used by the render-time highlighter. Generated
     // diagram labels and image-error UI are not part of the Markdown text tree.
-    if (!node.parentElement?.closest(".mermaid, .mermaid-error, .missing-image")) {
+    if (!node.parentElement?.closest('[data-review-generated="true"]')) {
       const value = node.nodeValue || "";
       text.push(value);
       if (before.comparePoint(node, 0) <= 0) {

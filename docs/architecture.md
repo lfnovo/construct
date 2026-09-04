@@ -41,6 +41,7 @@ The frontend lives in `src/`.
 | `CodeEditor.tsx` | CodeMirror lifecycle and Markdown editing |
 | `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
 | `ReviewEditor.tsx` | Rendered text selection, review composer, comment list, and clipboard handoff |
+| `ReviewDraft.tsx` | In-memory composer recovery above the document error boundary, without per-keystroke workspace updates |
 | `reviewHighlights.ts` | Batched, declarative review decorations in the sanitized Markdown tree |
 | `DocumentErrorBoundary.tsx` | Document-view failure isolation, Source recovery, and content-free diagnostics |
 | `SearchWorkspace.tsx` | Dedicated local knowledge search, visible scope and filters, result selection, direct-link pivots, context-pack clipboard actions, recent-query controls, and pane navigation |
@@ -358,6 +359,14 @@ This preserves DOM identity and prevents unnecessary diagram/image restarts.
 Document-mode error boundaries leave workspace state and the tab buffer owned
 by `App.tsx`, with explicit Source and retry actions. Review also isolates its
 Markdown surface so a renderer failure does not discard the pending composer.
+An in-memory `ReviewDraftProvider`, keyed to the current tab above the outer
+boundary, retains the selection and latest typed comment if the entire Review
+panel fails. Event-time store writes do not rerender the workspace. Retry or a
+Source/Review round trip in that tab restores the draft; Add comment or Cancel
+clears it. This is temporary recovery state, not autosave or persisted review data.
+Source failures offer Retry and keep the workspace Save action available, without
+a no-op Open Source button. Generated-content exclusions use renderer-owned
+attributes added after sanitization, not document-supplied presentation classes.
 The native `report_document_render_failure` command accepts only a closed set of
 view modes and writes `document_render_failed` to the existing bounded local
 diagnostics. Exception text, stack traces, paths, and Markdown are not accepted.

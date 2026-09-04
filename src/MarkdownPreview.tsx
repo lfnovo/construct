@@ -39,8 +39,8 @@ function MermaidDiagram({ code }: { code: string }) {
     return () => { cancelled = true; };
   }, [code, id]);
 
-  if (error) return <pre className="mermaid-error">{error}{"\n\n"}{code}</pre>;
-  return <div className="mermaid" dangerouslySetInnerHTML={{ __html: svg }} />;
+  if (error) return <pre className="mermaid-error" data-review-generated="true">{error}{"\n\n"}{code}</pre>;
+  return <div className="mermaid" data-review-generated="true" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
 function LocalImage({ src = "", alt = "", sourcePath, bundleRoot }: { src?: string; alt?: string; sourcePath: string; bundleRoot?: string }) {
@@ -62,7 +62,7 @@ function LocalImage({ src = "", alt = "", sourcePath, bundleRoot }: { src?: stri
     };
   }, [localPath]);
   const resolved = directSource ? src : loaded?.path === localPath ? loaded.url : null;
-  return resolved ? <img src={resolved} alt={alt} /> : <span className="missing-image">Image unavailable: {alt || src}</span>;
+  return resolved ? <img src={resolved} alt={alt} /> : <span className="missing-image" data-review-generated="true">Image unavailable: {alt || src}</span>;
 }
 
 function withoutAstNode<T extends object>({ node, ...props }: T & ExtraProps) {

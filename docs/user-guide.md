@@ -233,7 +233,11 @@ puts the note in the tab's buffer; **Save** writes that buffer to the Markdown
 file. If the document view fails, use **Retry view** or **Open Source** to
 continue with the current buffer. A Review preview failure leaves the comment
 composer available, so you can still add the pending note before switching
-modes. These recovery actions do not save automatically.
+modes. If the entire Review panel fails, Retry restores the pending selection
+and comment; switching to Source and back also retains that draft while the same
+tab stays active. This recovery draft is temporary, not saved to disk. In Source,
+a failed view offers Retry while the workspace Save action remains available.
+These recovery actions do not save automatically.
 
 Changing between Preview, Edit, Review, and Source keeps the current semantic
 passage in view when possible. Each mode also retains its latest scroll

@@ -384,6 +384,10 @@ coverage
 - **REVIEW-020:** Falhas na renderização devem ficar isoladas da aplicação e
   oferecer `Open Source` e `Retry view`, preservando o buffer da aba. Uma falha
   apenas na visualização do Review deve manter também o comentário em composição.
+  Se o painel inteiro de Review falhar, seleção e comentário permanecem em memória
+  acima do isolamento de falha para recuperação por Retry ou retorno ao Review
+  na mesma aba ativa. Não são persistidos nem salvos automaticamente. Uma falha
+  em Source oferece Retry, sem um botão redundante para abrir o próprio Source.
 - **REVIEW-021:** Diagnósticos de falha da visualização permanecem locais e
   limitados; registram somente o modo afetado, sem conteúdo, caminhos ou texto
   bruto de exceções. Não há salvamento automático nem migração do formato de review.

@@ -14,6 +14,7 @@ const React = await import("react");
 const { act, createElement: h, useState } = React;
 const { createRoot } = await import("react-dom/client");
 const { ReviewEditor } = await import("../src/ReviewEditor.tsx");
+const { ReviewDraftProvider } = await import("../src/ReviewDraft.tsx");
 const { DocumentErrorBoundary } = await import("../src/DocumentErrorBoundary.tsx");
 const { DocumentModeSurface } = await import("../src/DocumentModeSurface.tsx");
 const { MarkdownPreview } = await import("../src/MarkdownPreview.tsx");
@@ -40,7 +41,7 @@ async function mountReview(body, comments = [], overrides = {}, wrap = (child) =
     return wrap(h(ReviewEditor, { content, sourcePath: "/synthetic.md", relativePath: "synthetic.md", readOnly: false,
       onChange: (next) => { state.changes += 1; setContent(next); }, onOpenInternal: (path) => noop(path), onRequestSource: noop, onNotify: noop, ...overrides }));
   }
-  await act(() => root.render(h(React.StrictMode, null, h(Harness))));
+  await act(() => root.render(h(React.StrictMode, null, h(ReviewDraftProvider, null, h(Harness)))));
   return { container, state, async close() { await act(() => root.unmount()); container.remove(); } };
 }
 
@@ -186,7 +187,7 @@ test("review markers are trusted decorations, not executable or document-supplie
 
 test("selection offsets use Markdown prose rather than generated diagram or image-error labels", () => {
   const container = document.createElement("article");
-  container.innerHTML = '<p>same </p><div class="mermaid">generated label</div><span class="missing-image">Image unavailable</span><p>same end</p>';
+  container.innerHTML = '<p>same </p><div class="mermaid" data-review-generated="true">generated label</div><span class="missing-image" data-review-generated="true">Image unavailable</span><p>same end</p>';
   const selected = container.querySelectorAll("p")[1].firstChild;
   const range = document.createRange();
   range.setStart(selected, 0);
@@ -195,6 +196,95 @@ test("selection offsets use Markdown prose rather than generated diagram or imag
   assert.equal(anchor.start, 5);
   assert.equal(anchor.prefix, "same ");
   assert.equal(anchor.suffix, " end");
+});
+
+test("source render failure offers retry rather than a no-op Open Source action", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const previousReport = api.reportDocumentRenderFailure;
+  const previousError = console.error;
+  api.reportDocumentRenderFailure = async () => {};
+  console.error = noop;
+  function BrokenSource() { throw new Error("Synthetic Source failure"); }
+  try {
+    await act(() => root.render(h(DocumentErrorBoundary, { mode: "source", onRequestSource: noop }, h(BrokenSource))));
+    assert.deepEqual([...container.querySelectorAll("button")].map((button) => button.textContent), ["Retry view"]);
+    assert.match(container.textContent, /Use Save to save it/);
+    assert.doesNotMatch(container.textContent, /Open Source/);
+  } finally {
+    await act(() => root.unmount());
+    api.reportDocumentRenderFailure = previousReport; console.error = previousError;
+  }
+});
+
+test("an outer panel failure preserves the final keystroke and selection through retry", async () => {
+  const previousReport = api.reportDocumentRenderFailure;
+  const previousError = console.error;
+  api.reportDocumentRenderFailure = async () => {};
+  console.error = noop;
+  function FailingPanel({ children }) {
+    const [failed, setFailed] = useState(false);
+    if (failed) throw new Error("Synthetic panel failure after input");
+    return h("div", { onInput: (event) => {
+      if (event.target.value.endsWith("!")) setFailed(true);
+    } }, children);
+  }
+  const body = "Alpha **bold** omega.\n";
+  const view = await mountReview(body, [], {}, (child) => h(DocumentErrorBoundary,
+    { mode: "review", onRequestSource: noop }, h(FailingPanel, null, child)));
+  try {
+    await type(await selectParagraph(view.container), "Preserve this final character!");
+    assert.ok(view.container.querySelector('[role="alert"]'));
+    assert.equal(view.container.querySelector("textarea"), null, "the entire panel was unmounted");
+    assert.equal(view.state.content, body, "composition must not update the document buffer");
+    await click([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Retry view"));
+    assert.equal(view.container.querySelector("textarea").value, "Preserve this final character!");
+    assert.equal(view.container.querySelector(".review-composer blockquote").textContent, "Alpha bold omega.");
+    await click([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Add comment"));
+    assert.equal(splitReviewDocument(view.state.content).comments[0].comment, "Preserve this final character!");
+  } finally {
+    await view.close(); api.reportDocumentRenderFailure = previousReport; console.error = previousError;
+  }
+});
+
+test("raw HTML cannot impersonate renderer-owned anchor exclusions", async () => {
+  for (const className of ["mermaid", "mermaid-error", "missing-image"]) {
+    const body = `<div class="${className}" data-review-generated="true">same</div>\n\nsame`;
+    const view = await mountReview(body);
+    try {
+      const preview = view.container.querySelector(".markdown-preview");
+      assert.equal(preview.querySelectorAll("[data-review-generated]").length, 0, "the sanitizer rejects forged markers");
+      // Even if presentation classes are added later, they cannot exclude prose.
+      preview.querySelector("div").className = className;
+      await type(await selectParagraph(view.container), "Only the second same");
+      await click([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Add comment"));
+      assert.equal(preview.querySelector("div").querySelectorAll("mark").length, 0);
+      assert.equal(preview.querySelector("p mark").textContent, "same");
+      assert.equal(view.container.querySelectorAll(".review-comment.detached").length, 0);
+    } finally { await view.close(); }
+  }
+});
+
+test("the current tab draft survives a Source round trip and Cancel clears recovery state", async () => {
+  let source = false;
+  const body = "Synthetic passage.\n";
+  const view = await mountReview(body, [], {}, (child) => source ? h("p", null, "Synthetic Source mode") : child);
+  try {
+    await type(await selectParagraph(view.container), "Temporary note");
+    source = true;
+    await act(() => view.state.replace(`${body}\n`));
+    assert.equal(view.container.querySelectorAll(".review-workspace").length, 0);
+    source = false;
+    await act(() => view.state.replace(body));
+    assert.equal(view.container.querySelector("textarea").value, "Temporary note");
+    await click([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Cancel"));
+    source = true;
+    await act(() => view.state.replace(`${body}\n`));
+    source = false;
+    await act(() => view.state.replace(body));
+    assert.equal(view.container.querySelectorAll(".review-composer").length, 0);
+    assert.equal(view.state.content, body);
+  } finally { await view.close(); }
 });
 
 test("a comment on a repeated raw HTML table cell highlights the selected cell", async () => {

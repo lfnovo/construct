@@ -14,6 +14,7 @@ import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { formatOkfValue, type OkfBundleIndex, type OkfConcept, type OkfInspection } from "./okf";
 import { ReviewEditor } from "./ReviewEditor";
+import { ReviewDraftProvider } from "./ReviewDraft";
 import { splitReviewDocument } from "./review";
 import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
@@ -1282,6 +1283,7 @@ export default function App() {
           {!!okf.findings.length && <ul className="okf-issues">{okf.findings.map((item) => <li key={`${item.code}-${item.message}`} className={item.severity} title={item.code}>{item.message}</li>)}</ul>}
         </aside>}
         <div className="document-content">
+          <ReviewDraftProvider key={tab.id}>
           <DocumentErrorBoundary key={`${tab.id}:${tab.mode}`} mode={tab.mode} onRequestSource={() => changeTabMode(pane.id, tab, "source")}>
           <DocumentModeSurface
             key={`${tab.id}:${tab.mode}`}
@@ -1301,6 +1303,7 @@ export default function App() {
             {tab.mode === "diff" && <DiffView tab={tab} />}
           </DocumentModeSurface>
           </DocumentErrorBoundary>
+          </ReviewDraftProvider>
         </div>
       </>}
     </section>;

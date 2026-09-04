@@ -7,7 +7,8 @@ import {
   type ReviewComment,
 } from "./review";
 import { captureReviewAnchor } from "./reviewDom";
-import { normalizeReviewText, type ReviewAnchor } from "./reviewAnchors";
+import { normalizeReviewText } from "./reviewAnchors";
+import { useReviewDraft } from "./ReviewDraft";
 
 type Props = {
   content: string;
@@ -39,8 +40,8 @@ export function ReviewEditor({
   const documentRef = useRef<HTMLDivElement>(null);
   const commentRefs = useRef(new Map<string, HTMLElement>());
   const review = useMemo(() => splitReviewDocument(content), [content]);
-  const [selectionDraft, setSelectionDraft] = useState<{ quote: string; anchor: ReviewAnchor | null } | null>(null);
-  const [comment, setComment] = useState("");
+  const { draft, update: updateDraft } = useReviewDraft();
+  const { selection: selectionDraft, comment } = draft;
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [resolvedComments, setResolvedComments] = useState<Record<string, boolean>>({});
   const [renderRevision, setRenderRevision] = useState(0);
@@ -55,9 +56,12 @@ export function ReviewEditor({
     if (!preview) return;
     const selectedQuote = normalizeQuote(selection.toString()).slice(0, 2_000);
     if (!selectedQuote) return;
-    setSelectionDraft({
-      quote: selectedQuote,
-      anchor: captureReviewAnchor(preview, selection.getRangeAt(0), selectedQuote),
+    updateDraft({
+      ...draft,
+      selection: {
+        quote: selectedQuote,
+        anchor: captureReviewAnchor(preview, selection.getRangeAt(0), selectedQuote),
+      },
     });
   };
 
@@ -127,8 +131,7 @@ export function ReviewEditor({
     ]);
     setActiveReviewId(id);
     window.getSelection()?.removeAllRanges();
-    setSelectionDraft(null);
-    setComment("");
+    updateDraft({ selection: null, comment: "" });
   };
 
   const copyForAgent = async () => {
@@ -190,13 +193,13 @@ export function ReviewEditor({
               autoFocus
               value={comment}
               placeholder="What should change?"
-              onChange={(event) => setComment(event.target.value)}
+              onChange={(event) => updateDraft({ ...draft, comment: event.target.value })}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") addComment();
               }}
             />
             <footer>
-              <button onClick={() => { setSelectionDraft(null); setComment(""); }}>Cancel</button>
+              <button onClick={() => updateDraft({ selection: null, comment: "" })}>Cancel</button>
               <button className="primary-button" disabled={!comment.trim() || readOnly} onClick={addComment}>Add comment</button>
             </footer>
           </section>
