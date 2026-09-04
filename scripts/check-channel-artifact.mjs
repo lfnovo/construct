@@ -14,18 +14,20 @@ const expected = channel === "release"
   : { productName: "Construct Dev", identifier: "com.luisnovo.construct.dev", cli: "construct-dev" };
 
 const binary = process.argv[4] ? resolve(process.argv[4]) : null;
+let binaryIdentity = null;
 if (binary) {
-  const identity = JSON.parse(execFileSync(binary, ["identity"], { encoding: "utf8" }));
+  binaryIdentity = JSON.parse(execFileSync(binary, ["identity"], { encoding: "utf8" }));
   const actual = {
-    productName: identity.productName,
-    identifier: identity.bundleIdentifier,
-    cli: identity.cliCommand,
+    channel: binaryIdentity.channel,
+    productName: binaryIdentity.productName,
+    identifier: binaryIdentity.bundleIdentifier,
+    cli: binaryIdentity.cliCommand,
   };
+  if (actual.channel !== channel) throw new Error(`channel is ${JSON.stringify(actual.channel)}; expected ${JSON.stringify(channel)}.`);
   for (const [key, value] of Object.entries(actual)) {
+    if (key === "channel") continue;
     if (value !== expected[key]) throw new Error(`${key} is ${JSON.stringify(value)}; expected ${JSON.stringify(expected[key])}.`);
   }
-  console.log(JSON.stringify({ channel, binary, ...identity }, null, 2));
-  process.exit(0);
 }
 
 if (!existsSync(bundle)) throw new Error(`Expected ${channel} bundle at ${bundle}.`);
@@ -42,4 +44,4 @@ const actual = {
 for (const [key, value] of Object.entries(actual)) {
   if (value !== expected[key]) throw new Error(`${key} is ${JSON.stringify(value)}; expected ${JSON.stringify(expected[key])}.`);
 }
-console.log(JSON.stringify({ channel, bundle, ...actual, cliCommand: expected.cli }, null, 2));
+console.log(JSON.stringify({ channel, bundle, binary, ...actual, cliCommand: expected.cli, ...(binaryIdentity ? { binaryIdentity } : {}) }, null, 2));

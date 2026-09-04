@@ -49,10 +49,10 @@ const defaultPane = emptyPane("main");
 const defaultLayout: LayoutNode = { type: "pane", paneId: "main" };
 const GIT_REMOTE_REFRESH_TTL_MS = 5 * 60_000;
 const fallbackRuntimeIdentity: RuntimeIdentity = {
-  channel: "release",
-  productName: "Construct",
-  bundleIdentifier: "com.luisnovo.construct",
-  cliCommand: "construct",
+  channel: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "release" : "dev",
+  productName: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "Construct" : "Construct Dev",
+  bundleIdentifier: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "com.luisnovo.construct" : "com.luisnovo.construct.dev",
+  cliCommand: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "construct" : "construct-dev",
   defaultDataDir: "",
 };
 
@@ -914,6 +914,10 @@ export default function App() {
     setLocationGitStatuses((current) => { const nextStatuses = { ...current }; delete nextStatuses[locationId]; return nextStatuses; });
     await configureLocations(next);
   }, [configureLocations, notify]);
+
+  useEffect(() => {
+    document.title = runtimeIdentity.productName;
+  }, [runtimeIdentity.productName]);
 
   useEffect(() => {
     let mounted = true;

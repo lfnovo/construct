@@ -20,7 +20,16 @@ test("defaults every direct Tauri build to the development identity", () => {
     $schema: "https://schema.tauri.app/config/2",
     productName: "Construct Dev",
     identifier: "com.luisnovo.construct.dev",
-    app: { windows: [{ title: "Construct Dev" }] },
+    app: {
+      windows: [{
+        title: "Construct Dev",
+        width: 1280,
+        height: 800,
+        minWidth: 900,
+        minHeight: 600,
+        resizable: true,
+      }],
+    },
   });
 });
 

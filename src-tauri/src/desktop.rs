@@ -1395,17 +1395,20 @@ mod tests {
         fs::write(&executable, "desktop executable").expect("create executable placeholder");
 
         let installed =
-            install_cli_launcher_at(&executable, &[(bin.clone(), false)], "construct-dev")
+            install_cli_launcher_at(&executable, &[(bin.clone(), false)], identity::CLI_COMMAND)
                 .expect("install launcher");
         assert!(!installed.already_installed);
         assert!(!installed.requires_path_setup);
-        assert_eq!(installed.path, bin.join("construct-dev").to_string_lossy());
         assert_eq!(
-            fs::read_link(bin.join("construct-dev")).expect("read installed launcher"),
+            installed.path,
+            bin.join(identity::CLI_COMMAND).to_string_lossy()
+        );
+        assert_eq!(
+            fs::read_link(bin.join(identity::CLI_COMMAND)).expect("read installed launcher"),
             executable
         );
 
-        let repeated = install_cli_launcher_at(&executable, &[(bin, false)], "construct-dev")
+        let repeated = install_cli_launcher_at(&executable, &[(bin, false)], identity::CLI_COMMAND)
             .expect("recognize installed launcher");
         assert!(repeated.already_installed);
 
@@ -1420,10 +1423,10 @@ mod tests {
         let bin = root.join("bin");
         fs::create_dir_all(&bin).expect("create command directory");
         fs::write(&executable, "desktop executable").expect("create executable placeholder");
-        fs::write(bin.join("construct-dev"), "another command")
+        fs::write(bin.join(identity::CLI_COMMAND), "another command")
             .expect("create conflicting command");
 
-        let error = install_cli_launcher_at(&executable, &[(bin, false)], "construct-dev")
+        let error = install_cli_launcher_at(&executable, &[(bin, false)], identity::CLI_COMMAND)
             .expect_err("reject conflicting command");
         assert!(error.contains("already exists"));
 

@@ -17,7 +17,12 @@ const args = [command, "--config", config];
 if (command === "build") args.push("--bundles", "app");
 
 const child = spawn(executable, args, {
-  env: { ...process.env, CONSTRUCT_CHANNEL: channel },
+  env: {
+    ...process.env,
+    CONSTRUCT_CHANNEL: channel,
+    VITE_CONSTRUCT_CHANNEL: channel,
+  },
+  shell: process.platform === "win32",
   stdio: "inherit",
 });
 child.on("error", (error) => {

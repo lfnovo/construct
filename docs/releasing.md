@@ -54,7 +54,9 @@ application or CLI downloads.
    - `package.json`;
    - `package-lock.json`;
    - `src-tauri/Cargo.toml`;
-   - `src-tauri/tauri.conf.json` and the explicit channel overlays.
+   - `src-tauri/tauri.conf.json`; review the explicit channel overlays for
+     product identity and window settings, but do not add a second version
+     source there.
 3. Update `CHANGELOG.md`, user-facing documentation, and the product decision
    history.
 4. Validate the intended tag and source:

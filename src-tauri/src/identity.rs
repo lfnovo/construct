@@ -59,22 +59,29 @@ mod tests {
 
     #[test]
     fn compiled_identity_and_profile_use_the_same_channel() {
-        assert_eq!(CHANNEL, "dev");
-        assert_eq!(PRODUCT_NAME, "Construct Dev");
-        assert_eq!(BUNDLE_IDENTIFIER, "com.luisnovo.construct.dev");
-        assert_eq!(CLI_COMMAND, "construct-dev");
+        let expected = if IS_RELEASE {
+            (
+                "release",
+                "Construct",
+                "com.luisnovo.construct",
+                "construct",
+            )
+        } else {
+            (
+                "dev",
+                "Construct Dev",
+                "com.luisnovo.construct.dev",
+                "construct-dev",
+            )
+        };
+        assert_eq!(CHANNEL, expected.0);
+        assert_eq!(PRODUCT_NAME, expected.1);
+        assert_eq!(BUNDLE_IDENTIFIER, expected.2);
+        assert_eq!(CLI_COMMAND, expected.3);
+        assert_eq!(MCP_SERVER_NAME, expected.3);
         assert_eq!(
             data_dir_from(Path::new("/synthetic/Application Support")),
-            PathBuf::from("/synthetic/Application Support/com.luisnovo.construct.dev")
+            PathBuf::from(format!("/synthetic/Application Support/{}", expected.2))
         );
-    }
-
-    #[test]
-    fn identity_values_are_stable_and_do_not_depend_on_build_optimization() {
-        assert_eq!(MCP_SERVER_NAME, "construct-dev");
-        if IS_RELEASE {
-            panic!("the default test build must use the development identity");
-        }
-        assert!(PRODUCT_NAME.ends_with("Dev"));
     }
 }

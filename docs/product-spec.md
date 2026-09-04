@@ -1218,3 +1218,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.19 | 2026-08-04 | Detecção de Warp no macOS e Windows, fallback para o host de console padrão no Windows e seletor de terminal consistente entre temas. |
 | 0.20 | 2026-08-07 | Sinal visual de sincronização Git por Location, com estado local, comparação remota read-only e detalhes acionáveis. |
 | 0.21 | 2026-09-03 | Responsividade de Review, destaques seguros, isolamento de falhas e diagnósticos sem conteúdo. |
+| 0.22 | 2026-09-04 | Separação dos canais Construct e Construct Dev por identidade, perfil, IPC, launcher, MCP e comandos de build explícitos. |
