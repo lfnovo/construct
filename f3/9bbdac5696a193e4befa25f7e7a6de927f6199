@@ -1,0 +1,40 @@
+docs/architecture.md
+  s_d5b0b8d6195a18::t_6be70bba7faf89 44,362-369
+docs/product-spec.md
+  s_d5b0b8d6195a18::t_6be70bba7faf89 387-390
+tests/review-rendering.test.mjs
+  s_d5b0b8d6195a18::t_f7c9b45fd515d9 17,44,190,201-255,257-260,262-265
+  s_d5b0b8d6195a18::t_f23a5c22df4c67 266,268-289
+  s_d5b0b8d6195a18::t_ca33f40fc2171c 256,261
+  s_d5b0b8d6195a18::t_9c3a10d1624bf1 267
+src/reviewDom.ts
+  s_d5b0b8d6195a18::t_4a06bb7e19ef0f 20
+docs/user-guide.md
+  s_d5b0b8d6195a18::t_6be70bba7faf89 236-240
+src/MarkdownPreview.tsx
+  s_d5b0b8d6195a18::t_4a06bb7e19ef0f 42-43,65
+src/App.tsx
+  s_d5b0b8d6195a18::t_4a06bb7e19ef0f 17,1286,1306
+src/ReviewDraft.tsx
+  s_d5b0b8d6195a18::t_4a06bb7e19ef0f 1-27
+src/ReviewEditor.tsx
+  s_d5b0b8d6195a18::t_4a06bb7e19ef0f 10-11,43-44,59-64,134,196,202
+src/DocumentErrorBoundary.tsx
+  s_d5b0b8d6195a18::t_4a06bb7e19ef0f 30-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f39bbdac5696a193e4befa25f7e7a6de927f6199",
+  "prompts": {},
+  "sessions": {
+    "s_d5b0b8d6195a18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0351c-9ae2-7372-b3ba-0c1687817c65",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
