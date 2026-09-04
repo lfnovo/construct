@@ -1,0 +1,96 @@
+src-tauri/tauri.release.conf.json
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 1-12
+tests/config.test.mjs
+  s_eb5bd5625160cb::t_79045827aaa1a7 8-25,27-30
+src-tauri/src/desktop.rs
+  s_eb5bd5625160cb::t_07b02ba93d9229 3,452-457,494,509,586,1174-1178,1204,1206-1208,1210-1213,1215-1217,1219,1229,1402,1404,1408,1426
+  s_eb5bd5625160cb::t_d176bdb5141980 1205,1209,1214,1218
+  s_eb5bd5625160cb::t_267325da8541b8 1423-1424
+  s_eb5bd5625160cb::t_cfad18557d68de 1397-1399
+docs/cli.md
+  s_eb5bd5625160cb::t_289486a48a06d8 5,38-42,97-99
+docs/user-guide.md
+  s_eb5bd5625160cb::t_2f56df77f8d6c8 53,57,60-63,363-367
+  s_eb5bd5625160cb::t_8b1852f53a398e 368
+docs/development.md
+  s_eb5bd5625160cb::t_af403dfc151249 47-52,71,80-96,106-110,136,170-171,204-206
+  s_eb5bd5625160cb::t_15b8b26b704c55 207
+src-tauri/src/knowledge.rs
+  s_eb5bd5625160cb::t_cfad18557d68de 1168-1169
+  s_eb5bd5625160cb::t_eb2269e0768e1b 1216-1224
+  s_eb5bd5625160cb::t_07b02ba93d9229 3,327,373
+docs/releasing.md
+  s_eb5bd5625160cb::t_289486a48a06d8 57,66,181-187,193-212
+  s_eb5bd5625160cb::t_4c4e1388e24f05 213
+scripts/check-channel-artifact.mjs
+  s_eb5bd5625160cb::t_79045827aaa1a7 2,15-29
+  s_eb5bd5625160cb::t_1287b42b0ed227 6
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 1,3-5,7-14,30-45
+.github/workflows/ci.yml
+  s_eb5bd5625160cb::t_eb2269e0768e1b 162-164
+  s_eb5bd5625160cb::t_a9c6f792e64bab 252,254,260
+  s_eb5bd5625160cb::t_8e50e077d1445a 253
+.github/workflows/release.yml
+  s_eb5bd5625160cb::t_a9c6f792e64bab 93,104-120
+scripts/build-desktop.mjs
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 1-30
+docs/architecture.md
+  s_eb5bd5625160cb::t_289486a48a06d8 75-77,87,95-101
+  s_eb5bd5625160cb::t_0d78f2ceaafb97 102
+README.md
+  s_eb5bd5625160cb::t_8ea42a1706eff9 138,141-144
+src/api.ts
+  s_eb5bd5625160cb::t_51b0a7879b6b64 7,18
+docs/product-spec.md
+  s_eb5bd5625160cb::t_2f56df77f8d6c8 713-724,1193
+src-tauri/src/identity.rs
+  s_eb5bd5625160cb::t_267325da8541b8 75-77
+  s_eb5bd5625160cb::t_cfad18557d68de 66-69
+  s_eb5bd5625160cb::t_d176bdb5141980 5-24
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 1-4,25-65,70-74,78-80
+package.json
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 17,19-21
+src/App.tsx
+  s_eb5bd5625160cb::t_1287b42b0ed227 923-924
+  s_eb5bd5625160cb::t_51b0a7879b6b64 33,51-57,237,892,898,1335,1498-1499,1501,1503
+src-tauri/tauri.conf.json
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 3,5,15
+src-tauri/build.rs
+  s_eb5bd5625160cb::t_d176bdb5141980 9-12
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 2-8,13-14
+src-tauri/tauri.dev.conf.json
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 1-12
+src/types.ts
+  s_eb5bd5625160cb::t_51b0a7879b6b64 92-99
+scripts/classify-ci-changes.mjs
+  s_eb5bd5625160cb::t_79045827aaa1a7 29-32
+index.html
+  s_eb5bd5625160cb::t_2f56df77f8d6c8 7
+src-tauri/src/lib.rs
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 14,78-86
+  s_eb5bd5625160cb::t_cfad18557d68de 13
+  s_eb5bd5625160cb::t_a4997245e84c83 87-88
+src-tauri/src/main.rs
+  s_eb5bd5625160cb::t_cfad18557d68de 113-116
+  s_eb5bd5625160cb::t_ac2ddbbb5d92bb 4,12,42-50,66,111-112,117
+  s_eb5bd5625160cb::t_453e22307ae476 118
+docs/mcp.md
+  s_eb5bd5625160cb::t_2f56df77f8d6c8 5,22,75-78
+  s_eb5bd5625160cb::t_eec3eea42fce47 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "04bb670c1eac2fc7d2191e16a1a1c686bdece0e8",
+  "prompts": {},
+  "sessions": {
+    "s_eb5bd5625160cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06e35-03e0-7ca2-8f58-ca8284b5f9f9",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
