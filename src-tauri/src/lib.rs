@@ -10,6 +10,8 @@ mod desktop_open;
 #[cfg(feature = "desktop")]
 mod diagnostics;
 #[cfg(feature = "desktop")]
+mod identity;
+#[cfg(feature = "desktop")]
 mod index;
 #[cfg(feature = "desktop")]
 mod knowledge;
@@ -71,6 +73,17 @@ pub fn run_service_command(arguments: &[String]) -> Result<(), String> {
 #[cfg(feature = "desktop")]
 pub fn run_mcp_command(arguments: &[String]) -> Result<(), String> {
     mcp::run_mcp_command(arguments)
+}
+
+#[cfg(feature = "desktop")]
+pub fn run_identity_command() -> Result<(), String> {
+    let identity = identity::runtime_identity()?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&identity)
+            .map_err(|error| format!("Could not serialize Construct identity: {error}"))?
+    );
+    Ok(())
 }
 
 pub fn run_okf_command(arguments: &[String]) -> Result<i32, String> {

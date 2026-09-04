@@ -30,7 +30,7 @@ import { relativeDirectoryForFile, selectedTerminal } from "./terminal";
 import type {
   CliInstallResult, DesktopOpenRequest, DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationGitStatus, LocationRecord,
-  Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, SidebarPanelSizes, SidebarSectionId,
+  Pane, RecentKnowledgeSearch, RuntimeIdentity, SavedPane, SavedWorkspace, SidebarPanelSizes, SidebarSectionId,
   TabMode, TerminalApplication, TerminalApplicationId,
 } from "./types";
 import type { DocumentModeTransfer, DocumentViewState } from "./documentPosition";
@@ -48,6 +48,13 @@ const emptyPane = (id: string = crypto.randomUUID()): Pane => ({ id, tabs: [], a
 const defaultPane = emptyPane("main");
 const defaultLayout: LayoutNode = { type: "pane", paneId: "main" };
 const GIT_REMOTE_REFRESH_TTL_MS = 5 * 60_000;
+const fallbackRuntimeIdentity: RuntimeIdentity = {
+  channel: "release",
+  productName: "Construct",
+  bundleIdentifier: "com.luisnovo.construct",
+  cliCommand: "construct",
+  defaultDataDir: "",
+};
 
 function getPaneIds(node: LayoutNode): string[] {
   return node.type === "pane" ? [node.paneId] : [...getPaneIds(node.first), ...getPaneIds(node.second)];
@@ -227,6 +234,7 @@ function SplitView({ node, panes, activePaneId, onActivate, onRatio, children }:
 }
 
 export default function App() {
+  const [runtimeIdentity, setRuntimeIdentity] = useState<RuntimeIdentity>(fallbackRuntimeIdentity);
   const [locations, setLocations] = useState<LocationRecord[]>([]);
   const [filesByLocation, setFilesByLocation] = useState<Record<string, FileEntry[]>>({});
   const [fingerprints, setFingerprints] = useState<Record<string, FileFingerprint[]>>({});
@@ -881,13 +889,13 @@ export default function App() {
     try {
       const result = await api.installCliCommand();
       setCliInstallResult(result);
-      notify(result.alreadyInstalled ? "The construct command is already installed." : "The construct command was installed.");
+      notify(result.alreadyInstalled ? `The ${runtimeIdentity.cliCommand} command is already installed.` : `The ${runtimeIdentity.cliCommand} command was installed.`);
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error));
     } finally {
       setInstallingCli(false);
     }
-  }, [notify]);
+  }, [notify, runtimeIdentity.cliCommand]);
 
   const removeLocation = useCallback(async (locationId: string) => {
     const location = locationsRef.current.find((item) => item.id === locationId);
@@ -912,6 +920,8 @@ export default function App() {
     let workspaceRevealed = false;
     (async () => {
       try {
+        const identity = await api.getRuntimeIdentity().catch(() => null);
+        if (identity && mounted) setRuntimeIdentity(identity);
         const saved = await api.loadState();
         if (!mounted) return;
         const restoredLocations = saved.locations || [];
@@ -1322,7 +1332,7 @@ export default function App() {
     {sidebarHidden ? <aside className="sidebar-rail"><button className="sidebar-toggle" onClick={() => setSidebarHidden(false)} title="Show sidebar" aria-label="Show sidebar"><PanelLeftOpen size={16} /></button></aside> : <aside className="sidebar">
       <div className="sidebar-global-toolbar">
         <button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button>
-        <span>CONSTRUCT</span>
+        <span>{runtimeIdentity.productName.toUpperCase()}</span>
         <button className="connect-agents-button" onClick={openMcpDialog} title="Connect agents"><Bot size={14} /><span>Agents</span></button>
         <button className="settings-button" onClick={() => setSettingsOpen(true)} title="Settings" aria-label="Settings"><Settings2 size={14} /></button>
         <button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"} aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button>
@@ -1485,12 +1495,12 @@ export default function App() {
       <div className="mcp-access-actions"><button onClick={() => setMcpDialog(null)}>Cancel</button><button className="primary-button" disabled={!locations.length || (mcpDialog.mode !== "all" && mcpDialog.mode !== "current" && !mcpDialog.locationIds.length) || (mcpDialog.mode === "current" && !activeLocation)} onClick={() => void copyMcpConfiguration()}>Copy configuration</button></div>
     </div></div>}
     {settingsOpen && <div className="modal-backdrop" onMouseDown={() => setSettingsOpen(false)}><div className="terminal-picker-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onKeyDown={(event) => { if (event.key === "Escape") setSettingsOpen(false); }} onMouseDown={(event) => event.stopPropagation()}>
-      <h2 id="settings-title">Construct settings</h2>
-      <p>Connect Construct to your terminal and preferred terminal application.</p>
+      <h2 id="settings-title">{runtimeIdentity.productName} settings</h2>
+      <p>Connect {runtimeIdentity.productName} to your terminal and preferred terminal application.</p>
       <section className="settings-section">
-        <div><strong>Terminal command</strong><small>Use <code>construct .</code> for a Location or <code>construct file.md</code> to edit a Markdown file.</small></div>
+        <div><strong>Terminal command</strong><small>Use <code>{runtimeIdentity.cliCommand} .</code> for a Location or <code>{runtimeIdentity.cliCommand} file.md</code> to edit a Markdown file.</small></div>
         {cliInstallerSupported && <button className="toolbar-button" disabled={installingCli} onClick={() => void installCliCommand()}>{installingCli ? "Installing…" : cliInstallResult ? "Installed" : "Install command"}</button>}
-        {cliInstallerSupported === false && <small className="settings-result">Automatic installation is not available on Windows yet. Place construct.exe on your PATH manually.</small>}
+        {cliInstallerSupported === false && <small className="settings-result">Automatic installation is not available on Windows yet. Place {runtimeIdentity.cliCommand}.exe on your PATH manually.</small>}
         {cliInstallResult && <small className="settings-result">{cliInstallResult.path}{cliInstallResult.requiresPathSetup ? " · Add ~/.local/bin to your PATH." : ""}</small>}
       </section>
       <section className="settings-section">

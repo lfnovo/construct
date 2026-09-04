@@ -54,7 +54,7 @@ application or CLI downloads.
    - `package.json`;
    - `package-lock.json`;
    - `src-tauri/Cargo.toml`;
-   - `src-tauri/tauri.conf.json`.
+   - `src-tauri/tauri.conf.json` and the explicit channel overlays.
 3. Update `CHANGELOG.md`, user-facing documentation, and the product decision
    history.
 4. Validate the intended tag and source:
@@ -63,7 +63,7 @@ application or CLI downloads.
 npm ci
 npm run release:check -- v0.1.0
 npm run validate
-npm run build
+npm run build:release
 git status --short
 ```
 
@@ -178,11 +178,38 @@ The implementation activity and required credentials are tracked in
 
 ## Local build output
 
-The development macOS bundle remains available at:
+The ordinary development macOS bundle remains available at:
+
+```text
+src-tauri/target/release/bundle/macos/Construct Dev.app
+```
+
+The explicit released-identity bundle is generated at:
 
 ```text
 src-tauri/target/release/bundle/macos/Construct.app
 ```
+
+`npm run build` always builds `Construct Dev`; it never installs into
+`/Applications`, changes Dock or shell shortcuts, or rewrites MCP client
+settings. `npm run build:release` likewise only creates the artifact.
+
+The tagged workflow selects the released Tauri overlay and
+`CONSTRUCT_CHANNEL=release`, then verifies both app metadata and the compiled
+`construct identity` output before packaging. The Linux `okf-cli` artifact
+remains stateless and keeps its existing name, JSON schema, and exit codes.
+
+For an existing pre-separation development copy, handle the transition once,
+manually: save work and close that old copy, identify its actual bundle and
+process paths, remove or unregister only the stale copy you selected, then
+launch `/Applications/Construct.app` and verify its executable path, version,
+and bundle identifier. New builds do not repair old bundles or already-running
+processes. Existing MCP sessions keep their previous executable until their
+owning client reconnects or restarts; let helpers drain normally.
+
+Installing or promoting an artifact into `/Applications` is a separate manual
+step with backup/rollback and safe handling of running processes. An automated
+installer is outside this issue.
 
 It is useful for local smoke tests but is not a substitute for testing the
 artifact downloaded from the draft release.

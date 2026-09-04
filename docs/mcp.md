@@ -2,7 +2,7 @@
 
 **Status:** Current preview behavior on macOS, Windows, and Unix
 
-Construct can expose registered Locations to coding agents through a local
+Construct and Construct Dev can expose registered Locations to coding agents through a local
 Model Context Protocol stdio server. The server uses the same per-Location
 indexes as the desktop and gives agents read-only knowledge tools without
 granting arbitrary filesystem, Git, shell, SQL, or mutation access.
@@ -19,7 +19,7 @@ flowchart LR
     I2 --> F2["Saved Markdown in Location B"]
 ```
 
-Each Location has its own physical embedded database. The MCP process receives
+Each channel has its own application-data profile and IPC endpoint. Each Location has its own physical embedded database. The MCP process receives
 an explicit allowlist of registered Location IDs, reconciles their saved files,
 and can query only those indexes.
 
@@ -71,6 +71,11 @@ The copied JSON resembles:
 
 Construct copies the actual executable path, application-data path, and chosen
 Location IDs from the running app. Prefer this over constructing IDs manually.
+
+Construct Dev copies its own executable path, uses the
+`com.luisnovo.construct.dev` profile, and names the generated server
+`construct-dev`. Copying Dev configuration never changes an existing release
+configuration or Codex settings.
 
 If the app is moved or replaced, copy the configuration again so the command
 continues to point to an existing executable.

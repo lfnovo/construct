@@ -4,7 +4,7 @@ import type {
   ContextDocumentRef, ContextPackResponse, FileContent, FileEntry, FileSystemChange,
   GitDiff, GitInfo, IndexedDocument, LocationGitStatus,
   IndexSearchResult, IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResponse,
-  CliInstallResult, DesktopOpenRequest, LocationRecord, OpenTerminalResult, RelatedDocumentsResponse, SavedWorkspace, TabMode,
+  CliInstallResult, DesktopOpenRequest, LocationRecord, OpenTerminalResult, RelatedDocumentsResponse, RuntimeIdentity, SavedWorkspace, TabMode,
   SearchFacets, TerminalApplication, TerminalApplicationId,
 } from "./types";
 
@@ -15,6 +15,7 @@ export const api = {
   takeDesktopOpenRequests: () => invoke<DesktopOpenRequest[]>("take_desktop_open_requests"),
   cliCommandInstallSupported: () => invoke<boolean>("cli_command_install_supported"),
   installCliCommand: () => invoke<CliInstallResult>("install_cli_command"),
+  getRuntimeIdentity: () => invoke<RuntimeIdentity>("get_runtime_identity"),
   setWatchedLocations: (locations: Pick<LocationRecord, "id" | "path">[]) =>
     invoke<string[]>("set_watched_locations", { locations }),
   listMarkdownFiles: (path: string) => invoke<FileEntry[]>("list_markdown_files", { path }),

@@ -1,6 +1,6 @@
 use crate::{
     desktop_open::{self, DesktopOpenRequest},
-    diagnostics, index, knowledge, okf, okf_policy, terminal, IGNORED_DIRECTORIES,
+    diagnostics, identity, index, knowledge, okf, okf_policy, terminal, IGNORED_DIRECTORIES,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
@@ -449,8 +449,12 @@ fn load_app_state(app: AppHandle) -> Result<Value, String> {
     let path = app_data_file(&app)?;
     let source = if path.exists() {
         path
-    } else if let Some(legacy) = legacy_app_data_file(&app).filter(|candidate| candidate.exists()) {
-        legacy
+    } else if identity::IS_RELEASE {
+        if let Some(legacy) = legacy_app_data_file(&app).filter(|candidate| candidate.exists()) {
+            legacy
+        } else {
+            return Ok(serde_json::json!({}));
+        }
     } else {
         return Ok(serde_json::json!({}));
     };
@@ -487,6 +491,7 @@ fn take_desktop_open_requests(
 fn install_cli_launcher_at(
     executable: &Path,
     candidates: &[(PathBuf, bool)],
+    command_name: &str,
 ) -> Result<CliInstallResult, String> {
     use std::io::ErrorKind;
     use std::os::unix::fs::symlink;
@@ -501,7 +506,7 @@ fn install_cli_launcher_at(
                 directory.display()
             ));
         }
-        let launcher = directory.join("construct");
+        let launcher = directory.join(command_name);
         match fs::symlink_metadata(&launcher) {
             Ok(metadata) => {
                 if metadata.file_type().is_symlink() {
@@ -578,7 +583,7 @@ fn install_cli_command() -> Result<CliInstallResult, String> {
             }
         }
         candidates.push((home.join(".local/bin"), true));
-        install_cli_launcher_at(&executable, &candidates)
+        install_cli_launcher_at(&executable, &candidates, identity::CLI_COMMAND)
     }
     #[cfg(not(unix))]
     Err(
@@ -1166,6 +1171,11 @@ fn report_document_render_failure(
     Ok(())
 }
 
+#[tauri::command]
+fn get_runtime_identity() -> Result<identity::RuntimeIdentity, String> {
+    identity::runtime_identity()
+}
+
 pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
     let initial_request = desktop_open::parse_request(&arguments, &current_directory)
         .expect("desktop invocation was validated before startup");
@@ -1191,6 +1201,22 @@ pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
         .manage(DesktopOpenState::new(initial_request))
         .setup(|app| {
             let data_directory = app.path().app_data_dir().map_err(std::io::Error::other)?;
+            if app.config().identifier != identity::BUNDLE_IDENTIFIER {
+                return Err(Box::new(std::io::Error::other(format!(
+                    "Construct channel identity mismatch: Tauri uses `{}` but Rust uses `{}`.",
+                    app.config().identifier,
+                    identity::BUNDLE_IDENTIFIER
+                ))));
+            }
+            let expected_data_directory =
+                identity::default_data_dir().map_err(std::io::Error::other)?;
+            if data_directory != expected_data_directory {
+                return Err(Box::new(std::io::Error::other(format!(
+                    "Construct channel profile mismatch: desktop uses `{}` but services use `{}`.",
+                    data_directory.display(),
+                    expected_data_directory.display()
+                ))));
+            }
             let diagnostics = diagnostics::Diagnostics::new(data_directory.clone(), "construct");
             diagnostics.info("application_started", serde_json::json!({}));
             let knowledge =
@@ -1200,6 +1226,7 @@ pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
         })
         .invoke_handler(tauri::generate_handler![
             report_document_render_failure,
+            get_runtime_identity,
             load_app_state,
             save_app_state,
             take_desktop_open_requests,
@@ -1367,17 +1394,18 @@ mod tests {
         let bin = root.join("bin");
         fs::write(&executable, "desktop executable").expect("create executable placeholder");
 
-        let installed = install_cli_launcher_at(&executable, &[(bin.clone(), false)])
-            .expect("install launcher");
+        let installed =
+            install_cli_launcher_at(&executable, &[(bin.clone(), false)], "construct-dev")
+                .expect("install launcher");
         assert!(!installed.already_installed);
         assert!(!installed.requires_path_setup);
-        assert_eq!(installed.path, bin.join("construct").to_string_lossy());
+        assert_eq!(installed.path, bin.join("construct-dev").to_string_lossy());
         assert_eq!(
-            fs::read_link(bin.join("construct")).expect("read installed launcher"),
+            fs::read_link(bin.join("construct-dev")).expect("read installed launcher"),
             executable
         );
 
-        let repeated = install_cli_launcher_at(&executable, &[(bin, false)])
+        let repeated = install_cli_launcher_at(&executable, &[(bin, false)], "construct-dev")
             .expect("recognize installed launcher");
         assert!(repeated.already_installed);
 
@@ -1392,9 +1420,10 @@ mod tests {
         let bin = root.join("bin");
         fs::create_dir_all(&bin).expect("create command directory");
         fs::write(&executable, "desktop executable").expect("create executable placeholder");
-        fs::write(bin.join("construct"), "another command").expect("create conflicting command");
+        fs::write(bin.join("construct-dev"), "another command")
+            .expect("create conflicting command");
 
-        let error = install_cli_launcher_at(&executable, &[(bin, false)])
+        let error = install_cli_launcher_at(&executable, &[(bin, false)], "construct-dev")
             .expect_err("reject conflicting command");
         assert!(error.contains("already exists"));
 

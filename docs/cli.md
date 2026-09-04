@@ -2,7 +2,7 @@
 
 **Status:** Current preview behavior
 
-The `construct` executable contains both the desktop runtime and stateless CLI
+The desktop-capable executable contains both the desktop runtime and stateless CLI
 subcommands. `construct okf lint` validates a local Open Knowledge Format
 bundle without registering a Location, opening the desktop, starting the
 retrieval service, or creating Construct state.
@@ -34,6 +34,11 @@ git clone https://github.com/lfnovo/construct.git
 cd construct
 cargo build --release --manifest-path src-tauri/Cargo.toml
 ```
+
+This direct desktop build defaults to `Construct Dev` and
+`com.luisnovo.construct.dev`. For a released desktop identity, use
+`npm run build:release`; do not infer the channel from optimization level or
+the executable path.
 
 The executable is:
 
@@ -89,8 +94,9 @@ A directory is registered as a Location when necessary and selected. A `.md` or
 registered Location, or registers the file's parent directory. If the file is
 already open, its existing tab and unsaved buffer are preserved.
 
-On macOS and Unix, **Settings → Install command** installs a fixed `construct`
-launcher without replacing an existing command. If Construct falls back to
+On macOS and Unix, **Settings → Install command** installs a fixed channel
+launcher (`construct` for the release app, `construct-dev` for Construct Dev)
+without replacing an existing command. If Construct falls back to
 `~/.local/bin`, add that directory to your `PATH`. Automatic installation is not
 available on Windows yet; place `construct.exe` on your `PATH` manually.
 

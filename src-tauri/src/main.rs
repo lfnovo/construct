@@ -1,6 +1,7 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum InvocationMode {
     Desktop,
+    Identity,
     Mcp,
     Okf,
     Service,
@@ -8,6 +9,7 @@ enum InvocationMode {
 
 fn invocation_mode(arguments: &[String]) -> InvocationMode {
     match arguments.first().map(String::as_str) {
+        Some("identity") => InvocationMode::Identity,
         Some("okf") => InvocationMode::Okf,
         Some("service") => InvocationMode::Service,
         Some("mcp") if arguments.get(1).map(String::as_str) == Some("serve") => InvocationMode::Mcp,
@@ -37,6 +39,15 @@ fn main() {
         }
     }
 
+    #[cfg(feature = "desktop")]
+    if mode == InvocationMode::Identity {
+        if let Err(error) = construct_lib::run_identity_command() {
+            eprintln!("construct identity: {error}");
+            std::process::exit(2);
+        }
+        return;
+    }
+
     #[cfg(not(feature = "desktop"))]
     {
         eprintln!(
@@ -52,6 +63,7 @@ fn main() {
             InvocationMode::Service => Some(construct_lib::run_service_command(&arguments[1..])),
             InvocationMode::Mcp => Some(construct_lib::run_mcp_command(&arguments[2..])),
             InvocationMode::Desktop => None,
+            InvocationMode::Identity => unreachable!("identity mode exits before desktop dispatch"),
             InvocationMode::Okf => unreachable!("OKF mode exits before desktop dispatch"),
         };
         if let Some(result) = result {
@@ -93,6 +105,14 @@ mod tests {
         assert_eq!(
             invocation_mode(&arguments(&["mcp"])),
             InvocationMode::Desktop
+        );
+    }
+
+    #[test]
+    fn classifies_identity_as_a_console_mode() {
+        assert_eq!(
+            invocation_mode(&arguments(&["identity"])),
+            InvocationMode::Identity
         );
     }
 

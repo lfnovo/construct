@@ -14,9 +14,11 @@
     "node": ">=22 <23"
   },
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "node scripts/build-desktop.mjs dev dev",
     "dev:web": "vite --host 127.0.0.1 --port 1420",
-    "build": "tauri build --bundles app",
+    "build": "node scripts/build-desktop.mjs dev build",
+    "build:release": "node scripts/build-desktop.mjs release build",
+    "check:channel": "node scripts/check-channel-artifact.mjs",
     "build:web": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
     "check:docs": "node scripts/check-docs.mjs",

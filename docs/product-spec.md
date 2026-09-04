@@ -710,6 +710,18 @@ relações diretas, context packs e o acesso MCP.
   automática é oferecida somente em macOS/Unix; no Windows, Settings orienta o
   usuário a colocar `construct.exe` no `PATH` manualmente.
 
+- **OPEN-008:** O aplicativo released usa a identidade `Construct` /
+  `com.luisnovo.construct` e o launcher `construct`; o canal de desenvolvimento
+  usa `Construct Dev` / `com.luisnovo.construct.dev` e `construct-dev`. O canal
+  não é inferido pelo modo otimizado, caminho do executável, diretório atual ou
+  tag Git. `npm run build` e builds Cargo diretos selecionam Dev; somente
+  `npm run build:release` e CI de tag selecionam a identidade released.
+- **OPEN-009:** Os canais mantêm perfis de aplicação, serviço, MCP, locks,
+  sockets/pipes, diagnósticos e índices independentes. `--data-dir` explícito
+  continua autoritativo para service/MCP. A instalação em Applications, Dock,
+  launchers e configuração de clientes MCP permanece manual e não é executada
+  por builds ou pelo uso de Dev.
+
 ## 11. Estados e tratamento de erros
 
 ### 11.1 Estado vazio inicial
@@ -1178,6 +1190,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-08-04 | Ampliar o handoff externo com Warp no macOS e Windows e usar o host de console padrão como fallback nativo no Windows. |
 | 2026-08-07 | Exibir a situação Git por Location e consultar a branch remota por referências somente leitura, sem fetch, pull ou push. |
 | 2026-09-03 | Isolar a composição de comentários da renderização do Markdown, criar destaques declarativos e preservar acesso ao buffer em falhas de visualização, sem autosave. |
+| 2026-09-04 | Separar Construct e Construct Dev por identidade compilada, perfil padrão, IPC, launcher, MCP e comandos de build explícitos; preservar o perfil released e exigir instalação manual. |
 
 ## 24. Histórico do documento
 
