@@ -1,0 +1,68 @@
+src/DocumentErrorBoundary.tsx
+  s_d5b0b8d6195a18::t_b79f42b9bd491b 1-8,10-31,36-40
+  s_d5b0b8d6195a18::t_a267b4efadc959 9,32-35
+CHANGELOG.md
+  s_d5b0b8d6195a18::t_6336fbea8a08ce 9-17
+package.json
+  s_d5b0b8d6195a18::t_b79f42b9bd491b 28,60,67-68
+src/reviewHighlights.ts
+  s_d5b0b8d6195a18::t_e35322b142de3c 101-110
+  s_d5b0b8d6195a18::t_be3ab052d78428 1-7,9-19,22-100,111-114
+  s_d5b0b8d6195a18::t_a267b4efadc959 8,20-21
+docs/user-guide.md
+  s_d5b0b8d6195a18::t_6336fbea8a08ce 231-237
+src/api.ts
+  s_d5b0b8d6195a18::t_b79f42b9bd491b 7,12
+docs/development.md
+  s_d5b0b8d6195a18::t_6336fbea8a08ce 129-134
+src/reviewDom.ts
+  s_d5b0b8d6195a18::t_be3ab052d78428 1,3-4
+  s_d5b0b8d6195a18::t_0d84c5b0bf6e23 13-27,29
+src/MarkdownPreview.tsx
+  s_d5b0b8d6195a18::t_a267b4efadc959 12,20-22,26,104-112,114,116,120-125,129-133
+  s_d5b0b8d6195a18::t_dae53a7982a62d 1,75-76,78-79,82-83,85-103,113,128,134
+  s_d5b0b8d6195a18::t_0d84c5b0bf6e23 2,68-74,77,80-81,84
+  s_d5b0b8d6195a18::t_b79f42b9bd491b 10-11,19,25,27,117-119,137
+src/ReviewEditor.tsx
+  s_d5b0b8d6195a18::t_c435b76ebce744 170-173
+  s_d5b0b8d6195a18::t_a267b4efadc959 1,46-47,77
+  s_d5b0b8d6195a18::t_b79f42b9bd491b 9-10,67-68,70-71,99-100
+docs/product-spec.md
+  s_d5b0b8d6195a18::t_6336fbea8a08ce 381-389,1176,1203
+tests/review-rendering.test.mjs
+  s_d5b0b8d6195a18::t_e35322b142de3c 1-4,7-17,19-21,23-27,29-30,32-39,42-184,260
+  s_d5b0b8d6195a18::t_bf5f2c3878eee9 5,18,31,40-41,198-259
+  s_d5b0b8d6195a18::t_0d84c5b0bf6e23 6,22,185-197
+  s_d5b0b8d6195a18::t_2760ece2365533 28
+docs/architecture.md
+  s_d5b0b8d6195a18::t_6336fbea8a08ce 44-45,345-348,350-363
+src/reviewAnchors.ts
+  s_d5b0b8d6195a18::t_529d065a457e50 66-85
+src-tauri/src/desktop.rs
+  s_d5b0b8d6195a18::t_0971824e481706 1143-1157,1162-1168,1202
+  s_d5b0b8d6195a18::t_e35322b142de3c 1244-1248,1253,1260-1261
+  s_d5b0b8d6195a18::t_e81b65acad2c99 1158-1161,1249-1252,1254-1259
+tests/review-highlights.test.mjs
+  s_d5b0b8d6195a18::t_7e336a003897d6 1-67
+src/App.tsx
+  s_d5b0b8d6195a18::t_a267b4efadc959 1299
+  s_d5b0b8d6195a18::t_0971824e481706 8,1285,1303
+package-lock.json
+  s_d5b0b8d6195a18::t_69116693f7feb8 37,44-45,67-87,791-905,3688-3697,3946-3959,4465-4478,4502-4508,5223-5235,5256-5283,5420-5426,5441-5480,6657-6663,7360-7366,7379-7391,7494-7500,7527-7572,7615-7618,7622,7625,7628-7631,7634-7640,7643-7646,7648,7651-8172,8482-8494,8505-8552,8579-8617
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6672c656c1e4197bef78bd96dd2715e237c047c5",
+  "prompts": {},
+  "sessions": {
+    "s_d5b0b8d6195a18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0351c-9ae2-7372-b3ba-0c1687817c65",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
