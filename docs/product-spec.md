@@ -5,8 +5,8 @@
 | Campo | Valor |
 | --- | --- |
 | Status | Preview funcional em fase de hardening |
-| Versão | 0.16 |
-| Data | 29 de julho de 2026 |
+| Versão | 0.21 |
+| Data | 3 de setembro de 2026 |
 | Plataforma principal | macOS |
 | Preview adicional | Windows x64 com índice local e MCP |
 | Plataforma futura | Linux |
