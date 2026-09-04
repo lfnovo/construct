@@ -1,0 +1,21 @@
+.github/workflows/ci.yml
+  s_eb5bd5625160cb::t_7a92c6f0f27947 169
+src-tauri/src/desktop.rs
+  s_eb5bd5625160cb::t_7a92c6f0f27947 434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "5758ae9b6ec825eec6a79bf65140f6dfe901ec9e",
+  "prompts": {},
+  "sessions": {
+    "s_eb5bd5625160cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06e35-03e0-7ca2-8f58-ca8284b5f9f9",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
