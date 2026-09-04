@@ -250,18 +250,28 @@ test("an outer panel failure preserves the final keystroke and selection through
 test("raw HTML cannot impersonate renderer-owned anchor exclusions", async () => {
   for (const className of ["mermaid", "mermaid-error", "missing-image"]) {
     const body = `<div class="${className}" data-review-generated="true">same</div>\n\nsame`;
-    const view = await mountReview(body);
-    try {
-      const preview = view.container.querySelector(".markdown-preview");
-      assert.equal(preview.querySelectorAll("[data-review-generated]").length, 0, "the sanitizer rejects forged markers");
-      // Even if presentation classes are added later, they cannot exclude prose.
-      preview.querySelector("div").className = className;
-      await type(await selectParagraph(view.container), "Only the second same");
-      await click([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Add comment"));
-      assert.equal(preview.querySelector("div").querySelectorAll("mark").length, 0);
-      assert.equal(preview.querySelector("p mark").textContent, "same");
-      assert.equal(view.container.querySelectorAll(".review-comment.detached").length, 0);
-    } finally { await view.close(); }
+    for (const selectedTag of ["div", "p"]) {
+      const view = await mountReview(body);
+      try {
+        const preview = view.container.querySelector(".markdown-preview");
+        assert.equal(preview.querySelectorAll("[data-review-generated]").length, 0, "the sanitizer rejects forged markers");
+        // A presentation class must not exclude the div's prose, either when
+        // selecting inside it or when counting the offset of the later paragraph.
+        preview.querySelector("div").className = className;
+        const selected = preview.querySelector(selectedTag);
+        const range = document.createRange();
+        range.selectNodeContents(selected.firstChild);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        await act(() => selected.dispatchEvent(new MouseEvent("mouseup", { bubbles: true })));
+        await type(view.container.querySelector("textarea"), `Only the ${selectedTag} occurrence`);
+        await click([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Add comment"));
+        assert.equal(preview.querySelector(selectedTag).querySelector("mark").textContent, "same");
+        const otherTag = selectedTag === "div" ? "p" : "div";
+        assert.equal(preview.querySelector(otherTag).querySelectorAll("mark").length, 0);
+        assert.equal(view.container.querySelectorAll(".review-comment.detached").length, 0);
+      } finally { await view.close(); }
+    }
   }
 });
 
