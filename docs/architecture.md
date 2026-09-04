@@ -41,6 +41,9 @@ The frontend lives in `src/`.
 | `CodeEditor.tsx` | CodeMirror lifecycle and Markdown editing |
 | `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
 | `ReviewEditor.tsx` | Rendered text selection, review composer, comment list, and clipboard handoff |
+| `ReviewDraft.tsx` | In-memory composer recovery above the document error boundary, without per-keystroke workspace updates |
+| `reviewHighlights.ts` | Batched, declarative review decorations in the sanitized Markdown tree |
+| `DocumentErrorBoundary.tsx` | Document-view failure isolation, Source recovery, and content-free diagnostics |
 | `SearchWorkspace.tsx` | Dedicated local knowledge search, visible scope and filters, result selection, direct-link pivots, context-pack clipboard actions, recent-query controls, and pane navigation |
 | `HealthWorkspace.tsx` | Interactive OKF health summary, finding filters, source navigation, explicit refresh, and agent handoff |
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
@@ -340,9 +343,33 @@ New review entries may add a backward-compatible passage locator containing
 normalized offsets and bounded surrounding context. `reviewAnchors.ts` resolves
 the original range, contextual repeated matches, and unique legacy quotes
 without guessing. Review highlights are temporary render decorations:
-`reviewDom.ts` maps normalized ranges onto rendered text nodes, while
+`reviewHighlights.ts` indexes the sanitized Markdown text once per review pass
+and creates declarative marks before React owns the DOM. Overlapping comments
+retain separate navigation targets. `reviewDom.ts` only reads the rendered
+selection; it never splits, reparents, or normalizes React-owned text nodes.
 `ReviewEditor.tsx` owns active-comment state and bidirectional navigation.
-Unresolved comments remain durable and are presented as detached.
+Unresolved comments remain durable and are presented as detached. Generated
+Mermaid labels and image-error UI are excluded from the prose anchor projection.
+
+Comment-composer updates do not rerender the memoized Markdown surface.
+Hoisted code, link, and image renderer identities remain stable even when
+workspace callbacks change; a context carries current link-routing data.
+This preserves DOM identity and prevents unnecessary diagram/image restarts.
+
+Document-mode error boundaries leave workspace state and the tab buffer owned
+by `App.tsx`, with explicit Source and retry actions. Review also isolates its
+Markdown surface so a renderer failure does not discard the pending composer.
+An in-memory `ReviewDraftProvider`, keyed to the current tab above the outer
+boundary, retains the selection and latest typed comment if the entire Review
+panel fails. Event-time store writes do not rerender the workspace. Retry or a
+Source/Review round trip in that tab restores the draft; Add comment or Cancel
+clears it. This is temporary recovery state, not autosave or persisted review data.
+Source failures offer Retry and keep the workspace Save action available, without
+a no-op Open Source button. Generated-content exclusions use renderer-owned
+attributes added after sanitization, not document-supplied presentation classes.
+The native `report_document_render_failure` command accepts only a closed set of
+view modes and writes `document_render_failed` to the existing bounded local
+diagnostics. Exception text, stack traces, paths, and Markdown are not accepted.
 
 `DocumentModeSurface.tsx` captures runtime scroll state for each open tab and
 mode. Explicit mode changes transfer a bounded semantic text anchor; the target

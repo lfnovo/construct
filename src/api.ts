@@ -4,11 +4,12 @@ import type {
   ContextDocumentRef, ContextPackResponse, FileContent, FileEntry, FileSystemChange,
   GitDiff, GitInfo, IndexedDocument, LocationGitStatus,
   IndexSearchResult, IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResponse,
-  CliInstallResult, DesktopOpenRequest, LocationRecord, OpenTerminalResult, RelatedDocumentsResponse, SavedWorkspace,
+  CliInstallResult, DesktopOpenRequest, LocationRecord, OpenTerminalResult, RelatedDocumentsResponse, SavedWorkspace, TabMode,
   SearchFacets, TerminalApplication, TerminalApplicationId,
 } from "./types";
 
 export const api = {
+  reportDocumentRenderFailure: (mode: TabMode) => invoke<void>("report_document_render_failure", { mode }),
   loadState: () => invoke<Partial<SavedWorkspace>>("load_app_state"),
   saveState: (state: SavedWorkspace) => invoke<void>("save_app_state", { state }),
   takeDesktopOpenRequests: () => invoke<DesktopOpenRequest[]>("take_desktop_open_requests"),

@@ -1140,6 +1140,32 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum DocumentRenderMode {
+    Preview,
+    Edit,
+    Review,
+    Source,
+    Diff,
+}
+
+#[tauri::command]
+fn report_document_render_failure(
+    app: tauri::AppHandle,
+    mode: DocumentRenderMode,
+) -> Result<(), String> {
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    diagnostics::Diagnostics::new(directory, "construct").warn(
+        "document_render_failed",
+        serde_json::json!({ "mode": mode }),
+    );
+    Ok(())
+}
+
 pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
     let initial_request = desktop_open::parse_request(&arguments, &current_directory)
         .expect("desktop invocation was validated before startup");
@@ -1173,6 +1199,7 @@ pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            report_document_render_failure,
             load_app_state,
             save_app_state,
             take_desktop_open_requests,
@@ -1213,6 +1240,24 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static TEMPORARY_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn document_render_diagnostics_accept_only_known_modes() {
+        for mode in ["preview", "edit", "review", "source", "diff"] {
+            let parsed: DocumentRenderMode =
+                serde_json::from_value(serde_json::json!(mode)).expect("known mode");
+            assert_eq!(
+                serde_json::to_value(parsed).unwrap(),
+                serde_json::json!(mode)
+            );
+        }
+        assert!(
+            serde_json::from_value::<DocumentRenderMode>(serde_json::json!(
+                "private document content"
+            ))
+            .is_err()
+        );
+    }
 
     fn temporary_root() -> PathBuf {
         let path = std::env::temp_dir().join(format!(

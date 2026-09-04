@@ -63,6 +63,26 @@ export function resolveReviewAnchor(
   anchor?: ReviewAnchor,
 ): ResolvedReviewAnchor | null {
   const normalizedText = normalizeReviewText(text);
+  return resolveNormalizedReviewAnchor(normalizedText, quote, anchor);
+}
+
+/** Resolve a review pass against one normalized document, not one copy per comment. */
+export function resolveReviewAnchors(
+  text: string,
+  comments: readonly { id: string; quote: string; anchor?: ReviewAnchor }[],
+) {
+  const normalizedText = normalizeReviewText(text);
+  return comments.flatMap((comment, index) => {
+    const range = resolveNormalizedReviewAnchor(normalizedText, comment.quote, comment.anchor);
+    return range ? [{ ...range, id: comment.id, number: index + 1 }] : [];
+  });
+}
+
+function resolveNormalizedReviewAnchor(
+  normalizedText: string,
+  quote: string,
+  anchor?: ReviewAnchor,
+): ResolvedReviewAnchor | null {
   const normalizedQuote = normalizeReviewText(quote);
   if (!normalizedQuote) return null;
 
