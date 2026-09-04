@@ -1,0 +1,49 @@
+.github/workflows/ci.yml
+  s_eb5bd5625160cb::t_3989cdeaa39e16 166-168
+index.html
+  s_eb5bd5625160cb::t_94195c0c078c75 7
+scripts/build-desktop.mjs
+  s_eb5bd5625160cb::t_94195c0c078c75 20-25
+src-tauri/tauri.dev.conf.json
+  s_eb5bd5625160cb::t_94195c0c078c75 8-13
+src/App.tsx
+  s_eb5bd5625160cb::t_c221a272b5ac54 52-55,918-920
+  s_eb5bd5625160cb::t_2236405fabe998 921
+src/vite-env.d.ts
+  s_eb5bd5625160cb::t_bcd13f6ae96d99 1-7
+docs/product-spec.md
+  s_eb5bd5625160cb::t_677e8838d699bf 1221
+src-tauri/src/desktop.rs
+  s_eb5bd5625160cb::t_fb84a533e36fa2 1398,1407,1411,1426,1429
+  s_eb5bd5625160cb::t_08bc4a162cb243 1403-1405
+  s_eb5bd5625160cb::t_a491c9bd379e34 1406
+src-tauri/tauri.release.conf.json
+  s_eb5bd5625160cb::t_94195c0c078c75 8-13
+tests/config.test.mjs
+  s_eb5bd5625160cb::t_29ce67505afe31 23-32
+scripts/check-channel-artifact.mjs
+  s_eb5bd5625160cb::t_03ba0640dbc587 17,19,21-24,26,28,47
+src-tauri/src/identity.rs
+  s_eb5bd5625160cb::t_08bc4a162cb243 84
+  s_eb5bd5625160cb::t_0e5710f04eaa72 62-81
+tests/ci-paths.test.mjs
+  s_eb5bd5625160cb::t_ba53f365efa765 71-88
+docs/releasing.md
+  s_eb5bd5625160cb::t_677e8838d699bf 57-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7189755faf17c9c4497d255cf6d637246ec66b0b",
+  "prompts": {},
+  "sessions": {
+    "s_eb5bd5625160cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06e35-03e0-7ca2-8f58-ca8284b5f9f9",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
