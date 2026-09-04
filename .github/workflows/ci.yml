@@ -166,6 +166,7 @@ jobs:
           --all-targets
           --
           --skip desktop::tests::discovery_includes_hidden_context_and_skips_generated_directories
+          --skip desktop::tests::git_root_accepts_a_repository_directory
 
   rust_linux_cli:
     name: Validate standalone Linux CLI

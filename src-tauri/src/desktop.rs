@@ -431,7 +431,7 @@ fn collect_files(root: &Path) -> Result<Vec<FileEntry>, String> {
             .strip_prefix(root)
             .map_err(|error| format!("Could not calculate the relative path: {error}"))?
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/");
         entries.push(FileEntry {
             path: entry.path().to_string_lossy().to_string(),
             relative_path,
