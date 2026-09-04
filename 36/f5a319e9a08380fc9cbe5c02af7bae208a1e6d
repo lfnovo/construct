@@ -1,0 +1,19 @@
+tests/review-rendering.test.mjs
+  s_d5b0b8d6195a18::t_f5d9ce5e63418d 253-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "36f5a319e9a08380fc9cbe5c02af7bae208a1e6d",
+  "prompts": {},
+  "sessions": {
+    "s_d5b0b8d6195a18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0351c-9ae2-7372-b3ba-0c1687817c65",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
