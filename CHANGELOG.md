@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-04
+
 ### Fixed
 
 - Kept Review comment typing independent of full-document Markdown processing
