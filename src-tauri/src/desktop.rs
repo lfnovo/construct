@@ -430,8 +430,10 @@ fn collect_files(root: &Path) -> Result<Vec<FileEntry>, String> {
             .path()
             .strip_prefix(root)
             .map_err(|error| format!("Could not calculate the relative path: {error}"))?
-            .to_string_lossy()
-            .replace('\\', "/");
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/");
         entries.push(FileEntry {
             path: entry.path().to_string_lossy().to_string(),
             relative_path,
@@ -1297,6 +1299,20 @@ mod tests {
         path
     }
 
+    fn remove_temporary_root(path: PathBuf) {
+        let attempts = if cfg!(windows) { 10 } else { 1 };
+        for attempt in 0..attempts {
+            match fs::remove_dir_all(&path) {
+                Ok(()) => return,
+                Err(error) if attempt + 1 < attempts => {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    let _ = error;
+                }
+                Err(error) => panic!("remove temporary directory: {error}"),
+            }
+        }
+    }
+
     #[test]
     fn recognizes_supported_markdown_extensions() {
         assert!(is_markdown(Path::new("notes.md")));
@@ -1343,7 +1359,7 @@ mod tests {
             root.canonicalize().expect("canonicalize repository")
         );
 
-        fs::remove_dir_all(root).expect("remove temporary directory");
+        remove_temporary_root(root);
     }
 
     #[test]
@@ -1474,6 +1490,18 @@ mod tests {
             .map(|file| file.relative_path.as_str())
             .collect::<Vec<_>>();
         assert_eq!(paths, vec![".agents/memory.md", "README.md"]);
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovery_preserves_backslashes_in_unix_filenames() {
+        let root = temporary_root();
+        fs::write(root.join("report\\2024.md"), "# Report").expect("create report");
+
+        let files = collect_files(&root).expect("discover files");
+        assert_eq!(files[0].relative_path, "report\\2024.md");
 
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
