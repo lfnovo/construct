@@ -1300,7 +1300,7 @@ mod tests {
     }
 
     fn remove_temporary_root(path: PathBuf) {
-        let attempts = if cfg!(windows) { 10 } else { 1 };
+        let attempts = 10;
         for attempt in 0..attempts {
             match fs::remove_dir_all(&path) {
                 Ok(()) => return,
