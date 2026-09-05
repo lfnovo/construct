@@ -1491,7 +1491,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(paths, vec![".agents/memory.md", "README.md"]);
 
-        fs::remove_dir_all(root).expect("remove temporary directory");
+        remove_temporary_root(root);
     }
 
     #[cfg(unix)]
@@ -1503,6 +1503,6 @@ mod tests {
         let files = collect_files(&root).expect("discover files");
         assert_eq!(files[0].relative_path, "report\\2024.md");
 
-        fs::remove_dir_all(root).expect("remove temporary directory");
+        remove_temporary_root(root);
     }
 }
