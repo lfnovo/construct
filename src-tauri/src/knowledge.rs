@@ -1,5 +1,6 @@
 use crate::{
     diagnostics::Diagnostics,
+    identity,
     index::{
         self, ActivityKind, BuildContextPackRequest, ContextPackResponse, IndexStatus,
         IndexedDocumentView, KnowledgeSearchRequest, KnowledgeSearchResponse, ListDocumentsRequest,
@@ -323,9 +324,7 @@ impl KnowledgeClient {
 }
 
 pub(crate) fn default_data_dir() -> Result<PathBuf, String> {
-    dirs::data_dir()
-        .map(|path| path.join("com.luisnovo.construct"))
-        .ok_or_else(|| "Could not locate the operating system data directory.".to_string())
+    identity::default_data_dir()
 }
 
 pub(crate) fn load_locations(data_dir: &Path) -> Result<Vec<LocationDefinition>, String> {
@@ -371,7 +370,7 @@ pub(crate) fn mcp_configuration(
     }
     serde_json::to_string_pretty(&json!({
         "mcpServers": {
-            "construct": {
+            (identity::MCP_SERVER_NAME): {
                 "command": executable,
                 "args": arguments
             }
@@ -1166,7 +1165,8 @@ mod tests {
     }
 
     fn configuration_arguments(configuration: &str) -> Vec<String> {
-        serde_json::from_str::<Value>(configuration).unwrap()["mcpServers"]["construct"]["args"]
+        serde_json::from_str::<Value>(configuration).unwrap()["mcpServers"]
+            [identity::MCP_SERVER_NAME]["args"]
             .as_array()
             .unwrap()
             .iter()
@@ -1211,6 +1211,15 @@ mod tests {
         let configuration =
             mcp_configuration(Path::new("/tmp/construct-profile"), &[], true).unwrap();
         assert!(configuration_arguments(&configuration).contains(&"--allow-all".to_string()));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_named_pipes_are_isolated_by_profile_directory() {
+        let dev_profile = Path::new(r"C:\Users\test\AppData\Local\com.luisnovo.construct.dev");
+        let release_profile = Path::new(r"C:\Users\test\AppData\Local\com.luisnovo.construct");
+
+        assert_ne!(pipe_name(dev_profile), pipe_name(release_profile));
     }
 
     #[test]

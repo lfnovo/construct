@@ -26,6 +26,10 @@ const BUNDLE_CONFIG = new Set([
   "src-tauri/Cargo.toml",
   "src-tauri/build.rs",
   "src-tauri/tauri.conf.json",
+  "src-tauri/tauri.dev.conf.json",
+  "src-tauri/tauri.release.conf.json",
+  "scripts/build-desktop.mjs",
+  "scripts/check-channel-artifact.mjs",
 ]);
 
 const FORCE_ALL = new Set([

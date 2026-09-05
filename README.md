@@ -135,10 +135,13 @@ read-only. See:
 npm ci
 npm run validate
 npm run build
+npm run build:release
 ```
 
-The macOS app bundle is written to
-`src-tauri/target/release/bundle/macos/Construct.app`.
+`npm run build` writes the isolated optimized development app to
+`src-tauri/target/release/bundle/macos/Construct Dev.app`.
+`npm run build:release` explicitly writes the released `Construct.app`.
+Neither command installs an app or changes Dock, terminal, or MCP settings.
 
 Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md). Changes to
 persistence, security boundaries, file formats, or product behavior should

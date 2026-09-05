@@ -50,12 +50,16 @@ npm ci
 npm run dev
 ```
 
-To create a release-mode application bundle:
+To create the isolated optimized development application bundle:
 
 ```bash
 npm run build
-open src-tauri/target/release/bundle/macos/Construct.app
+open "src-tauri/target/release/bundle/macos/Construct Dev.app"
 ```
+
+The Dev app uses a separate profile and never updates `/Applications`, Dock,
+terminal shortcuts, or MCP client settings. Use `npm run build:release` only
+when you intentionally need the released `Construct.app` identity.
 
 ### Install a tagged preview
 
@@ -355,6 +359,12 @@ directory. On macOS the default is:
 ```text
 ~/Library/Application Support/com.luisnovo.construct
 ```
+
+Construct Dev uses the separate directory
+`~/Library/Application Support/com.luisnovo.construct.dev`. The two profiles
+keep workspace state, history, settings, tokens, locks, IPC, diagnostics, and
+derived indexes separate. A new Dev launch starts empty; production state is
+not copied or migrated into it.
 
 It includes:
 

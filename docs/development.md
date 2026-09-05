@@ -44,6 +44,12 @@ Run the Tauri desktop application with the Vite development server:
 npm run dev
 ```
 
+Development always uses the separate `Construct Dev` channel:
+`com.luisnovo.construct.dev`. It has its own application-data profile, local
+service, IPC endpoint, indexes, and launcher (`construct-dev`). A direct Cargo
+desktop build also defaults to this channel; use the npm commands below for
+the supported build contract.
+
 Run only the web frontend when working on presentation that does not need native
 commands:
 
@@ -62,7 +68,7 @@ Build the frontend:
 npm run build:web
 ```
 
-Build the release-mode desktop application:
+Build the optimized development desktop application:
 
 ```bash
 npm run build
@@ -71,7 +77,23 @@ npm run build
 On macOS, the app bundle is:
 
 ```text
-src-tauri/target/release/bundle/macos/Construct.app
+src-tauri/target/release/bundle/macos/Construct Dev.app
+```
+
+Build the released identity explicitly, without installing or publishing it:
+
+```bash
+npm run build:release
+```
+
+This produces `Construct.app` with identifier
+`com.luisnovo.construct` and the existing production profile. Rebuilding in
+either order is supported; the channel is compiled into Rust and the Tauri
+configuration is selected explicitly. Verify a bundle with:
+
+```bash
+npm run check:channel -- dev "src-tauri/target/release/bundle/macos/Construct Dev.app"
+npm run check:channel -- release "src-tauri/target/release/bundle/macos/Construct.app"
 ```
 
 Build only the Rust executable:
@@ -81,8 +103,11 @@ cargo build --manifest-path src-tauri/Cargo.toml
 cargo build --release --manifest-path src-tauri/Cargo.toml
 ```
 
-The debug executable is `src-tauri/target/debug/construct`. The same executable
-dispatches desktop, `service`, `mcp serve`, and `okf lint` modes.
+Direct Cargo desktop builds default to Dev, including optimized builds. The
+same executable dispatches desktop, `service`, `mcp serve`, `identity`, and
+`okf lint` modes. `construct identity` prints the compiled channel, bundle
+identifier, CLI name, and default profile for local verification. Production
+desktop builds must use `npm run build:release`.
 
 Build the isolated linter used by the Linux release and CI Action:
 
@@ -108,7 +133,7 @@ Run the complete source validator:
 npm run validate
 ```
 
-Run the release-mode app build separately:
+Run the optimized Dev app build separately:
 
 ```bash
 npm run build
@@ -142,8 +167,8 @@ npm run check:docs
 Pull request CI classifies changed paths before starting expensive jobs.
 Documentation-only changes run the documentation check; frontend changes run
 the web checks on Linux; native changes run Rust checks on macOS and Windows.
-The release-mode macOS bundle is reserved for bundle-critical pull request
-changes and code merged to `main`.
+The Dev macOS bundle is the normal smoke artifact. The released identity is
+reserved for `npm run build:release` and tagged release CI.
 
 ### Focused web checks
 
@@ -175,6 +200,10 @@ Pass another executable path directly when needed:
 ```bash
 node scripts/mcp-smoke.mjs /absolute/path/to/construct
 ```
+
+Use a temporary `--data-dir` for CLI/MCP tests. The default Dev profile is
+isolated from the installed release profile, but tests must not rely on either
+personal profile.
 
 The smoke test creates synthetic temporary Locations and removes them after the
 run.
