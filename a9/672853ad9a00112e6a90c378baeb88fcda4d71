@@ -1,0 +1,19 @@
+src-tauri/src/desktop.rs
+  s_eb5bd5625160cb::t_a3f99127d162d6 1494,1506
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a9672853ad9a00112e6a90c378baeb88fcda4d71",
+  "prompts": {},
+  "sessions": {
+    "s_eb5bd5625160cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06e35-03e0-7ca2-8f58-ca8284b5f9f9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
