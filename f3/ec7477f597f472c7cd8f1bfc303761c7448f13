@@ -1,0 +1,50 @@
+src-tauri/src/desktop.rs
+  s_3c4908fbc29b96::t_63733bc90c1437 554-556
+  s_3c4908fbc29b96::t_e8ef0ebdf426f7 499,512,527-530,533,541-542,558,1462-1463,1491-1510
+  s_3c4908fbc29b96::t_f0083419c0244d 513
+  s_3c4908fbc29b96::t_430fe65153e789 598,1511-1536,1538-1539
+  s_3c4908fbc29b96::t_6378d58e82c015 525-526,532,540,543,546,553,557,559-566,568-574,580,587,594-597,599-600
+  s_3c4908fbc29b96::t_abc18223ea5e95 531
+  s_3c4908fbc29b96::t_885ca53675224b 601-602
+  s_3c4908fbc29b96::t_7aacd346e4033a 1537
+  s_3c4908fbc29b96::t_e1301ca495d9e5 1540
+docs/architecture.md
+  s_3c4908fbc29b96::t_430fe65153e789 87-99
+src-tauri/src/main.rs
+  s_3c4908fbc29b96::t_6378d58e82c015 4-5,74,87-96,98,103-113,116,141-156
+  s_3c4908fbc29b96::t_d9e59b7e394af2 14-19
+  s_3c4908fbc29b96::t_6b6fe72b8c17b4 157-158
+src-tauri/Cargo.toml
+  s_3c4908fbc29b96::t_6378d58e82c015 58-60
+src-tauri/src/desktop_launch.rs
+  s_3c4908fbc29b96::t_6378d58e82c015 1-68,70-77
+  s_3c4908fbc29b96::t_d9e59b7e394af2 69
+docs/product-spec.md
+  s_3c4908fbc29b96::t_63733bc90c1437 725-731
+  s_3c4908fbc29b96::t_430fe65153e789 1202
+  s_3c4908fbc29b96::t_67abe912030c33 732
+src-tauri/src/lib.rs
+  s_3c4908fbc29b96::t_6378d58e82c015 9-10,70-77
+  s_3c4908fbc29b96::t_e8ef0ebdf426f7 78,80-89
+  s_3c4908fbc29b96::t_51c3d45ab8c21a 79
+docs/cli.md
+  s_3c4908fbc29b96::t_430fe65153e789 103-108
+src-tauri/Cargo.lock
+  s_3c4908fbc29b96::t_d30276cad29a94 936
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f3ec7477f597f472c7cd8f1bfc303761c7448f13",
+  "prompts": {},
+  "sessions": {
+    "s_3c4908fbc29b96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a091d1-037c-7ab0-9170-b9c034cf21f7",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
