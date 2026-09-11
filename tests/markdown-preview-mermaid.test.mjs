@@ -45,13 +45,14 @@ test("renders independent Mermaid blocks outside code fences and keeps ordinary 
     calls.push({ id, source });
     return { svg: `<svg data-render-id="${id}"><text>${source}</text></svg>` };
   });
-  const view = await mount("```mermaid\ngraph TD; A-->B\n```\n\n```mermaid\nsequenceDiagram\n  A->>B: hello\n```\n\n```js\nconst answer = 42;\n```");
+  const view = await mount("```mermaid\ngraph TD; A-->B\n```\n\n```mermaid\nsequenceDiagram\n  A->>B: hello\n```\n\n```js\nconst answer = 42;\n```\n\n```mermaid-extra\nordinary code\n```");
   try {
     await act(async () => { await Promise.resolve(); });
     assert.equal(view.container.querySelectorAll(".mermaid svg").length, 2);
     assert.equal(new Set(calls.map((call) => call.id)).size, 2);
     assert.equal(view.container.querySelectorAll("pre .mermaid").length, 0);
     assert.equal(view.container.querySelector("pre code.language-js").textContent, "const answer = 42;\n");
+    assert.equal(view.container.querySelector("pre code.language-mermaid-extra").textContent, "ordinary code\n");
     assert.equal(mock.initialized.at(-1).securityLevel, "strict");
   } finally { await view.close(); mock.restore(); }
 });

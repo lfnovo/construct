@@ -82,7 +82,7 @@ function MarkdownCode(input: ComponentPropsWithoutRef<"code"> & ExtraProps) {
 
 function mermaidSource(children: ReactNode): string | null {
   const child = Children.toArray(children).find((node) => isValidElement<{ className?: string; children?: ReactNode }>(node));
-  if (!child || !/\blanguage-mermaid\b/.test(child.props.className || "")) return null;
+  if (!child || !/(?:^|\s)language-mermaid(?:\s|$)/.test(child.props.className || "")) return null;
   return String(child.props.children).replace(/\n$/, "");
 }
 
