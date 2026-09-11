@@ -78,16 +78,6 @@ pub fn launch_desktop_detached(
 }
 
 #[cfg(feature = "desktop")]
-pub fn desktop_launch_argument() -> &'static str {
-    desktop_launch::DESKTOP_LAUNCH_ARGUMENT
-}
-
-#[cfg(feature = "desktop")]
-pub fn desktop_child_argument() -> &'static str {
-    desktop_launch::DESKTOP_CHILD_ARGUMENT
-}
-
-#[cfg(feature = "desktop")]
 pub fn run_service_command(arguments: &[String]) -> Result<(), String> {
     knowledge::run_service_command(arguments)
 }
