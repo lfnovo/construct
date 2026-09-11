@@ -315,15 +315,11 @@ test("a comment on a repeated raw HTML table cell highlights the selected cell",
   } finally { await view.close(); }
 });
 
-test("retry keeps the live scroller, pending comment, resolved state and active highlight", async () => {
+test("a Mermaid failure keeps the live review surface and recovers on source update", async () => {
   const mermaid = (await import("mermaid")).default;
   const previousInitialize = mermaid.initialize;
   const previousRender = mermaid.render;
-  const previousReport = api.reportDocumentRenderFailure;
-  const previousError = console.error;
   const captures = [];
-  api.reportDocumentRenderFailure = async () => {};
-  console.error = noop;
   const comments = [note("one", "Alpha bold omega.")];
   const body = "Alpha **bold** omega.\n";
   const view = await mountReview(body, comments, {}, (child) => h(DocumentModeSurface, {
@@ -336,14 +332,23 @@ test("retry keeps the live scroller, pending comment, resolved state and active 
     await click(view.container.querySelector(".review-comment"));
     await type(await selectParagraph(view.container), "Pending note survives");
     mermaid.initialize = () => { throw new Error("Synthetic renderer failure"); };
-    await act(() => view.state.replace(setReviewComments(`${body}\n\`\`\`mermaid\ngraph TD; A-->B\n\`\`\`\n`, comments).content));
-    assert.ok(view.container.querySelector('[role="alert"]'));
+    await act(async () => {
+      view.state.replace(setReviewComments(`${body}\n\`\`\`mermaid\ngraph TD; A-->B\n\`\`\`\n`, comments).content);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    assert.ok(view.container.querySelector(".mermaid-error"));
+    assert.equal(view.container.querySelector('[role="alert"]'), null);
     assert.equal(view.container.querySelector("textarea").value, "Pending note survives");
     mermaid.initialize = noop;
     mermaid.render = async () => ({ svg: "<svg><text>Synthetic diagram</text></svg>" });
-    await click([...view.container.querySelectorAll("button")].find((button) => button.textContent === "Retry view"));
-    assert.equal(view.container.querySelector('[role="alert"]'), null);
+    await act(async () => {
+      view.state.replace(setReviewComments(`${body}\n\`\`\`mermaid\ngraph TD; A-->C\n\`\`\`\n`, comments).content);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     assert.equal(view.container.querySelector(".markdown-preview"), preview);
+    assert.match(preview.textContent, /Synthetic diagram/);
     assert.ok(preview.querySelector('mark[data-review-id="one"].active'));
     assert.equal(view.container.querySelectorAll(".review-comment.detached").length, 0);
     assert.equal(view.container.querySelector("textarea").value, "Pending note survives");
@@ -355,6 +360,5 @@ test("retry keeps the live scroller, pending comment, resolved state and active 
   } finally {
     await view.close();
     mermaid.initialize = previousInitialize; mermaid.render = previousRender;
-    api.reportDocumentRenderFailure = previousReport; console.error = previousError;
   }
 });
