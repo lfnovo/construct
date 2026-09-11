@@ -922,7 +922,9 @@ export default function App() {
       setLocationRename((current) => current ? { ...current, error: "A Location name cannot be empty." } : current);
       return;
     }
-    setLocations((current) => current.map((location) => location.id === renamed.id ? renamed : location));
+    setLocations((current) => current.map((location) => (
+      location.id === renamed.id ? { ...location, name: renamed.name } : location
+    )));
     setLocationRename(null);
   }, [locationRename]);
 

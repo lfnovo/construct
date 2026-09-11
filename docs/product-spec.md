@@ -5,8 +5,8 @@
 | Campo | Valor |
 | --- | --- |
 | Status | Preview funcional em fase de hardening |
-| Versão | 0.21 |
-| Data | 3 de setembro de 2026 |
+| Versão | 0.24 |
+| Data | 11 de setembro de 2026 |
 | Plataforma principal | macOS |
 | Preview adicional | Windows x64 com índice local e MCP |
 | Plataforma futura | Linux |
@@ -1234,3 +1234,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.21 | 2026-09-03 | Responsividade de Review, destaques seguros, isolamento de falhas e diagnósticos sem conteúdo. |
 | 0.22 | 2026-09-04 | Separação dos canais Construct e Construct Dev por identidade, perfil, IPC, launcher, MCP e comandos de build explícitos. |
 | 0.23 | 2026-09-11 | Launcher macOS não bloqueante para abertura desktop, mantendo validação síncrona e os contratos de console de CLI, serviço e MCP. |
+| 0.24 | 2026-09-11 | Nomes de exibição personalizados para Locais, persistidos sem alterar identidade, caminho, arquivos ou autorização de acesso. |

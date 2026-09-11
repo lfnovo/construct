@@ -50,7 +50,7 @@ const SERVICE_SHUTTING_DOWN_ERROR: &str = "Construct's local service is shutting
 pub(crate) struct LocationDefinition {
     pub(crate) id: String,
     pub(crate) path: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_location_name")]
     pub(crate) name: String,
     #[serde(default)]
     pub(crate) available: bool,
@@ -62,6 +62,15 @@ pub(crate) struct LocationDefinition {
 struct WorkspaceLocations {
     #[serde(default)]
     locations: Vec<LocationDefinition>,
+}
+
+fn deserialize_location_name<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<Value>::deserialize(deserializer)?
+        .and_then(|value| value.as_str().map(str::to_string))
+        .unwrap_or_default())
 }
 
 #[derive(Clone)]
@@ -1179,7 +1188,8 @@ mod tests {
             r#"{
               "locations": [
                 { "id": "custom", "path": "/projects/construct/docs", "name": "  Product docs  " },
-                { "id": "legacy", "path": "/projects/construct/notes" }
+                { "id": "legacy", "path": "/projects/construct/notes" },
+                { "id": "malformed", "path": "/projects/construct/archive", "name": 123 }
               ]
             }"#,
         )
@@ -1189,6 +1199,7 @@ mod tests {
 
         assert_eq!(locations[0].name, "Product docs");
         assert_eq!(locations[1].name, "notes");
+        assert_eq!(locations[2].name, "archive");
         let _ = fs::remove_dir_all(data_dir);
     }
 

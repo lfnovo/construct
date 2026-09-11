@@ -24,6 +24,15 @@ test("renames only the persisted Location display label", () => {
   assert.equal(renamed.path, location.path);
 });
 
+test("renaming preserves current availability and derived metadata", () => {
+  const refreshed = { ...location, available: false, okfBundle: true, okfMode: "auto" };
+
+  assert.deepEqual(renameLocation(refreshed, "Archived docs"), {
+    ...refreshed,
+    name: "Archived docs",
+  });
+});
+
 test("rejects blank Location names without changing the record", () => {
   assert.equal(renameLocation(location, " \t "), null);
 });
