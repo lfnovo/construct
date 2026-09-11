@@ -4,7 +4,6 @@ use std::{
 };
 
 pub(crate) const DESKTOP_LAUNCH_ARGUMENT: &str = "--construct-desktop-launch";
-pub(crate) const DESKTOP_CHILD_ARGUMENT: &str = "--construct-desktop-child";
 
 pub(crate) fn launch_detached(
     executable: &Path,
@@ -52,7 +51,7 @@ mod tests {
         let arguments = vec![
             "-c".to_string(),
             "sleep 1".to_string(),
-            DESKTOP_CHILD_ARGUMENT.to_string(),
+            "--construct-desktop-child".to_string(),
         ];
 
         launch_detached(Path::new("/bin/sh"), &arguments, Path::new("/"))
@@ -67,11 +66,11 @@ mod tests {
     #[test]
     fn launcher_arguments_keep_paths_as_distinct_values() {
         let arguments = [
-            DESKTOP_CHILD_ARGUMENT.to_string(),
+            "--construct-desktop-child".to_string(),
             "notes with spaces/ação.md".to_string(),
         ];
 
-        assert_eq!(arguments[0], DESKTOP_CHILD_ARGUMENT);
+        assert_eq!(arguments[0], "--construct-desktop-child");
         assert_eq!(arguments[1], "notes with spaces/ação.md");
     }
 }
