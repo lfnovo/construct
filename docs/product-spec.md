@@ -722,6 +722,14 @@ relações diretas, context packs e o acesso MCP.
   launchers e configuração de clientes MCP permanece manual e não é executada
   por builds ou pelo uso de Dev.
 
+- **OPEN-010:** No macOS, uma abertura desktop bem-sucedida por `construct` ou
+  `construct-dev` retorna ao terminal após o handoff, tanto no cold start como
+  para uma instância já aberta. O processo desktop não herda os streams do
+  terminal e continua utilizável se o terminal for fechado. Caminhos inválidos,
+  opções desconhecidas e falhas detectáveis de lançamento permanecem síncronos
+  e retornam erro em inglês. `okf`, `identity`, `service` e `mcp serve` mantêm
+  execução foreground, stdio e códigos de saída existentes.
+
 ## 11. Estados e tratamento de erros
 
 ### 11.1 Estado vazio inicial
@@ -1191,6 +1199,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-08-07 | Exibir a situação Git por Location e consultar a branch remota por referências somente leitura, sem fetch, pull ou push. |
 | 2026-09-03 | Isolar a composição de comentários da renderização do Markdown, criar destaques declarativos e preservar acesso ao buffer em falhas de visualização, sem autosave. |
 | 2026-09-04 | Separar Construct e Construct Dev por identidade compilada, perfil padrão, IPC, launcher, MCP e comandos de build explícitos; preservar o perfil released e exigir instalação manual. |
+| 2026-09-11 | Fazer o launcher de terminal do macOS não bloqueante apenas para abertura desktop, preservando validação síncrona, isolamento dos canais e contratos foreground de CLI, serviço e MCP. |
 
 ## 24. Histórico do documento
 

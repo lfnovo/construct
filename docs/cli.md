@@ -100,6 +100,12 @@ without replacing an existing command. If Construct falls back to
 `~/.local/bin`, add that directory to your `PATH`. Automatic installation is not
 available on Windows yet; place `construct.exe` on your `PATH` manually.
 
+On macOS, a successful desktop opening returns the terminal prompt after the
+request is handed off; the desktop remains open and does not inherit the
+terminal's input, output, or error streams. This applies to cold starts and an
+already-open channel. `okf`, `identity`, `service`, and `mcp serve` remain
+foreground commands and retain their normal output and exit codes.
+
 Desktop path invocation accepts only one existing directory or Markdown file at
 a time. Invalid or unsupported paths exit with code `2`. The `okf`, `service`,
 and `mcp serve` namespaces retain their existing console behavior.
