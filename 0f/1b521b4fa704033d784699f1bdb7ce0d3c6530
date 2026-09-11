@@ -1,0 +1,19 @@
+src-tauri/src/desktop_launch.rs
+  s_3c4908fbc29b96::t_4787ba84e50fdd 54,69,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0f1b521b4fa704033d784699f1bdb7ce0d3c6530",
+  "prompts": {},
+  "sessions": {
+    "s_3c4908fbc29b96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a091d1-037c-7ab0-9170-b9c034cf21f7",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
