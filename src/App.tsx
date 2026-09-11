@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, GitBranch, History, List, MapPin, MoreHorizontal, Moon, Network, PanelLeftClose, PanelLeftOpen, RefreshCw, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, GitBranch, History, List, MapPin, MoreHorizontal, Moon, Network, PanelLeftClose, PanelLeftOpen, Pencil, RefreshCw, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { DocumentModeSurface } from "./DocumentModeSurface";
@@ -20,6 +20,7 @@ import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
 import { moveQuickOpenSelection } from "./quickOpen";
 import { mostSpecificContainingLocation, parentPath, pathIdentity, pathsEqual, relativePathWithinLocation } from "./paths";
+import { locationNameFromPath, normalizeLocationRecord, renameLocation } from "./locations";
 import {
   defaultSidebarPanelSizes,
   resizeSidebarPanelPair,
@@ -80,9 +81,7 @@ function updateSplitRatio(node: LayoutNode, target: LayoutNode, ratio: number): 
   return { ...node, first: updateSplitRatio(node.first, target, ratio), second: updateSplitRatio(node.second, target, ratio) };
 }
 
-function basename(path: string) {
-  return path.split(/[\\/]/).filter(Boolean).at(-1) || path;
-}
+const basename = locationNameFromPath;
 
 function normalizeForSave(content: string, ending: "LF" | "CRLF") {
   const normalized = content.replace(/\r\n/g, "\n");
@@ -278,6 +277,7 @@ export default function App() {
   const [fileContext, setFileContext] = useState<{ file: FileEntry; locationId: string; x: number; y: number } | null>(null);
   const [tabContext, setTabContext] = useState<{ tab: DocumentTab; paneId: string; x: number; y: number } | null>(null);
   const [locationContext, setLocationContext] = useState<{ location: LocationRecord; x: number; y: number } | null>(null);
+  const [locationRename, setLocationRename] = useState<{ location: LocationRecord; name: string; error: string | null } | null>(null);
   const [gitStatusPopover, setGitStatusPopover] = useState<{ locationId: string; x: number; y: number } | null>(null);
   const [pendingClose, setPendingClose] = useState<{ paneId: string; tabId: string } | null>(null);
   const locationsRef = useRef(locations);
@@ -915,6 +915,17 @@ export default function App() {
     await configureLocations(next);
   }, [configureLocations, notify]);
 
+  const confirmLocationRename = useCallback(() => {
+    if (!locationRename) return;
+    const renamed = renameLocation(locationRename.location, locationRename.name);
+    if (!renamed) {
+      setLocationRename((current) => current ? { ...current, error: "A Location name cannot be empty." } : current);
+      return;
+    }
+    setLocations((current) => current.map((location) => location.id === renamed.id ? renamed : location));
+    setLocationRename(null);
+  }, [locationRename]);
+
   useEffect(() => {
     document.title = runtimeIdentity.productName;
   }, [runtimeIdentity.productName]);
@@ -928,7 +939,7 @@ export default function App() {
         if (identity && mounted) setRuntimeIdentity(identity);
         const saved = await api.loadState();
         if (!mounted) return;
-        const restoredLocations = saved.locations || [];
+        const restoredLocations = (saved.locations || []).map(normalizeLocationRecord);
         const restoredPanes = saved.panes?.length ? saved.panes : [{ ...defaultPane, tabs: [] } as SavedPane];
         const restoredLayout = saved.layout || defaultLayout;
         setLocations(restoredLocations);
@@ -1448,11 +1459,20 @@ export default function App() {
       <footer><button disabled={checkingGitLocationIds.has(gitPopoverLocation.id)} onClick={() => void refreshLocationGitStatus(gitPopoverLocation, true)}><RefreshCw size={12} /> {checkingGitLocationIds.has(gitPopoverLocation.id) ? "Checking…" : "Check again"}</button><button onClick={() => { requestTerminal({ locationId: gitPopoverLocation.id, relativeDirectory: "" }); setGitStatusPopover(null); }}><SquareTerminal size={12} /> Open Terminal</button></footer>
     </div></div>}
     {locationContext && <div className="context-backdrop" onMouseDown={() => setLocationContext(null)}><div className="context-menu" style={{ left: locationContext.x, top: locationContext.y }} onMouseDown={(event) => event.stopPropagation()}>
+      <button onClick={() => { setLocationRename({ location: locationContext.location, name: locationContext.location.name, error: null }); setLocationContext(null); }}><Pencil size={13} /> Rename Location…</button>
       <button onClick={() => { requestTerminal({ locationId: locationContext.location.id, relativeDirectory: "" }); setLocationContext(null); }}><SquareTerminal size={13} /> Open terminal at Location</button>
       <button onClick={() => { openTerminalSettings(); setLocationContext(null); }}><Settings2 size={13} /> Choose terminal application…</button>
       <button onClick={() => { void api.revealInFileManager(locationContext.location.path); setLocationContext(null); }}><Folder size={13} /> Reveal in Finder</button>
       <button onClick={() => { void removeLocation(locationContext.location.id); setLocationContext(null); }}><X size={13} /> Remove Location</button>
     </div></div>}
+    {locationRename && <div className="modal-backdrop" onMouseDown={() => setLocationRename(null)}><form className="rename-location-modal" role="dialog" aria-modal="true" aria-labelledby="rename-location-title" onSubmit={(event) => { event.preventDefault(); confirmLocationRename(); }} onKeyDown={(event) => { if (event.key === "Escape") setLocationRename(null); }} onMouseDown={(event) => event.stopPropagation()}>
+      <h2 id="rename-location-title">Rename Location</h2>
+      <p className="rename-location-path" title={locationRename.location.path}>{locationRename.location.path}</p>
+      <label htmlFor="location-name">Location name</label>
+      <input id="location-name" autoFocus aria-invalid={Boolean(locationRename.error)} aria-describedby={locationRename.error ? "location-name-error" : undefined} value={locationRename.name} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setLocationRename((current) => current ? { ...current, name: event.target.value, error: null } : current)} />
+      {locationRename.error && <p id="location-name-error" className="rename-location-error" role="alert">{locationRename.error}</p>}
+      <div className="rename-location-actions"><button type="button" onClick={() => setLocationRename(null)}>Cancel</button><button className="primary-button" type="submit">Rename</button></div>
+    </form></div>}
     {fileContext && <div className="context-backdrop" onMouseDown={() => setFileContext(null)}><div className="context-menu" style={{ left: fileContext.x, top: fileContext.y }} onMouseDown={(event) => event.stopPropagation()}>
       <button onClick={() => { openFile(fileContext.file); setFileContext(null); }}>Open</button>
       <button onClick={() => { openFile(fileContext.file, true); setFileContext(null); }}>Open to the right</button>

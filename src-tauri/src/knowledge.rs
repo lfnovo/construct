@@ -50,6 +50,7 @@ const SERVICE_SHUTTING_DOWN_ERROR: &str = "Construct's local service is shutting
 pub(crate) struct LocationDefinition {
     pub(crate) id: String,
     pub(crate) path: String,
+    #[serde(default)]
     pub(crate) name: String,
     #[serde(default)]
     pub(crate) available: bool,
@@ -336,7 +337,27 @@ pub(crate) fn load_locations(data_dir: &Path) -> Result<Vec<LocationDefinition>,
         .map_err(|error| format!("Could not read Construct's registered Locations: {error}"))?;
     let workspace: WorkspaceLocations = serde_json::from_str(&contents)
         .map_err(|error| format!("Could not decode Construct's registered Locations: {error}"))?;
-    Ok(workspace.locations)
+    Ok(workspace
+        .locations
+        .into_iter()
+        .map(|mut location| {
+            location.name = normalized_location_name(&location.path, &location.name);
+            location
+        })
+        .collect())
+}
+
+fn normalized_location_name(path: &str, name: &str) -> String {
+    let trimmed = name.trim();
+    if !trimmed.is_empty() {
+        return trimmed.to_string();
+    }
+    Path::new(path)
+        .file_name()
+        .and_then(|component| component.to_str())
+        .filter(|component| !component.is_empty())
+        .unwrap_or(path)
+        .to_string()
 }
 
 pub(crate) fn mcp_configuration(
@@ -1148,6 +1169,27 @@ mod tests {
         let path = PathBuf::from("/tmp").join(format!("ck-{label}-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&path).expect("create temporary data directory");
         path
+    }
+
+    #[test]
+    fn loads_custom_location_names_and_falls_back_for_legacy_state() {
+        let data_dir = temporary_data_dir("location-names");
+        fs::write(
+            data_dir.join("workspace.json"),
+            r#"{
+              "locations": [
+                { "id": "custom", "path": "/projects/construct/docs", "name": "  Product docs  " },
+                { "id": "legacy", "path": "/projects/construct/notes" }
+              ]
+            }"#,
+        )
+        .expect("write workspace state");
+
+        let locations = load_locations(&data_dir).expect("load locations");
+
+        assert_eq!(locations[0].name, "Product docs");
+        assert_eq!(locations[1].name, "notes");
+        let _ = fs::remove_dir_all(data_dir);
     }
 
     #[cfg(unix)]
