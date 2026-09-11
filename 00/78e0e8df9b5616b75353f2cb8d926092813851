@@ -1,0 +1,34 @@
+src-tauri/src/desktop_launch.rs
+  s_3c4908fbc29b96::t_121ede3694ea8e 84,86,94
+src-tauri/src/desktop_open.rs
+  s_3c4908fbc29b96::t_121ede3694ea8e 28,30,154-158,162-163
+  s_3c4908fbc29b96::t_86a7c152f82124 159-161
+  s_3c4908fbc29b96::t_764d553c4aa0bf 29
+  s_a94f9df40e488a::t_369b80f45198b6 164-166
+src-tauri/src/desktop.rs
+  s_3c4908fbc29b96::t_121ede3694ea8e 577-580
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0078e0e8df9b5616b75353f2cb8d926092813851",
+  "prompts": {},
+  "sessions": {
+    "s_3c4908fbc29b96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a091d1-037c-7ab0-9170-b9c034cf21f7",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    },
+    "s_a94f9df40e488a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d9d-6601-76d0-bcd5-05f0d309020c",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
