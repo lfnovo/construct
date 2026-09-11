@@ -5,8 +5,8 @@
 | Campo | Valor |
 | --- | --- |
 | Status | Preview funcional em fase de hardening |
-| Versão | 0.21 |
-| Data | 3 de setembro de 2026 |
+| Versão | 0.24 |
+| Data | 11 de setembro de 2026 |
 | Plataforma principal | macOS |
 | Preview adicional | Windows x64 com índice local e MCP |
 | Plataforma futura | Linux |
@@ -228,6 +228,9 @@ seleção do Source devem ser definidas por tema e manter contraste em ambos.
 - **LOC-010:** Quando um Local voltar a ficar disponível, o aplicativo deve retomar a varredura e o monitoramento automaticamente.
 - **LOC-011:** Um Local pode ser uma raiz de projeto ou qualquer subdiretório escolhido pelo usuário.
 - **LOC-012:** Se Locais cadastrados se sobrepuserem, o aplicativo deve evitar duplicar eventos internamente, mas pode exibir o arquivo no contexto de cada Local.
+- **LOC-013:** O usuário pode atribuir um nome de exibição personalizado a um Local pelo menu de ações. Esse nome é metadado persistido, não renomeia nem move a pasta, preserva ID e caminho canônico, e pode repetir o nome de outro Local.
+- **LOC-014:** O diálogo de renomear exibe o caminho imutável, confirma com Enter, cancela com Escape, remove espaços nas extremidades e rejeita um nome vazio. A ação permanece disponível para Locais indisponíveis.
+- **LOC-015:** Na restauração, um nome ausente, vazio ou inválido usa o basename da pasta sem descartar o Local. O nome personalizado reaparece em todos os seletores e fluxos que apresentam o Local; adaptadores MCP já em execução podem manter o catálogo carregado até reconectar.
 
 ### 10.2 Descoberta e árvore de arquivos
 
@@ -545,6 +548,7 @@ flowchart LR
 - **STATE-010:** Arquivos ausentes durante a restauração devem ser ignorados ou apresentados como indisponíveis sem impedir a abertura do aplicativo.
 - **STATE-011:** Dados de estado corrompidos devem ser recuperados com defaults seguros, preservando os arquivos do usuário.
 - **STATE-012:** A inicialização deve liberar o workspace após restaurar estado, watchers e abas; reconciliação, inspeção OKF e indexação de todos os Locais continuam progressivamente em segundo plano.
+- **STATE-013:** O nome de exibição de cada Local é persistido em `workspace.json`; reabrir ou restaurar o mesmo caminho não pode substituí-lo pelo basename.
 
 ### 10.15 Atalhos iniciais
 
@@ -1200,6 +1204,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-09-03 | Isolar a composição de comentários da renderização do Markdown, criar destaques declarativos e preservar acesso ao buffer em falhas de visualização, sem autosave. |
 | 2026-09-04 | Separar Construct e Construct Dev por identidade compilada, perfil padrão, IPC, launcher, MCP e comandos de build explícitos; preservar o perfil released e exigir instalação manual. |
 | 2026-09-11 | Fazer o launcher de terminal do macOS não bloqueante apenas para abertura desktop, preservando validação síncrona, isolamento dos canais e contratos foreground de CLI, serviço e MCP. |
+| 2026-09-11 | Permitir nomes de exibição personalizados para Locais, preservando a identidade e o caminho autorizados e usando fallback seguro para estado legado. |
 
 ## 24. Histórico do documento
 
@@ -1229,3 +1234,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.21 | 2026-09-03 | Responsividade de Review, destaques seguros, isolamento de falhas e diagnósticos sem conteúdo. |
 | 0.22 | 2026-09-04 | Separação dos canais Construct e Construct Dev por identidade, perfil, IPC, launcher, MCP e comandos de build explícitos. |
 | 0.23 | 2026-09-11 | Launcher macOS não bloqueante para abertura desktop, mantendo validação síncrona e os contratos de console de CLI, serviço e MCP. |
+| 0.24 | 2026-09-11 | Nomes de exibição personalizados para Locais, persistidos sem alterar identidade, caminho, arquivos ou autorização de acesso. |

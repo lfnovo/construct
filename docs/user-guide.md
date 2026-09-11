@@ -112,6 +112,13 @@ are not followed.
 Removing a Location from Construct removes its derived local index but never
 deletes the folder or its Markdown files.
 
+Use the Location's actions menu and choose **Rename Location…** to give it a
+clearer local display name. This helps distinguish folders with the same basename.
+The dialog keeps the folder path visible and read-only; renaming changes only
+Construct's persisted label, never the folder, its files, or agent access. Names
+are restored on the next launch, including while a Location is temporarily
+unavailable.
+
 ### 2. Open and arrange documents
 
 Select a file under **Files** to open it in the active pane. You can:
