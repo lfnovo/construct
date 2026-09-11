@@ -54,6 +54,9 @@ pub(crate) const IGNORED_DIRECTORIES: &[&str] = &[
     ".coverage",
 ];
 
+pub const DESKTOP_LAUNCH_ARGUMENT: &str = "--construct-desktop-launch";
+pub const DESKTOP_CHILD_ARGUMENT: &str = "--construct-desktop-child";
+
 #[cfg(feature = "desktop")]
 pub fn run(arguments: Vec<String>, current_directory: std::path::PathBuf) {
     desktop::run(arguments, current_directory)

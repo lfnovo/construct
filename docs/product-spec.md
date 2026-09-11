@@ -1228,3 +1228,4 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.20 | 2026-08-07 | Sinal visual de sincronização Git por Location, com estado local, comparação remota read-only e detalhes acionáveis. |
 | 0.21 | 2026-09-03 | Responsividade de Review, destaques seguros, isolamento de falhas e diagnósticos sem conteúdo. |
 | 0.22 | 2026-09-04 | Separação dos canais Construct e Construct Dev por identidade, perfil, IPC, launcher, MCP e comandos de build explícitos. |
+| 0.23 | 2026-09-11 | Launcher macOS não bloqueante para abertura desktop, mantendo validação síncrona e os contratos de console de CLI, serviço e MCP. |

@@ -1,6 +1,3 @@
-const DESKTOP_LAUNCH_ARGUMENT: &str = "--construct-desktop-launch";
-const DESKTOP_CHILD_ARGUMENT: &str = "--construct-desktop-child";
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum InvocationMode {
     Desktop,
@@ -14,8 +11,12 @@ enum InvocationMode {
 
 fn invocation_mode(arguments: &[String]) -> InvocationMode {
     match arguments.first().map(String::as_str) {
-        Some(argument) if argument == DESKTOP_LAUNCH_ARGUMENT => InvocationMode::DesktopLaunch,
-        Some(argument) if argument == DESKTOP_CHILD_ARGUMENT => InvocationMode::DesktopChild,
+        Some(argument) if argument == construct_lib::DESKTOP_LAUNCH_ARGUMENT => {
+            InvocationMode::DesktopLaunch
+        }
+        Some(argument) if argument == construct_lib::DESKTOP_CHILD_ARGUMENT => {
+            InvocationMode::DesktopChild
+        }
         Some("identity") => InvocationMode::Identity,
         Some("okf") => InvocationMode::Okf,
         Some("service") => InvocationMode::Service,
@@ -100,7 +101,7 @@ fn main() {
             std::process::exit(2);
         }
         if mode == InvocationMode::DesktopLaunch {
-            let mut child_arguments = vec![DESKTOP_CHILD_ARGUMENT.to_string()];
+            let mut child_arguments = vec![construct_lib::DESKTOP_CHILD_ARGUMENT.to_string()];
             child_arguments.extend_from_slice(desktop_arguments);
             if let Err(error) =
                 construct_lib::launch_desktop_detached(&child_arguments, &current_directory)
@@ -118,7 +119,8 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{invocation_mode, InvocationMode, DESKTOP_CHILD_ARGUMENT, DESKTOP_LAUNCH_ARGUMENT};
+    use super::{invocation_mode, InvocationMode};
+    use construct_lib::{DESKTOP_CHILD_ARGUMENT, DESKTOP_LAUNCH_ARGUMENT};
 
     fn arguments(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_owned()).collect()
