@@ -25,7 +25,9 @@ pub(crate) fn parse_request(
 ) -> Result<Option<DesktopOpenRequest>, String> {
     let arguments = arguments
         .iter()
-        .filter(|argument| !argument.starts_with("-psn_"))
+        .filter(|argument| {
+            !argument.starts_with("-psn_") && *argument != crate::DESKTOP_CHILD_ARGUMENT
+        })
         .collect::<Vec<_>>();
     if arguments.is_empty() {
         return Ok(None);
@@ -146,6 +148,19 @@ mod tests {
             parse_request(&arguments(&["-psn_0_12345"]), &root).expect("parse Finder launch"),
             None
         );
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn ignores_the_internal_desktop_child_marker() {
+        let root = temporary_root();
+        fs::create_dir_all(root.join("notes")).expect("create notes directory");
+
+        let request = parse_request(&arguments(&[crate::DESKTOP_CHILD_ARGUMENT, "notes"]), &root)
+            .expect("parse detached desktop request")
+            .expect("directory request");
+
+        assert_eq!(request.kind, DesktopOpenKind::Directory);
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
 

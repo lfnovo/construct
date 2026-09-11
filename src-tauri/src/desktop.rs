@@ -495,8 +495,11 @@ fn install_cli_launcher_at(
     candidates: &[(PathBuf, bool)],
     command_name: &str,
 ) -> Result<CliInstallResult, String> {
-    use std::io::ErrorKind;
-    use std::os::unix::fs::symlink;
+    use std::os::unix::fs::PermissionsExt;
+    use std::{
+        fs::OpenOptions,
+        io::{ErrorKind, Write},
+    };
 
     for (directory, requires_path_setup) in candidates {
         if let Err(error) = fs::create_dir_all(directory) {
@@ -509,7 +512,8 @@ fn install_cli_launcher_at(
             ));
         }
         let launcher = directory.join(command_name);
-        match fs::symlink_metadata(&launcher) {
+        let launcher_script = cli_launcher_script(executable);
+        let _legacy_owned_symlink = match fs::symlink_metadata(&launcher) {
             Ok(metadata) => {
                 if metadata.file_type().is_symlink() {
                     let target = fs::read_link(&launcher).map_err(|error| {
@@ -521,44 +525,117 @@ fn install_cli_launcher_at(
                         directory.join(target)
                     };
                     if resolved == executable {
+                        true
+                    } else {
+                        return Err(format!(
+                            "A file already exists at '{}'. Remove or rename it before installing the Construct command.",
+                            launcher.display()
+                        ));
+                    }
+                } else {
+                    if fs::read_to_string(&launcher).ok().as_deref() == Some(&launcher_script) {
+                        if metadata.permissions().mode() & 0o111 == 0 {
+                            fs::set_permissions(&launcher, fs::Permissions::from_mode(0o755))
+                                .map_err(|error| {
+                                    format!(
+                                        "Could not make '{}' executable: {error}",
+                                        launcher.display()
+                                    )
+                                })?;
+                        }
                         return Ok(CliInstallResult {
                             path: launcher.to_string_lossy().to_string(),
                             already_installed: true,
                             requires_path_setup: *requires_path_setup,
                         });
                     }
+                    return Err(format!(
+                        "A file already exists at '{}'. Remove or rename it before installing the Construct command.",
+                        launcher.display()
+                    ));
                 }
-                return Err(format!(
-                    "A file already exists at '{}'. Remove or rename it before installing the Construct command.",
-                    launcher.display()
-                ));
             }
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => false,
             Err(error) => {
                 return Err(format!(
                     "Could not inspect '{}': {error}",
                     launcher.display()
                 ))
             }
+        };
+        // `rename` replaces this verified legacy symlink atomically without
+        // touching its target. Do not remove the old launcher first: a failed
+        // write must leave the existing Construct command available.
+        let temporary = directory.join(format!(".{command_name}.{}.tmp", uuid::Uuid::new_v4()));
+        let write_result = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .and_then(|mut file| file.write_all(launcher_script.as_bytes()));
+        match write_result {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                let _ = fs::remove_file(&temporary);
+                continue;
+            }
+            Err(error) => {
+                let _ = fs::remove_file(&temporary);
+                return Err(format!(
+                    "Could not prepare the Construct command at '{}': {error}",
+                    temporary.display()
+                ));
+            }
         }
-        match symlink(executable, &launcher) {
+        if let Err(error) = fs::set_permissions(&temporary, fs::Permissions::from_mode(0o755)) {
+            let _ = fs::remove_file(&temporary);
+            return Err(format!(
+                "Could not make '{}' executable: {error}",
+                temporary.display()
+            ));
+        }
+        match fs::rename(&temporary, &launcher) {
             Ok(()) => {
                 return Ok(CliInstallResult {
                     path: launcher.to_string_lossy().to_string(),
                     already_installed: false,
                     requires_path_setup: *requires_path_setup,
-                })
+                });
             }
-            Err(error) if error.kind() == ErrorKind::PermissionDenied => continue,
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                let _ = fs::remove_file(&temporary);
+                continue;
+            }
             Err(error) => {
+                let _ = fs::remove_file(&temporary);
                 return Err(format!(
                     "Could not install the Construct command at '{}': {error}",
                     launcher.display()
-                ))
+                ));
             }
         }
     }
     Err("Construct could not find a writable command directory.".to_string())
+}
+
+#[cfg(unix)]
+fn cli_launcher_script(executable: &Path) -> String {
+    let executable = shell_double_quote(&executable.to_string_lossy());
+    format!(
+        "#!/bin/sh\ncase \"$1\" in\n  okf|identity|service) exec {executable} \"$@\" ;;\n  mcp) [ \"$2\" = serve ] && exec {executable} \"$@\" ;;\nesac\nexec {executable} {} \"$@\"\n",
+        crate::DESKTOP_LAUNCH_ARGUMENT
+    )
+}
+
+#[cfg(unix)]
+fn shell_double_quote(value: &str) -> String {
+    format!(
+        "\"{}\"",
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('$', "\\$")
+            .replace('`', "\\`")
+    )
 }
 
 #[tauri::command]
@@ -1405,6 +1482,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn cli_launcher_installation_is_idempotent() {
+        use std::os::unix::fs::PermissionsExt;
+
         let root = temporary_root();
         let executable = root.join("Construct");
         let bin = root.join("bin");
@@ -1420,13 +1499,27 @@ mod tests {
             bin.join(identity::CLI_COMMAND).to_string_lossy()
         );
         assert_eq!(
-            fs::read_link(bin.join(identity::CLI_COMMAND)).expect("read installed launcher"),
-            executable
+            fs::read_to_string(bin.join(identity::CLI_COMMAND)).expect("read installed launcher"),
+            cli_launcher_script(&executable)
         );
+        fs::set_permissions(
+            bin.join(identity::CLI_COMMAND),
+            fs::Permissions::from_mode(0o644),
+        )
+        .expect("remove launcher executable bit");
 
-        let repeated = install_cli_launcher_at(&executable, &[(bin, false)], identity::CLI_COMMAND)
-            .expect("recognize installed launcher");
+        let repeated =
+            install_cli_launcher_at(&executable, &[(bin.clone(), false)], identity::CLI_COMMAND)
+                .expect("recognize installed launcher");
         assert!(repeated.already_installed);
+        assert_ne!(
+            fs::metadata(bin.join(identity::CLI_COMMAND))
+                .expect("read launcher permissions")
+                .permissions()
+                .mode()
+                & 0o111,
+            0,
+        );
 
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
@@ -1445,6 +1538,77 @@ mod tests {
         let error = install_cli_launcher_at(&executable, &[(bin, false)], identity::CLI_COMMAND)
             .expect_err("reject conflicting command");
         assert!(error.contains("already exists"));
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_ignores_the_legacy_predictable_temporary_name() {
+        let root = temporary_root();
+        let executable = root.join("Construct");
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).expect("create command directory");
+        fs::write(&executable, "desktop executable").expect("create executable placeholder");
+        let old_temporary = bin.join(format!("{}.tmp", identity::CLI_COMMAND));
+        fs::write(&old_temporary, "unrelated file").expect("create conflicting temporary file");
+
+        install_cli_launcher_at(&executable, &[(bin, false)], identity::CLI_COMMAND)
+            .expect("install launcher without touching the old temporary name");
+        assert_eq!(
+            fs::read_to_string(old_temporary).expect("read unrelated temporary file"),
+            "unrelated file",
+        );
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_upgrades_only_the_current_construct_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let root = temporary_root();
+        let executable = root.join("Construct");
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).expect("create command directory");
+        fs::write(&executable, "desktop executable").expect("create executable placeholder");
+        symlink(&executable, bin.join(identity::CLI_COMMAND)).expect("install legacy symlink");
+
+        let installed =
+            install_cli_launcher_at(&executable, &[(bin.clone(), false)], identity::CLI_COMMAND)
+                .expect("upgrade Construct symlink");
+        assert!(!installed.already_installed);
+        assert_eq!(
+            fs::read_to_string(bin.join(identity::CLI_COMMAND)).expect("read upgraded launcher"),
+            cli_launcher_script(&executable)
+        );
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_keeps_console_modes_in_the_foreground() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temporary_root();
+        let executable = root.join("construct's executable");
+        let launcher = root.join("launcher");
+        fs::write(&executable, "#!/bin/sh\nprintf '%s' \"$1\"\n")
+            .expect("write executable fixture");
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o755))
+            .expect("make executable fixture runnable");
+        fs::write(&launcher, cli_launcher_script(&executable)).expect("write launcher");
+        fs::set_permissions(&launcher, fs::Permissions::from_mode(0o755))
+            .expect("make launcher runnable");
+
+        let output = Command::new(&launcher)
+            .args(["okf", "lint"])
+            .output()
+            .expect("run launcher");
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "okf");
 
         fs::remove_dir_all(root).expect("remove temporary directory");
     }

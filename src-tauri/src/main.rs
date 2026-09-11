@@ -1,6 +1,8 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum InvocationMode {
     Desktop,
+    DesktopChild,
+    DesktopLaunch,
     Identity,
     Mcp,
     Okf,
@@ -9,6 +11,12 @@ enum InvocationMode {
 
 fn invocation_mode(arguments: &[String]) -> InvocationMode {
     match arguments.first().map(String::as_str) {
+        Some(argument) if argument == construct_lib::DESKTOP_LAUNCH_ARGUMENT => {
+            InvocationMode::DesktopLaunch
+        }
+        Some(argument) if argument == construct_lib::DESKTOP_CHILD_ARGUMENT => {
+            InvocationMode::DesktopChild
+        }
         Some("identity") => InvocationMode::Identity,
         Some("okf") => InvocationMode::Okf,
         Some("service") => InvocationMode::Service,
@@ -63,6 +71,7 @@ fn main() {
             InvocationMode::Service => Some(construct_lib::run_service_command(&arguments[1..])),
             InvocationMode::Mcp => Some(construct_lib::run_mcp_command(&arguments[2..])),
             InvocationMode::Desktop => None,
+            InvocationMode::DesktopChild | InvocationMode::DesktopLaunch => None,
             InvocationMode::Identity => unreachable!("identity mode exits before desktop dispatch"),
             InvocationMode::Okf => unreachable!("OKF mode exits before desktop dispatch"),
         };
@@ -75,21 +84,43 @@ fn main() {
         }
         let current_directory =
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let desktop_arguments = match mode {
+            InvocationMode::DesktopChild | InvocationMode::DesktopLaunch => &arguments[1..],
+            InvocationMode::Desktop => &arguments,
+            InvocationMode::Identity
+            | InvocationMode::Mcp
+            | InvocationMode::Okf
+            | InvocationMode::Service => {
+                unreachable!("console modes return before desktop dispatch")
+            }
+        };
         if let Err(error) =
-            construct_lib::validate_desktop_invocation(&arguments, &current_directory)
+            construct_lib::validate_desktop_invocation(desktop_arguments, &current_directory)
         {
             eprintln!("construct: {error}");
             std::process::exit(2);
         }
+        if mode == InvocationMode::DesktopLaunch {
+            let mut child_arguments = vec![construct_lib::DESKTOP_CHILD_ARGUMENT.to_string()];
+            child_arguments.extend_from_slice(desktop_arguments);
+            if let Err(error) =
+                construct_lib::launch_desktop_detached(&child_arguments, &current_directory)
+            {
+                eprintln!("construct: {error}");
+                std::process::exit(1);
+            }
+            return;
+        }
         #[cfg(target_os = "windows")]
         detach_desktop_console();
-        construct_lib::run(arguments, current_directory);
+        construct_lib::run(desktop_arguments.to_vec(), current_directory);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{invocation_mode, InvocationMode};
+    use construct_lib::{DESKTOP_CHILD_ARGUMENT, DESKTOP_LAUNCH_ARGUMENT};
 
     fn arguments(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_owned()).collect()
@@ -105,6 +136,18 @@ mod tests {
         assert_eq!(
             invocation_mode(&arguments(&["mcp"])),
             InvocationMode::Desktop
+        );
+    }
+
+    #[test]
+    fn classifies_internal_desktop_launches_without_affecting_console_modes() {
+        assert_eq!(
+            invocation_mode(&arguments(&[DESKTOP_LAUNCH_ARGUMENT, "notes.md"])),
+            InvocationMode::DesktopLaunch
+        );
+        assert_eq!(
+            invocation_mode(&arguments(&[DESKTOP_CHILD_ARGUMENT, "notes.md"])),
+            InvocationMode::DesktopChild
         );
     }
 

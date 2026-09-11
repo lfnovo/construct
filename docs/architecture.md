@@ -84,13 +84,19 @@ focuses the existing window, queues its request in native state, and emits only
 an availability signal. The frontend drains that queue after workspace restore,
 so cold-start requests cannot race persisted Locations and tabs.
 
-The installed channel launcher is a symlink to the running application
-executable. Its destination and filename are chosen by the native core; the
-frontend cannot supply an executable, command string, or installation path.
-This automatic installer is exposed only on macOS/Unix; Windows keeps manual
-`PATH` setup until a safe platform-native launcher contract is implemented.
-Console namespaces such as `construct okf`, `construct service`, and
-`construct mcp serve` are dispatched before desktop argument handling.
+The installed channel launcher is a native-owned executable script that keeps
+console namespaces foreground and starts only desktop opens in a detached child
+process. It validates the request before detaching, preserves structured
+arguments and the caller's working directory, closes inherited terminal
+streams, and gives macOS desktop children an independent session. Existing
+Construct-owned symlinks pointing to the current executable upgrade in place;
+other files are never replaced. Its destination and filename are chosen by the
+native core; the frontend cannot supply an executable, command string, or
+installation path. This automatic installer is exposed only on macOS/Unix;
+Windows keeps manual `PATH` setup until a safe platform-native launcher contract
+is implemented. Console namespaces such as `construct okf`, `construct
+identity`, `construct service`, and `construct mcp serve` keep their foreground
+stdio and exit-code contracts.
 
 `src-tauri/src/identity.rs` is the single compiled identity source for the
 channel, visible product name, bundle identifier, launcher, MCP server key, and

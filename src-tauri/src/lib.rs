@@ -6,6 +6,8 @@ mod okf_policy;
 #[cfg(feature = "desktop")]
 mod desktop;
 #[cfg(feature = "desktop")]
+mod desktop_launch;
+#[cfg(feature = "desktop")]
 mod desktop_open;
 #[cfg(feature = "desktop")]
 mod diagnostics;
@@ -52,6 +54,9 @@ pub(crate) const IGNORED_DIRECTORIES: &[&str] = &[
     ".coverage",
 ];
 
+pub const DESKTOP_LAUNCH_ARGUMENT: &str = "--construct-desktop-launch";
+pub const DESKTOP_CHILD_ARGUMENT: &str = "--construct-desktop-child";
+
 #[cfg(feature = "desktop")]
 pub fn run(arguments: Vec<String>, current_directory: std::path::PathBuf) {
     desktop::run(arguments, current_directory)
@@ -63,6 +68,16 @@ pub fn validate_desktop_invocation(
     current_directory: &std::path::Path,
 ) -> Result<(), String> {
     desktop_open::parse_request(arguments, current_directory).map(|_| ())
+}
+
+#[cfg(feature = "desktop")]
+pub fn launch_desktop_detached(
+    arguments: &[String],
+    current_directory: &std::path::Path,
+) -> Result<(), String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
+    desktop_launch::launch_detached(&executable, arguments, current_directory)
 }
 
 #[cfg(feature = "desktop")]

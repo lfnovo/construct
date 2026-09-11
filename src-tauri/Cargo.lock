@@ -933,6 +933,7 @@ dependencies = [
  "dirs",
  "fs2",
  "glob",
+ "libc",
  "notify",
  "pulldown-cmark",
  "serde",
