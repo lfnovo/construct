@@ -81,8 +81,9 @@ mod tests {
 
         launch_detached(Path::new("/bin/sh"), &arguments, Path::new("/"))
             .expect("start detached child");
+        let expected = format!("{}\n{path}\n", crate::DESKTOP_CHILD_ARGUMENT);
         for _ in 0..50 {
-            if output.exists() {
+            if std::fs::read_to_string(&output).ok().as_deref() == Some(expected.as_str()) {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
@@ -90,7 +91,7 @@ mod tests {
 
         assert_eq!(
             std::fs::read_to_string(&output).expect("read recorded child arguments"),
-            format!("{}\n{path}\n", crate::DESKTOP_CHILD_ARGUMENT),
+            expected,
         );
         let _ = std::fs::remove_file(output);
     }

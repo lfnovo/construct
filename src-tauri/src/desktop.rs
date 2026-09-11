@@ -574,7 +574,10 @@ fn install_cli_launcher_at(
             .and_then(|mut file| file.write_all(launcher_script.as_bytes()));
         match write_result {
             Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::PermissionDenied => continue,
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                let _ = fs::remove_file(&temporary);
+                continue;
+            }
             Err(error) => {
                 let _ = fs::remove_file(&temporary);
                 return Err(format!(
