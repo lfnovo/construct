@@ -1,0 +1,25 @@
+docs/product-spec.md
+  s_3c4908fbc29b96::t_6162b9992bc49c 8-9,1227
+tests/locations.test.mjs
+  s_3c4908fbc29b96::t_6162b9992bc49c 27-35
+src/App.tsx
+  s_3c4908fbc29b96::t_6162b9992bc49c 925-927
+src-tauri/src/knowledge.rs
+  s_3c4908fbc29b96::t_6162b9992bc49c 53,67-75,1191-1192,1202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aaa8bd61db8744b0fd1dd7778bdd13b2ab8a5812",
+  "prompts": {},
+  "sessions": {
+    "s_3c4908fbc29b96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a091d1-037c-7ab0-9170-b9c034cf21f7",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
