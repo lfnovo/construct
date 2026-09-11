@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useId, useMemo, useState, type ComponentPropsWithoutRef } from "react";
+import { Children, createContext, isValidElement, memo, useContext, useEffect, useId, useMemo, useRef, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import ReactMarkdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -27,20 +27,25 @@ const MarkdownContext = createContext<Pick<Props, "sourcePath" | "bundleRoot" | 
 
 function MermaidDiagram({ code }: { code: string }) {
   const id = useId().replace(/:/g, "-");
-  const [svg, setSvg] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
+  const renderSequence = useRef(0);
+  const [result, setResult] = useState<{ code: string; svg: string; error: string | null }>({ code: "", svg: "", error: null });
 
   useEffect(() => {
     let cancelled = false;
-    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
-    mermaid.render(`mermaid-${id}`, code)
-      .then((result) => { if (!cancelled) { setSvg(result.svg); setError(null); } })
-      .catch(() => { if (!cancelled) { setSvg(""); setError("This Mermaid diagram could not be rendered."); } });
+    const renderId = `mermaid-${id}-${++renderSequence.current}`;
+    void Promise.resolve()
+      .then(() => {
+      mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
+        return mermaid.render(renderId, code);
+      })
+      .then((next) => { if (!cancelled) setResult({ code, svg: next.svg, error: null }); })
+      .catch(() => { if (!cancelled) setResult({ code, svg: "", error: "This Mermaid diagram could not be rendered." }); });
     return () => { cancelled = true; };
   }, [code, id]);
 
-  if (error) return <pre className="mermaid-error" data-review-generated="true">{error}{"\n\n"}{code}</pre>;
-  return <div className="mermaid" data-review-generated="true" dangerouslySetInnerHTML={{ __html: svg }} />;
+  const visible = result.code === code ? result : { svg: "", error: null };
+  if (visible.error) return <pre className="mermaid-error" data-review-generated="true">{visible.error}{"\n\n"}{code}</pre>;
+  return <div className="mermaid" data-review-generated="true" dangerouslySetInnerHTML={{ __html: visible.svg }} />;
 }
 
 function LocalImage({ src = "", alt = "", sourcePath, bundleRoot }: { src?: string; alt?: string; sourcePath: string; bundleRoot?: string }) {
@@ -72,9 +77,20 @@ function withoutAstNode<T extends object>({ node, ...props }: T & ExtraProps) {
 
 function MarkdownCode(input: ComponentPropsWithoutRef<"code"> & ExtraProps) {
   const { className, children, ...props } = withoutAstNode(input);
-  const language = /language-(\w+)/.exec(className || "")?.[1];
-  if (language === "mermaid") return <MermaidDiagram code={String(children).replace(/\n$/, "")} />;
   return <code className={className} {...props}>{children}</code>;
+}
+
+function mermaidSource(children: ReactNode): string | null {
+  const child = Children.toArray(children).find((node) => isValidElement<{ className?: string; children?: ReactNode }>(node));
+  if (!child || !/(?:^|\s)language-mermaid(?:\s|$)/.test(child.props.className || "")) return null;
+  return String(child.props.children).replace(/\n$/, "");
+}
+
+function MarkdownPre(input: ComponentPropsWithoutRef<"pre"> & ExtraProps) {
+  const { children, ...props } = withoutAstNode(input);
+  const source = mermaidSource(children);
+  if (source !== null) return <MermaidDiagram code={source} />;
+  return <pre {...props}>{children}</pre>;
 }
 
 function MarkdownLink(input: ComponentPropsWithoutRef<"a"> & ExtraProps) {
@@ -109,7 +125,7 @@ function MarkdownMark(input: ComponentPropsWithoutRef<"mark"> & ExtraProps) {
   return <mark {...props} className={classes || undefined} />;
 }
 
-const components: Components = { code: MarkdownCode, a: MarkdownLink, img: MarkdownImage, mark: MarkdownMark };
+const components: Components = { pre: MarkdownPre, code: MarkdownCode, a: MarkdownLink, img: MarkdownImage, mark: MarkdownMark };
 
 export const MarkdownPreview = memo(function MarkdownPreview({ content, sourcePath, bundleRoot, onOpenInternal, reviewComments = NO_COMMENTS, activeReviewId, onRequestSource, onRetryView }: Props) {
   const plugins = useMemo(() => [remarkGfm], []);
