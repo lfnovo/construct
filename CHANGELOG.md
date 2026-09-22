@@ -6,6 +6,28 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-22
+
+### Added
+
+- Let users assign custom names to Locations while preserving their registered
+  paths and restoring names from previous workspaces.
+
+### Changed
+
+- Separated Construct Dev from the released Construct identity, workspace,
+  knowledge service, MCP profile, and command launcher.
+
+### Fixed
+
+- Restored Mermaid rendering in Markdown preview without changing other fenced
+  code blocks.
+- Released the caller's terminal after handing a desktop open request to the
+  macOS application.
+- Prevented background Git checks and the local knowledge service from opening
+  Windows console windows, including the repeated Git refresh caused by focus
+  returning to Construct.
+
 ## [0.3.2] - 2026-09-04
 
 ### Fixed
