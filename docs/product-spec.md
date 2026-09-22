@@ -487,6 +487,7 @@ flowchart LR
 - **GIT-017:** Contagens ahead/behind são relativas à última tracking reference buscada pelo usuário; quando a referência remota mudou depois disso, a interface não deve inventar uma contagem exata.
 - **GIT-018:** O status local deve ser atualizado após eventos do filesystem e ao focar o aplicativo. A consulta de rede deve usar timeout, concorrência limitada, intervalo mínimo e também oferecer refresh explícito.
 - **GIT-019:** Falha de rede, upstream ausente e detached HEAD devem produzir estados explicativos sem bloquear o uso da Location.
+- **GIT-020:** No Windows, consultas Git iniciadas pelo desktop devem executar sem abrir janelas de console; atualizar o status ao recuperar foco não pode criar um ciclo de perda e recuperação de foco.
 
 ### 10.13 Localização de arquivos e busca de conhecimento
 
@@ -661,6 +662,7 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-017:** O tamanho persistido do índice deve ser atualizado após sincronização efetiva ou refresh explícito de status. Uma sincronização pulada pela janela mínima retorna o valor em cache sem varredura recursiva do diretório do índice.
 - **AGENT-018:** `initialize`, `ping` e `tools/list` devem responder sem aguardar reconciliação ou consulta ao índice; o catálogo disponível não implica índice pronto. EOF no stdin deve encerrar prontamente o adaptador inclusive durante a reconciliação inicial ou espera IPC, cancelando somente seu trabalho local e sem encerrar o serviço compartilhado.
 - **AGENT-019:** Cada adaptador deve serializar as tools, manter no máximo 32 chamadas adicionais em fila e responder a excesso com erro estruturado `server_busy`. A fila não pode impedir descoberta do protocolo, ping ou detecção de EOF. Diagnósticos locais devem distinguir prontidão do adaptador, conclusão/cancelamento da reconciliação inicial e encerramento, sem conteúdo ou caminhos.
+- **AGENT-020:** No Windows, o serviço iniciado automaticamente pelo desktop deve executar sem abrir uma janela de console. A invocação explícita `construct service` deve preservar seu console e stdio.
 
 ### 10.19 Handoff para terminal externo
 

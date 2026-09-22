@@ -236,8 +236,19 @@ fn require_allowed(path: &str, state: &WatchState) -> Result<PathBuf, String> {
     Ok(candidate)
 }
 
+fn git_command() -> Command {
+    #[allow(unused_mut)]
+    let mut command = Command::new("git");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    command
+}
+
 fn run_git(path: &Path, arguments: &[&str]) -> Result<std::process::Output, String> {
-    Command::new("git")
+    git_command()
         .current_dir(if path.is_dir() {
             path
         } else {
@@ -250,7 +261,7 @@ fn run_git(path: &Path, arguments: &[&str]) -> Result<std::process::Output, Stri
 }
 
 fn git_stdout(root: &Path, arguments: &[&str]) -> Option<String> {
-    let output = Command::new("git")
+    let output = git_command()
         .current_dir(root)
         .env("GIT_OPTIONAL_LOCKS", "0")
         .args(arguments)
@@ -355,6 +366,8 @@ fn location_git_status(root: &Path) -> LocationGitStatus {
 
 async fn remote_head(root: &Path, remote: &str, merge_ref: &str) -> Result<String, String> {
     let mut command = tokio::process::Command::new("git");
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     command
         .current_dir(root)
         .env("GIT_TERMINAL_PROMPT", "0")
@@ -391,7 +404,7 @@ fn git_root(path: &Path) -> Result<PathBuf, String> {
 
 fn git_status(path: &Path, root: &Path) -> Option<String> {
     let relative = path.strip_prefix(root).ok()?.to_string_lossy().to_string();
-    let output = Command::new("git")
+    let output = git_command()
         .current_dir(root)
         .args(["status", "--porcelain=1", "--", &relative])
         .output()
@@ -404,7 +417,7 @@ fn git_status(path: &Path, root: &Path) -> Option<String> {
 }
 
 fn git_has_head(root: &Path) -> bool {
-    Command::new("git")
+    git_command()
         .current_dir(root)
         .args(["rev-parse", "--verify", "HEAD"])
         .output()
@@ -1121,7 +1134,7 @@ fn get_git_diff(
         });
     }
     if let Some(buffer) = content {
-        let head = Command::new("git")
+        let head = git_command()
             .current_dir(&root)
             .args(["show", &format!("HEAD:{relative}")])
             .output();
@@ -1142,7 +1155,7 @@ fn get_git_diff(
             .map_err(|error| format!("Could not prepare the diff: {error}"))?;
         fs::write(&after, buffer)
             .map_err(|error| format!("Could not prepare the diff: {error}"))?;
-        let output = Command::new("git")
+        let output = git_command()
             .args([
                 "diff",
                 "--no-index",
@@ -1161,7 +1174,7 @@ fn get_git_diff(
             message: Some("The diff includes unsaved changes.".to_string()),
         });
     }
-    let output = Command::new("git")
+    let output = git_command()
         .current_dir(&root)
         .args(["diff", "--no-color", "HEAD", "--", &relative])
         .output()
