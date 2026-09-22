@@ -17,6 +17,8 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 
 - Separated Construct Dev from the released Construct identity, workspace,
   knowledge service, MCP profile, and command launcher.
+- Updated compatible JavaScript and Rust dependencies, including transitive
+  packages with published security advisories.
 
 ### Fixed
 
