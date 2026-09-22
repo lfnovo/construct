@@ -1,0 +1,19 @@
+package-lock.json
+  s_3fda20e31ac411::t_3400d11feaa129 3784-3786,3797-3799,3810-3812,3830-3834,3858-3860,4623-4625,4632-4634,6737-6739,8400-8402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3db5ebafad0d60b0c71acfcee6e37650f8152ebb",
+  "prompts": {},
+  "sessions": {
+    "s_3fda20e31ac411": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cb62-a9db-7f13-8cae-74a9ee4d8883",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
