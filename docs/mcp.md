@@ -35,7 +35,7 @@ for the index. It does not stop the shared service or another client's work.
 Each adapter runs one tool call at a time and queues up to 32 more; excess calls
 receive `server_busy` and can be retried after an earlier call completes.
 
-No network listener is opened. Construct itself makes no outbound request.
+No network listener is opened, and the MCP server makes no outbound request.
 The MCP client controls where retrieved content goes after it leaves Construct.
 
 ## Recommended setup
