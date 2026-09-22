@@ -28,6 +28,13 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
   Windows console windows, including the repeated Git refresh caused by focus
   returning to Construct.
 
+### Documentation
+
+- Refreshed installation, Git freshness, terminal handoff, release artifact,
+  and Windows index/MCP guidance for the current preview.
+- Clarified that Git remote lookup is read-only and does not send document
+  content or fetch repository objects.
+
 ## [0.3.2] - 2026-09-04
 
 ### Fixed
