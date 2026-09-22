@@ -14,6 +14,36 @@ The project follows [Semantic Versioning](https://semver.org/) once public relea
 - Corrected the Windows index/MCP status and documented the narrow read-only
   Git remote lookup without overstating Construct's offline boundary.
 
+## [0.3.2] - 2026-09-04
+
+### Fixed
+
+- Kept Review comment typing independent of full-document Markdown processing
+  and preserved links, inline code, images, and diagram component identities.
+- Replaced direct DOM highlight mutations with declarative review decorations,
+  preventing blank windows when adding comments or refreshing annotated text.
+- Isolated document-view failures with Source/retry recovery and content-free
+  local diagnostics while preserving explicit saves and existing review data.
+
+## [0.3.1] - 2026-09-01
+
+### Changed
+
+- Made the local knowledge service start only when the desktop or MCP requests
+  it, stop after five idle minutes, and restart transparently on later use.
+- Kept MCP discovery responsive while initial reconciliation runs in the
+  background, and reconciled accessed Locations on indexed tool requests.
+- Bounded MCP indexed-tool execution to one active call plus 32 queued calls.
+
+### Fixed
+
+- Avoided recursive source scans when a recent reconciliation can reuse the
+  persisted index.
+- Preserved compatible existing index metadata and serialized status updates
+  with concurrent reconciliation writes.
+- Covered shutdown races across Unix sockets and Windows named pipes, including
+  requests that arrive during the bounded graceful-drain window.
+
 ## [0.3.0] - 2026-08-16
 
 ### Added

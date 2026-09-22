@@ -68,6 +68,24 @@ test("bundle configuration changes request the full application build", () => {
   assert.equal(result.bundle, true);
 });
 
+test("channel build scripts stay on the bundle validation path", () => {
+  const scripts = classifyCiPaths([
+    "scripts/build-desktop.mjs",
+    "scripts/check-channel-artifact.mjs",
+  ]);
+  assert.equal(scripts.web, false);
+  assert.equal(scripts.rust, false);
+  assert.equal(scripts.bundle, true);
+  assert.equal(scripts.code, true);
+
+  const configs = classifyCiPaths([
+    "src-tauri/tauri.dev.conf.json",
+    "src-tauri/tauri.release.conf.json",
+  ]);
+  assert.equal(configs.rust, true);
+  assert.equal(configs.bundle, true);
+});
+
 test("shared OKF fixtures exercise both frontend and Rust consumers", () => {
   const result = classifyCiPaths(["tests/fixtures/okf/v02/index.md"]);
   assert.equal(result.docs, false);

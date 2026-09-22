@@ -51,12 +51,16 @@ npm ci
 npm run dev
 ```
 
-To create a release-mode application bundle:
+To create the isolated optimized development application bundle:
 
 ```bash
 npm run build
-open src-tauri/target/release/bundle/macos/Construct.app
+open "src-tauri/target/release/bundle/macos/Construct Dev.app"
 ```
+
+The Dev app uses a separate profile and never updates `/Applications`, Dock,
+terminal shortcuts, or MCP client settings. Use `npm run build:release` only
+when you intentionally need the released `Construct.app` identity.
 
 ### Install a tagged preview
 
@@ -160,6 +164,13 @@ object ID with `git ls-remote`; Construct never fetches objects, changes local
 references, stages, commits, pulls, or pushes. Ahead and behind counts therefore
 describe the upstream reference from your last fetch. Use your preferred Git
 client or **Open Terminal** when you decide to synchronize.
+
+Use the Location's actions menu and choose **Rename Location…** to give it a
+clearer local display name. This helps distinguish folders with the same basename.
+The dialog keeps the folder path visible and read-only; renaming changes only
+Construct's persisted label, never the folder, its files, or agent access. Names
+are restored on the next launch, including while a Location is temporarily
+unavailable.
 
 ### 2. Open and arrange documents
 
@@ -281,6 +292,17 @@ Removing one comment preserves the others. Removing the last comment deletes
 the review block and restores the original document content around it. Review
 actions follow the same explicit-save behavior as normal editing.
 
+Typing a comment does not modify or rerender the document. **Add comment**
+puts the note in the tab's buffer; **Save** writes that buffer to the Markdown
+file. If the document view fails, use **Retry view** or **Open Source** to
+continue with the current buffer. A Review preview failure leaves the comment
+composer available, so you can still add the pending note before switching
+modes. If the entire Review panel fails, Retry restores the pending selection
+and comment; switching to Source and back also retains that draft while the same
+tab stays active. This recovery draft is temporary, not saved to disk. In Source,
+a failed view offers Retry while the workspace Save action remains available.
+These recovery actions do not save automatically.
+
 Changing between Preview, Edit, Review, and Source keeps the current semantic
 passage in view when possible. Each mode also retains its latest scroll
 position while the tab remains open.
@@ -397,6 +419,12 @@ directory. On macOS the default is:
 ```text
 ~/Library/Application Support/com.luisnovo.construct
 ```
+
+Construct Dev uses the separate directory
+`~/Library/Application Support/com.luisnovo.construct.dev`. The two profiles
+keep workspace state, history, settings, tokens, locks, IPC, diagnostics, and
+derived indexes separate. A new Dev launch starts empty; production state is
+not copied or migrated into it.
 
 It includes:
 

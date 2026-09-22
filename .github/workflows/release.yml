@@ -90,6 +90,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_SIGNING_IDENTITY: ${{ matrix.apple_signing_identity }}
+          CONSTRUCT_CHANNEL: release
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Construct ${{ github.ref_name }}
@@ -100,7 +101,23 @@ jobs:
           releaseDraft: true
           prerelease: false
           generateReleaseNotes: true
-          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundle }}
+          args: --config src-tauri/tauri.release.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundle }}
+
+      - name: Verify released macOS identity
+        if: runner.os == 'macOS'
+        run: >-
+          node scripts/check-channel-artifact.mjs release
+          src-tauri/target/${{ matrix.target }}/release/bundle/macos/Construct.app
+          src-tauri/target/${{ matrix.target }}/release/construct
+
+      - name: Verify released Windows identity
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $identity = & "src-tauri/target/${{ matrix.target }}/release/construct.exe" identity | ConvertFrom-Json
+          if ($identity.channel -ne "release" -or $identity.productName -ne "Construct" -or $identity.bundleIdentifier -ne "com.luisnovo.construct" -or $identity.cliCommand -ne "construct") {
+            throw "The Windows release binary did not contain the released Construct identity."
+          }
 
       - name: Package macOS CLI
         if: runner.os == 'macOS'

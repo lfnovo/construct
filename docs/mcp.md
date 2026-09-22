@@ -2,7 +2,7 @@
 
 **Status:** Current preview behavior on macOS, Windows, and Unix
 
-Construct can expose registered Locations to coding agents through a local
+Construct and Construct Dev can expose registered Locations to coding agents through a local
 Model Context Protocol stdio server. The server uses the same per-Location
 indexes as the desktop and gives agents read-only knowledge tools without
 granting arbitrary filesystem, Git, shell, SQL, or mutation access.
@@ -19,9 +19,21 @@ flowchart LR
     I2 --> F2["Saved Markdown in Location B"]
 ```
 
-Each Location has its own physical embedded database. The MCP process receives
+Each channel has its own application-data profile and IPC endpoint. Each Location has its own physical embedded database. The MCP process receives
 an explicit allowlist of registered Location IDs, reconciles their saved files,
 and can query only those indexes.
+
+The protocol and tool catalog become available without waiting for indexing.
+One initial best-effort reconciliation runs alongside the protocol; later
+knowledge calls refresh only their addressed Locations, subject to a 30-second
+minimum interval. There is no periodic reconciliation loop. The shared knowledge
+service stops after five minutes without accepted requests or in-flight work
+and restarts transparently when needed.
+
+Closing MCP stdin ends the adapter even if a reconciliation or query is waiting
+for the index. It does not stop the shared service or another client's work.
+Each adapter runs one tool call at a time and queues up to 32 more; excess calls
+receive `server_busy` and can be retried after an earlier call completes.
 
 No network listener is opened, and the MCP server makes no outbound request.
 The MCP client controls where retrieved content goes after it leaves Construct.
@@ -59,6 +71,11 @@ The copied JSON resembles:
 
 Construct copies the actual executable path, application-data path, and chosen
 Location IDs from the running app. Prefer this over constructing IDs manually.
+
+Construct Dev copies its own executable path, uses the
+`com.luisnovo.construct.dev` profile, and names the generated server
+`construct-dev`. Copying Dev configuration never changes an existing release
+configuration or Codex settings.
 
 If the app is moved or replaced, copy the configuration again so the command
 continues to point to an existing executable.
@@ -279,10 +296,18 @@ Confirm that the server type is stdio, command and arguments are separate, and
 the client has reloaded its MCP configuration. The server writes protocol
 messages only to stdout; launch errors go to stderr.
 
+`initialize` and `tools/list` do not require a ready index. If discovery stalls,
+verify the exact executable used by the client, especially when switching
+between an installed app and a development build or symlink. Rebuilds at another
+path do not update that client configuration automatically. Local diagnostics
+record `mcp_adapter_ready` separately from initial reconciliation completion or
+cancellation; readiness alone does not prove the client has loaded the catalog.
+
 ### A document is missing or stale
 
-Check `construct_get_index_status`. The MCP process reconciles allowed
-Locations when it starts and periodically while the session is active. If the
+Check `construct_get_index_status`. The MCP process makes one initial
+best-effort reconciliation and refreshes the addressed Locations before
+knowledge tool calls, with a 30-second coalescing window. If the
 index is degraded, use the desktop's **Rebuild index** action or restart the
 server after resolving filesystem access.
 

@@ -1,6 +1,6 @@
 use crate::{
     desktop_open::{self, DesktopOpenRequest},
-    diagnostics, index, knowledge, okf, okf_policy, terminal, IGNORED_DIRECTORIES,
+    diagnostics, identity, index, knowledge, okf, okf_policy, terminal, IGNORED_DIRECTORIES,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
@@ -430,8 +430,10 @@ fn collect_files(root: &Path) -> Result<Vec<FileEntry>, String> {
             .path()
             .strip_prefix(root)
             .map_err(|error| format!("Could not calculate the relative path: {error}"))?
-            .to_string_lossy()
-            .to_string();
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/");
         entries.push(FileEntry {
             path: entry.path().to_string_lossy().to_string(),
             relative_path,
@@ -449,8 +451,12 @@ fn load_app_state(app: AppHandle) -> Result<Value, String> {
     let path = app_data_file(&app)?;
     let source = if path.exists() {
         path
-    } else if let Some(legacy) = legacy_app_data_file(&app).filter(|candidate| candidate.exists()) {
-        legacy
+    } else if identity::IS_RELEASE {
+        if let Some(legacy) = legacy_app_data_file(&app).filter(|candidate| candidate.exists()) {
+            legacy
+        } else {
+            return Ok(serde_json::json!({}));
+        }
     } else {
         return Ok(serde_json::json!({}));
     };
@@ -487,9 +493,13 @@ fn take_desktop_open_requests(
 fn install_cli_launcher_at(
     executable: &Path,
     candidates: &[(PathBuf, bool)],
+    command_name: &str,
 ) -> Result<CliInstallResult, String> {
-    use std::io::ErrorKind;
-    use std::os::unix::fs::symlink;
+    use std::os::unix::fs::PermissionsExt;
+    use std::{
+        fs::OpenOptions,
+        io::{ErrorKind, Write},
+    };
 
     for (directory, requires_path_setup) in candidates {
         if let Err(error) = fs::create_dir_all(directory) {
@@ -501,8 +511,9 @@ fn install_cli_launcher_at(
                 directory.display()
             ));
         }
-        let launcher = directory.join("construct");
-        match fs::symlink_metadata(&launcher) {
+        let launcher = directory.join(command_name);
+        let launcher_script = cli_launcher_script(executable);
+        let _legacy_owned_symlink = match fs::symlink_metadata(&launcher) {
             Ok(metadata) => {
                 if metadata.file_type().is_symlink() {
                     let target = fs::read_link(&launcher).map_err(|error| {
@@ -514,44 +525,117 @@ fn install_cli_launcher_at(
                         directory.join(target)
                     };
                     if resolved == executable {
+                        true
+                    } else {
+                        return Err(format!(
+                            "A file already exists at '{}'. Remove or rename it before installing the Construct command.",
+                            launcher.display()
+                        ));
+                    }
+                } else {
+                    if fs::read_to_string(&launcher).ok().as_deref() == Some(&launcher_script) {
+                        if metadata.permissions().mode() & 0o111 == 0 {
+                            fs::set_permissions(&launcher, fs::Permissions::from_mode(0o755))
+                                .map_err(|error| {
+                                    format!(
+                                        "Could not make '{}' executable: {error}",
+                                        launcher.display()
+                                    )
+                                })?;
+                        }
                         return Ok(CliInstallResult {
                             path: launcher.to_string_lossy().to_string(),
                             already_installed: true,
                             requires_path_setup: *requires_path_setup,
                         });
                     }
+                    return Err(format!(
+                        "A file already exists at '{}'. Remove or rename it before installing the Construct command.",
+                        launcher.display()
+                    ));
                 }
-                return Err(format!(
-                    "A file already exists at '{}'. Remove or rename it before installing the Construct command.",
-                    launcher.display()
-                ));
             }
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => false,
             Err(error) => {
                 return Err(format!(
                     "Could not inspect '{}': {error}",
                     launcher.display()
                 ))
             }
+        };
+        // `rename` replaces this verified legacy symlink atomically without
+        // touching its target. Do not remove the old launcher first: a failed
+        // write must leave the existing Construct command available.
+        let temporary = directory.join(format!(".{command_name}.{}.tmp", uuid::Uuid::new_v4()));
+        let write_result = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .and_then(|mut file| file.write_all(launcher_script.as_bytes()));
+        match write_result {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                let _ = fs::remove_file(&temporary);
+                continue;
+            }
+            Err(error) => {
+                let _ = fs::remove_file(&temporary);
+                return Err(format!(
+                    "Could not prepare the Construct command at '{}': {error}",
+                    temporary.display()
+                ));
+            }
         }
-        match symlink(executable, &launcher) {
+        if let Err(error) = fs::set_permissions(&temporary, fs::Permissions::from_mode(0o755)) {
+            let _ = fs::remove_file(&temporary);
+            return Err(format!(
+                "Could not make '{}' executable: {error}",
+                temporary.display()
+            ));
+        }
+        match fs::rename(&temporary, &launcher) {
             Ok(()) => {
                 return Ok(CliInstallResult {
                     path: launcher.to_string_lossy().to_string(),
                     already_installed: false,
                     requires_path_setup: *requires_path_setup,
-                })
+                });
             }
-            Err(error) if error.kind() == ErrorKind::PermissionDenied => continue,
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                let _ = fs::remove_file(&temporary);
+                continue;
+            }
             Err(error) => {
+                let _ = fs::remove_file(&temporary);
                 return Err(format!(
                     "Could not install the Construct command at '{}': {error}",
                     launcher.display()
-                ))
+                ));
             }
         }
     }
     Err("Construct could not find a writable command directory.".to_string())
+}
+
+#[cfg(unix)]
+fn cli_launcher_script(executable: &Path) -> String {
+    let executable = shell_double_quote(&executable.to_string_lossy());
+    format!(
+        "#!/bin/sh\ncase \"$1\" in\n  okf|identity|service) exec {executable} \"$@\" ;;\n  mcp) [ \"$2\" = serve ] && exec {executable} \"$@\" ;;\nesac\nexec {executable} {} \"$@\"\n",
+        crate::DESKTOP_LAUNCH_ARGUMENT
+    )
+}
+
+#[cfg(unix)]
+fn shell_double_quote(value: &str) -> String {
+    format!(
+        "\"{}\"",
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('$', "\\$")
+            .replace('`', "\\`")
+    )
 }
 
 #[tauri::command]
@@ -578,7 +662,7 @@ fn install_cli_command() -> Result<CliInstallResult, String> {
             }
         }
         candidates.push((home.join(".local/bin"), true));
-        install_cli_launcher_at(&executable, &candidates)
+        install_cli_launcher_at(&executable, &candidates, identity::CLI_COMMAND)
     }
     #[cfg(not(unix))]
     Err(
@@ -1140,6 +1224,37 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum DocumentRenderMode {
+    Preview,
+    Edit,
+    Review,
+    Source,
+    Diff,
+}
+
+#[tauri::command]
+fn report_document_render_failure(
+    app: tauri::AppHandle,
+    mode: DocumentRenderMode,
+) -> Result<(), String> {
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    diagnostics::Diagnostics::new(directory, "construct").warn(
+        "document_render_failed",
+        serde_json::json!({ "mode": mode }),
+    );
+    Ok(())
+}
+
+#[tauri::command]
+fn get_runtime_identity() -> Result<identity::RuntimeIdentity, String> {
+    identity::runtime_identity()
+}
+
 pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
     let initial_request = desktop_open::parse_request(&arguments, &current_directory)
         .expect("desktop invocation was validated before startup");
@@ -1165,6 +1280,22 @@ pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
         .manage(DesktopOpenState::new(initial_request))
         .setup(|app| {
             let data_directory = app.path().app_data_dir().map_err(std::io::Error::other)?;
+            if app.config().identifier != identity::BUNDLE_IDENTIFIER {
+                return Err(Box::new(std::io::Error::other(format!(
+                    "Construct channel identity mismatch: Tauri uses `{}` but Rust uses `{}`.",
+                    app.config().identifier,
+                    identity::BUNDLE_IDENTIFIER
+                ))));
+            }
+            let expected_data_directory =
+                identity::default_data_dir().map_err(std::io::Error::other)?;
+            if data_directory != expected_data_directory {
+                return Err(Box::new(std::io::Error::other(format!(
+                    "Construct channel profile mismatch: desktop uses `{}` but services use `{}`.",
+                    data_directory.display(),
+                    expected_data_directory.display()
+                ))));
+            }
             let diagnostics = diagnostics::Diagnostics::new(data_directory.clone(), "construct");
             diagnostics.info("application_started", serde_json::json!({}));
             let knowledge =
@@ -1173,6 +1304,8 @@ pub(crate) fn run(arguments: Vec<String>, current_directory: PathBuf) {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            report_document_render_failure,
+            get_runtime_identity,
             load_app_state,
             save_app_state,
             take_desktop_open_requests,
@@ -1214,6 +1347,24 @@ mod tests {
 
     static TEMPORARY_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+    #[test]
+    fn document_render_diagnostics_accept_only_known_modes() {
+        for mode in ["preview", "edit", "review", "source", "diff"] {
+            let parsed: DocumentRenderMode =
+                serde_json::from_value(serde_json::json!(mode)).expect("known mode");
+            assert_eq!(
+                serde_json::to_value(parsed).unwrap(),
+                serde_json::json!(mode)
+            );
+        }
+        assert!(
+            serde_json::from_value::<DocumentRenderMode>(serde_json::json!(
+                "private document content"
+            ))
+            .is_err()
+        );
+    }
+
     fn temporary_root() -> PathBuf {
         let path = std::env::temp_dir().join(format!(
             "construct-test-{}-{}-{}",
@@ -1223,6 +1374,20 @@ mod tests {
         ));
         fs::create_dir_all(&path).expect("create temporary directory");
         path
+    }
+
+    fn remove_temporary_root(path: PathBuf) {
+        let attempts = 10;
+        for attempt in 0..attempts {
+            match fs::remove_dir_all(&path) {
+                Ok(()) => return,
+                Err(error) if attempt + 1 < attempts => {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    let _ = error;
+                }
+                Err(error) => panic!("remove temporary directory: {error}"),
+            }
+        }
     }
 
     #[test]
@@ -1271,7 +1436,7 @@ mod tests {
             root.canonicalize().expect("canonicalize repository")
         );
 
-        fs::remove_dir_all(root).expect("remove temporary directory");
+        remove_temporary_root(root);
     }
 
     #[test]
@@ -1317,24 +1482,44 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn cli_launcher_installation_is_idempotent() {
+        use std::os::unix::fs::PermissionsExt;
+
         let root = temporary_root();
         let executable = root.join("Construct");
         let bin = root.join("bin");
         fs::write(&executable, "desktop executable").expect("create executable placeholder");
 
-        let installed = install_cli_launcher_at(&executable, &[(bin.clone(), false)])
-            .expect("install launcher");
+        let installed =
+            install_cli_launcher_at(&executable, &[(bin.clone(), false)], identity::CLI_COMMAND)
+                .expect("install launcher");
         assert!(!installed.already_installed);
         assert!(!installed.requires_path_setup);
-        assert_eq!(installed.path, bin.join("construct").to_string_lossy());
         assert_eq!(
-            fs::read_link(bin.join("construct")).expect("read installed launcher"),
-            executable
+            installed.path,
+            bin.join(identity::CLI_COMMAND).to_string_lossy()
         );
+        assert_eq!(
+            fs::read_to_string(bin.join(identity::CLI_COMMAND)).expect("read installed launcher"),
+            cli_launcher_script(&executable)
+        );
+        fs::set_permissions(
+            bin.join(identity::CLI_COMMAND),
+            fs::Permissions::from_mode(0o644),
+        )
+        .expect("remove launcher executable bit");
 
-        let repeated = install_cli_launcher_at(&executable, &[(bin, false)])
-            .expect("recognize installed launcher");
+        let repeated =
+            install_cli_launcher_at(&executable, &[(bin.clone(), false)], identity::CLI_COMMAND)
+                .expect("recognize installed launcher");
         assert!(repeated.already_installed);
+        assert_ne!(
+            fs::metadata(bin.join(identity::CLI_COMMAND))
+                .expect("read launcher permissions")
+                .permissions()
+                .mode()
+                & 0o111,
+            0,
+        );
 
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
@@ -1347,11 +1532,83 @@ mod tests {
         let bin = root.join("bin");
         fs::create_dir_all(&bin).expect("create command directory");
         fs::write(&executable, "desktop executable").expect("create executable placeholder");
-        fs::write(bin.join("construct"), "another command").expect("create conflicting command");
+        fs::write(bin.join(identity::CLI_COMMAND), "another command")
+            .expect("create conflicting command");
 
-        let error = install_cli_launcher_at(&executable, &[(bin, false)])
+        let error = install_cli_launcher_at(&executable, &[(bin, false)], identity::CLI_COMMAND)
             .expect_err("reject conflicting command");
         assert!(error.contains("already exists"));
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_ignores_the_legacy_predictable_temporary_name() {
+        let root = temporary_root();
+        let executable = root.join("Construct");
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).expect("create command directory");
+        fs::write(&executable, "desktop executable").expect("create executable placeholder");
+        let old_temporary = bin.join(format!("{}.tmp", identity::CLI_COMMAND));
+        fs::write(&old_temporary, "unrelated file").expect("create conflicting temporary file");
+
+        install_cli_launcher_at(&executable, &[(bin, false)], identity::CLI_COMMAND)
+            .expect("install launcher without touching the old temporary name");
+        assert_eq!(
+            fs::read_to_string(old_temporary).expect("read unrelated temporary file"),
+            "unrelated file",
+        );
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_upgrades_only_the_current_construct_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let root = temporary_root();
+        let executable = root.join("Construct");
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).expect("create command directory");
+        fs::write(&executable, "desktop executable").expect("create executable placeholder");
+        symlink(&executable, bin.join(identity::CLI_COMMAND)).expect("install legacy symlink");
+
+        let installed =
+            install_cli_launcher_at(&executable, &[(bin.clone(), false)], identity::CLI_COMMAND)
+                .expect("upgrade Construct symlink");
+        assert!(!installed.already_installed);
+        assert_eq!(
+            fs::read_to_string(bin.join(identity::CLI_COMMAND)).expect("read upgraded launcher"),
+            cli_launcher_script(&executable)
+        );
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_launcher_keeps_console_modes_in_the_foreground() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temporary_root();
+        let executable = root.join("construct's executable");
+        let launcher = root.join("launcher");
+        fs::write(&executable, "#!/bin/sh\nprintf '%s' \"$1\"\n")
+            .expect("write executable fixture");
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o755))
+            .expect("make executable fixture runnable");
+        fs::write(&launcher, cli_launcher_script(&executable)).expect("write launcher");
+        fs::set_permissions(&launcher, fs::Permissions::from_mode(0o755))
+            .expect("make launcher runnable");
+
+        let output = Command::new(&launcher)
+            .args(["okf", "lint"])
+            .output()
+            .expect("run launcher");
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "okf");
 
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
@@ -1398,6 +1655,18 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(paths, vec![".agents/memory.md", "README.md"]);
 
-        fs::remove_dir_all(root).expect("remove temporary directory");
+        remove_temporary_root(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovery_preserves_backslashes_in_unix_filenames() {
+        let root = temporary_root();
+        fs::write(root.join("report\\2024.md"), "# Report").expect("create report");
+
+        let files = collect_files(&root).expect("discover files");
+        assert_eq!(files[0].relative_path, "report\\2024.md");
+
+        remove_temporary_root(root);
     }
 }

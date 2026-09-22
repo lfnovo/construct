@@ -89,6 +89,14 @@ export type CliInstallResult = {
   requiresPathSetup: boolean;
 };
 
+export type RuntimeIdentity = {
+  channel: "dev" | "release";
+  productName: string;
+  bundleIdentifier: string;
+  cliCommand: string;
+  defaultDataDir: string;
+};
+
 export type FileFingerprint = Pick<FileEntry, "path" | "relativePath" | "modifiedAtMs" | "size">;
 
 export type HistoryKind = "created" | "modified" | "renamed" | "removed";

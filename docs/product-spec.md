@@ -5,8 +5,8 @@
 | Campo | Valor |
 | --- | --- |
 | Status | Preview funcional em fase de hardening |
-| Versão | 0.16 |
-| Data | 29 de julho de 2026 |
+| Versão | 0.24 |
+| Data | 11 de setembro de 2026 |
 | Plataforma principal | macOS |
 | Preview adicional | Windows x64 com índice local e MCP |
 | Plataforma futura | Linux |
@@ -228,6 +228,9 @@ seleção do Source devem ser definidas por tema e manter contraste em ambos.
 - **LOC-010:** Quando um Local voltar a ficar disponível, o aplicativo deve retomar a varredura e o monitoramento automaticamente.
 - **LOC-011:** Um Local pode ser uma raiz de projeto ou qualquer subdiretório escolhido pelo usuário.
 - **LOC-012:** Se Locais cadastrados se sobrepuserem, o aplicativo deve evitar duplicar eventos internamente, mas pode exibir o arquivo no contexto de cada Local.
+- **LOC-013:** O usuário pode atribuir um nome de exibição personalizado a um Local pelo menu de ações. Esse nome é metadado persistido, não renomeia nem move a pasta, preserva ID e caminho canônico, e pode repetir o nome de outro Local.
+- **LOC-014:** O diálogo de renomear exibe o caminho imutável, confirma com Enter, cancela com Escape, remove espaços nas extremidades e rejeita um nome vazio. A ação permanece disponível para Locais indisponíveis.
+- **LOC-015:** Na restauração, um nome ausente, vazio ou inválido usa o basename da pasta sem descartar o Local. O nome personalizado reaparece em todos os seletores e fluxos que apresentam o Local; adaptadores MCP já em execução podem manter o catálogo carregado até reconectar.
 
 ### 10.2 Descoberta e árvore de arquivos
 
@@ -378,6 +381,19 @@ coverage
   escolhe uma ocorrência ambígua.
 - **REVIEW-018:** Adicionar, remover ou limpar comentários não deve recriar a
   superfície renderizada nem alterar a posição de leitura do documento.
+- **REVIEW-019:** Digitar no campo de comentário não deve reprocessar o Markdown,
+  recriar links, imagens ou diagramas, nem modificar o buffer do documento antes
+  da ação explícita de adicionar o comentário.
+- **REVIEW-020:** Falhas na renderização devem ficar isoladas da aplicação e
+  oferecer `Open Source` e `Retry view`, preservando o buffer da aba. Uma falha
+  apenas na visualização do Review deve manter também o comentário em composição.
+  Se o painel inteiro de Review falhar, seleção e comentário permanecem em memória
+  acima do isolamento de falha para recuperação por Retry ou retorno ao Review
+  na mesma aba ativa. Não são persistidos nem salvos automaticamente. Uma falha
+  em Source oferece Retry, sem um botão redundante para abrir o próprio Source.
+- **REVIEW-021:** Diagnósticos de falha da visualização permanecem locais e
+  limitados; registram somente o modo afetado, sem conteúdo, caminhos ou texto
+  bruto de exceções. Não há salvamento automático nem migração do formato de review.
 
 ### 10.8 Preview Markdown
 
@@ -532,6 +548,7 @@ flowchart LR
 - **STATE-010:** Arquivos ausentes durante a restauração devem ser ignorados ou apresentados como indisponíveis sem impedir a abertura do aplicativo.
 - **STATE-011:** Dados de estado corrompidos devem ser recuperados com defaults seguros, preservando os arquivos do usuário.
 - **STATE-012:** A inicialização deve liberar o workspace após restaurar estado, watchers e abas; reconciliação, inspeção OKF e indexação de todos os Locais continuam progressivamente em segundo plano.
+- **STATE-013:** O nome de exibição de cada Local é persistido em `workspace.json`; reabrir ou restaurar o mesmo caminho não pode substituí-lo pelo basename.
 
 ### 10.15 Atalhos iniciais
 
@@ -623,7 +640,7 @@ relações diretas, context packs e o acesso MCP.
 ### 10.18 Acesso local para agentes
 
 - **AGENT-001:** O desktop e adaptadores de agentes devem usar um único serviço local como proprietário exclusivo das conexões embedded por Local.
-- **AGENT-002:** O mesmo executável pode operar nos modos desktop, serviço local e MCP stdio; o serviço deve continuar disponível quando a janela desktop estiver fechada.
+- **AGENT-002:** O mesmo executável pode operar nos modos desktop, serviço local e MCP stdio; o helper local é iniciado sob demanda por qualquer cliente, pode encerrar após cinco minutos sem requisição autenticada nem operação em andamento e deve reiniciar transparentemente no próximo uso. Fechar a janela desktop não pode interromper uma operação MCP ativa.
 - **AGENT-003:** O MCP inicial é somente leitura para arquivos fonte e não expõe create, edit, save, delete, move, rename, shell, Git, SQL, banco bruto ou leitura arbitrária do filesystem.
 - **AGENT-004:** Cada execução MCP exige allowlist explícita de IDs de Locais registrados. Respostas normais usam ID do Local e caminho relativo, nunca caminho absoluto.
 - **AGENT-005:** O transporte entre adapters e serviço usa IPC local autenticado e protegido pelas permissões do usuário. Nenhum listener de rede deve ser aberto e nenhum conteúdo deve ser enviado a serviços remotos.
@@ -633,13 +650,17 @@ relações diretas, context packs e o acesso MCP.
 - **AGENT-009:** Review comments permanecem fora do contrato MCP até RFC 07 e nunca são misturados silenciosamente ao conteúdo fonte.
 - **AGENT-010:** A interface deve oferecer um ponto global para copiar uma configuração MCP pronta, exigindo escolha explícita entre o Local atual, um conjunto de Locais ou todos os Locais, e explicar que o cliente externo controla o destino do conteúdo recuperado.
 - **AGENT-011:** Falhas de tools MCP devem manter `isError`, texto legível e um erro estruturado com código estável e mensagem, incluindo a rejeição de Locais fora da allowlist.
-- **AGENT-012:** Reconciliações periódicas solicitadas por múltiplos clientes MCP devem ser coalescidas pelo serviço local por Local para evitar varreduras duplicadas, preservando uma única autoridade sobre o índice.
+- **AGENT-012:** O MCP não mantém loop periódico de reconciliação. Uma tentativa inicial best-effort ocorre em paralelo à disponibilização do protocolo; cada tool que consome conhecimento também solicita best-effort apenas os Locais permitidos que endereça. O serviço coalesce essas solicitações por Local em uma janela mínima de 30 segundos e preserva a última geração completa quando uma atualização falha.
 - **AGENT-013:** O serviço usa socket Unix no macOS/Unix e named pipe no Windows, sempre com token por profile, sem listener de rede.
 - **AGENT-014:** No Windows, uma invocação desktop deve se desacoplar do console
   antes de iniciar a interface, enquanto `okf`, `service` e `mcp serve`
   permanecem anexados ao console com stdin, stdout, stderr e códigos de saída
   preservados.
 - **AGENT-015:** `construct_list_documents` deve enumerar um Local sem query textual, filtrar por role, type, status, tags e prefixo de caminho, ordenar por caminho relativo e rejeitar cursores incompatíveis com filtros ou geração ativa.
+- **AGENT-016:** Encerramento por ociosidade, SIGTERM em Unix ou Ctrl+C quando disponível no console do Windows deve parar novas operações, drenar trabalho autenticado por até dez segundos, liberar conexões embedded e remover o socket Unix sem apagar token, índices, workspace ou documentos. Tráfego malformado ou não autorizado não renova o prazo de ociosidade.
+- **AGENT-017:** O tamanho persistido do índice deve ser atualizado após sincronização efetiva ou refresh explícito de status. Uma sincronização pulada pela janela mínima retorna o valor em cache sem varredura recursiva do diretório do índice.
+- **AGENT-018:** `initialize`, `ping` e `tools/list` devem responder sem aguardar reconciliação ou consulta ao índice; o catálogo disponível não implica índice pronto. EOF no stdin deve encerrar prontamente o adaptador inclusive durante a reconciliação inicial ou espera IPC, cancelando somente seu trabalho local e sem encerrar o serviço compartilhado.
+- **AGENT-019:** Cada adaptador deve serializar as tools, manter no máximo 32 chamadas adicionais em fila e responder a excesso com erro estruturado `server_busy`. A fila não pode impedir descoberta do protocolo, ping ou detecção de EOF. Diagnósticos locais devem distinguir prontidão do adaptador, conclusão/cancelamento da reconciliação inicial e encerramento, sem conteúdo ou caminhos.
 
 ### 10.19 Handoff para terminal externo
 
@@ -692,6 +713,26 @@ relações diretas, context packs e o acesso MCP.
   o fallback `~/.local/bin` exige configuração de `PATH`. A instalação
   automática é oferecida somente em macOS/Unix; no Windows, Settings orienta o
   usuário a colocar `construct.exe` no `PATH` manualmente.
+
+- **OPEN-008:** O aplicativo released usa a identidade `Construct` /
+  `com.luisnovo.construct` e o launcher `construct`; o canal de desenvolvimento
+  usa `Construct Dev` / `com.luisnovo.construct.dev` e `construct-dev`. O canal
+  não é inferido pelo modo otimizado, caminho do executável, diretório atual ou
+  tag Git. `npm run build` e builds Cargo diretos selecionam Dev; somente
+  `npm run build:release` e CI de tag selecionam a identidade released.
+- **OPEN-009:** Os canais mantêm perfis de aplicação, serviço, MCP, locks,
+  sockets/pipes, diagnósticos e índices independentes. `--data-dir` explícito
+  continua autoritativo para service/MCP. A instalação em Applications, Dock,
+  launchers e configuração de clientes MCP permanece manual e não é executada
+  por builds ou pelo uso de Dev.
+
+- **OPEN-010:** No macOS, uma abertura desktop bem-sucedida por `construct` ou
+  `construct-dev` retorna ao terminal após o handoff, tanto no cold start como
+  para uma instância já aberta. O processo desktop não herda os streams do
+  terminal e continua utilizável se o terminal for fechado. Caminhos inválidos,
+  opções desconhecidas e falhas detectáveis de lançamento permanecem síncronos
+  e retornam erro em inglês. `okf`, `identity`, `service` e `mcp serve` mantêm
+  execução foreground, stdio e códigos de saída existentes.
 
 ## 11. Estados e tratamento de erros
 
@@ -1166,6 +1207,10 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 2026-08-01 | Permitir abrir Locais e Markdown pelo comando `construct <caminho>`, reutilizando uma única instância desktop e oferecendo instalação segura do launcher em Settings. |
 | 2026-08-04 | Ampliar o handoff externo com Warp no macOS e Windows e usar o host de console padrão como fallback nativo no Windows. |
 | 2026-08-07 | Exibir a situação Git por Location e consultar a branch remota por referências somente leitura, sem fetch, pull ou push. |
+| 2026-09-03 | Isolar a composição de comentários da renderização do Markdown, criar destaques declarativos e preservar acesso ao buffer em falhas de visualização, sem autosave. |
+| 2026-09-04 | Separar Construct e Construct Dev por identidade compilada, perfil padrão, IPC, launcher, MCP e comandos de build explícitos; preservar o perfil released e exigir instalação manual. |
+| 2026-09-11 | Fazer o launcher de terminal do macOS não bloqueante apenas para abertura desktop, preservando validação síncrona, isolamento dos canais e contratos foreground de CLI, serviço e MCP. |
+| 2026-09-11 | Permitir nomes de exibição personalizados para Locais, preservando a identidade e o caminho autorizados e usando fallback seguro para estado legado. |
 
 ## 24. Histórico do documento
 
@@ -1192,3 +1237,7 @@ Estas decisões não impedem o preview atual, mas devem ser resolvidas antes de 
 | 0.18 | 2026-08-01 | Documentação pública e RFCs reconciliados com a enumeração MCP de documentos, abertura desktop pelo terminal e distribuição preview atual. |
 | 0.19 | 2026-08-04 | Detecção de Warp no macOS e Windows, fallback para o host de console padrão no Windows e seletor de terminal consistente entre temas. |
 | 0.20 | 2026-08-07 | Sinal visual de sincronização Git por Location, com estado local, comparação remota read-only e detalhes acionáveis. |
+| 0.21 | 2026-09-03 | Responsividade de Review, destaques seguros, isolamento de falhas e diagnósticos sem conteúdo. |
+| 0.22 | 2026-09-04 | Separação dos canais Construct e Construct Dev por identidade, perfil, IPC, launcher, MCP e comandos de build explícitos. |
+| 0.23 | 2026-09-11 | Launcher macOS não bloqueante para abertura desktop, mantendo validação síncrona e os contratos de console de CLI, serviço e MCP. |
+| 0.24 | 2026-09-11 | Nomes de exibição personalizados para Locais, persistidos sem alterar identidade, caminho, arquivos ou autorização de acesso. |

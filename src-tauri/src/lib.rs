@@ -6,9 +6,13 @@ mod okf_policy;
 #[cfg(feature = "desktop")]
 mod desktop;
 #[cfg(feature = "desktop")]
+mod desktop_launch;
+#[cfg(feature = "desktop")]
 mod desktop_open;
 #[cfg(feature = "desktop")]
 mod diagnostics;
+#[cfg(feature = "desktop")]
+mod identity;
 #[cfg(feature = "desktop")]
 mod index;
 #[cfg(feature = "desktop")]
@@ -50,6 +54,9 @@ pub(crate) const IGNORED_DIRECTORIES: &[&str] = &[
     ".coverage",
 ];
 
+pub const DESKTOP_LAUNCH_ARGUMENT: &str = "--construct-desktop-launch";
+pub const DESKTOP_CHILD_ARGUMENT: &str = "--construct-desktop-child";
+
 #[cfg(feature = "desktop")]
 pub fn run(arguments: Vec<String>, current_directory: std::path::PathBuf) {
     desktop::run(arguments, current_directory)
@@ -64,6 +71,16 @@ pub fn validate_desktop_invocation(
 }
 
 #[cfg(feature = "desktop")]
+pub fn launch_desktop_detached(
+    arguments: &[String],
+    current_directory: &std::path::Path,
+) -> Result<(), String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
+    desktop_launch::launch_detached(&executable, arguments, current_directory)
+}
+
+#[cfg(feature = "desktop")]
 pub fn run_service_command(arguments: &[String]) -> Result<(), String> {
     knowledge::run_service_command(arguments)
 }
@@ -71,6 +88,17 @@ pub fn run_service_command(arguments: &[String]) -> Result<(), String> {
 #[cfg(feature = "desktop")]
 pub fn run_mcp_command(arguments: &[String]) -> Result<(), String> {
     mcp::run_mcp_command(arguments)
+}
+
+#[cfg(feature = "desktop")]
+pub fn run_identity_command() -> Result<(), String> {
+    let identity = identity::runtime_identity()?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&identity)
+            .map_err(|error| format!("Could not serialize Construct identity: {error}"))?
+    );
+    Ok(())
 }
 
 pub fn run_okf_command(arguments: &[String]) -> Result<i32, String> {

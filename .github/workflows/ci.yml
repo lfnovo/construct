@@ -159,6 +159,12 @@ jobs:
       - name: Check Windows targets
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets
 
+      - name: Test Windows profile isolation
+        run: >-
+          cargo test
+          --manifest-path src-tauri/Cargo.toml
+          --all-targets
+
   rust_linux_cli:
     name: Validate standalone Linux CLI
     needs: changes
@@ -246,12 +252,15 @@ jobs:
       - name: Build macOS bundle
         run: npm run build
 
+      - name: Verify development identity
+        run: npm run check:channel -- dev "src-tauri/target/release/bundle/macos/Construct Dev.app"
+
       - name: Upload preview bundle
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v7
         with:
           name: Construct-macOS-${{ github.sha }}
-          path: src-tauri/target/release/bundle/macos/Construct.app
+          path: src-tauri/target/release/bundle/macos/Construct Dev.app
           if-no-files-found: error
           retention-days: 14
 

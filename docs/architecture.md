@@ -41,6 +41,9 @@ The frontend lives in `src/`.
 | `CodeEditor.tsx` | CodeMirror lifecycle and Markdown editing |
 | `VisualEditor.tsx` | Lazy-loaded Milkdown/Crepe lifecycle and rich Markdown editing |
 | `ReviewEditor.tsx` | Rendered text selection, review composer, comment list, and clipboard handoff |
+| `ReviewDraft.tsx` | In-memory composer recovery above the document error boundary, without per-keystroke workspace updates |
+| `reviewHighlights.ts` | Batched, declarative review decorations in the sanitized Markdown tree |
+| `DocumentErrorBoundary.tsx` | Document-view failure isolation, Source recovery, and content-free diagnostics |
 | `SearchWorkspace.tsx` | Dedicated local knowledge search, visible scope and filters, result selection, direct-link pivots, context-pack clipboard actions, recent-query controls, and pane navigation |
 | `HealthWorkspace.tsx` | Interactive OKF health summary, finding filters, source navigation, explicit refresh, and agent handoff |
 | `MarkdownPreview.tsx` | Sanitized Markdown rendering, Mermaid, images, and link routing |
@@ -71,8 +74,9 @@ Pure domain logic should stay outside `App.tsx` so it can be tested without a we
 - read-only Git inspection;
 - Finder and external-link integration;
 - registered Location identity and terminal-launch authorization;
-- desktop path-request queuing and installation of the fixed `construct`
-  launcher in a standard user command directory.
+- desktop path-request queuing and installation of the channel-specific
+  launcher (`construct` or `construct-dev`) in a standard user command
+  directory.
 
 `src-tauri/src/desktop_open.rs` owns desktop argument interpretation. It accepts
 at most one existing directory or Markdown file, resolves relative paths from
@@ -82,13 +86,27 @@ focuses the existing window, queues its request in native state, and emits only
 an availability signal. The frontend drains that queue after workspace restore,
 so cold-start requests cannot race persisted Locations and tabs.
 
-The installed `construct` launcher is a symlink to the running application
-executable. Its destination and filename are chosen by the native core; the
-frontend cannot supply an executable, command string, or installation path.
-This automatic installer is exposed only on macOS/Unix; Windows keeps manual
-`PATH` setup until a safe platform-native launcher contract is implemented.
-Console namespaces such as `construct okf`, `construct service`, and
-`construct mcp serve` are dispatched before desktop argument handling.
+The installed channel launcher is a native-owned executable script that keeps
+console namespaces foreground and starts only desktop opens in a detached child
+process. It validates the request before detaching, preserves structured
+arguments and the caller's working directory, closes inherited terminal
+streams, and gives macOS desktop children an independent session. Existing
+Construct-owned symlinks pointing to the current executable upgrade in place;
+other files are never replaced. Its destination and filename are chosen by the
+native core; the frontend cannot supply an executable, command string, or
+installation path. This automatic installer is exposed only on macOS/Unix;
+Windows keeps manual `PATH` setup until a safe platform-native launcher contract
+is implemented. Console namespaces such as `construct okf`, `construct
+identity`, `construct service`, and `construct mcp serve` keep their foreground
+stdio and exit-code contracts.
+
+`src-tauri/src/identity.rs` is the single compiled identity source for the
+channel, visible product name, bundle identifier, launcher, MCP server key, and
+default profile suffix. The base Tauri configuration and direct Cargo builds
+are Dev by default. Release CI and `npm run build:release` explicitly overlay
+the released Tauri configuration and set the same channel for Rust. Desktop
+startup rejects a mismatch between Tauri's identifier, Rust's identity, and
+the service profile instead of silently sharing state.
 
 `src-tauri/src/terminal.rs` owns the external-terminal adapter boundary:
 
@@ -219,18 +237,48 @@ declaring a file as non-concept does not make it unsearchable.
 the embedded databases. It runs behind authenticated local IPC: a Unix-domain
 socket on macOS/Unix and a named pipe on Windows. The desktop's typed Tauri
 commands and the MCP stdio adapter call a `KnowledgeClient` over that transport;
-they never open SurrealKV directly. The same Construct executable has desktop,
+they never open SurrealKV directly. Concurrent cold opens share one per-Location
+initialization; failed opens can be retried without blocking unrelated Locations.
+The same Construct executable has desktop,
 `service`, `mcp serve`, and `okf lint` modes. Agent retrieval keeps working when
 the desktop window is closed, while validation can run without starting the
 service or reading any application data.
 
+The knowledge service is an on-demand helper, not an OS service. Any client may
+start it after a failed connection, and concurrent starters coordinate through
+a profile-scoped process lock so only one process owns the IPC endpoint and
+embedded connections. The helper stops after five minutes without an accepted
+authenticated request and without in-flight work. Idle shutdown, Unix SIGTERM,
+and console-attached Windows Ctrl+C stop acceptance first, allow up to ten
+seconds for authenticated operations to drain, release all index owners, and
+remove the Unix socket. Tokens, workspace state, derived indexes, and source
+documents remain in place. A later desktop or MCP request starts the helper and
+retries transparently; closing either client does not own or terminate the
+other client's active operation.
+
 The service token and IPC endpoint are scoped to the local user and application
 profile. No network listener is opened. MCP startup requires an explicit
-Location allowlist, reconciles those saved files, and periodically checks them
-while the client session is active. The central service coalesces recent
-background requests from multiple MCP clients per Location. Ordinary
-incremental reconciliation keeps the last healthy generation publicly ready or
-degraded; only initial builds and explicit rebuilds publish `indexing`.
+Location allowlist and starts one best-effort initial reconciliation alongside
+the stdio protocol loop. `initialize`, `ping`, and `tools/list` never wait for
+that reconciliation or an indexed tool call. Tool discovery means the protocol
+is ready, not that every index is ready. The adapter serializes tool calls and
+queues at most 32 additional calls; excess calls receive a structured
+`server_busy` error. EOF cancels the adapter's initial reconciliation, queued
+calls, and pending IPC waits without terminating the shared service or another
+client's work. Privacy-safe diagnostics distinguish adapter readiness, initial
+reconciliation completion/cancellation, and adapter exit.
+
+The MCP adapter owns no timer or background reconciliation loop. Before an indexed
+knowledge tool runs, it best-effort reconciles only the addressed allowed
+Locations; the service coalesces these requests with a 30-second minimum
+interval per Location. A failed refresh does not hide a usable last complete
+generation. Ordinary incremental reconciliation keeps that generation publicly
+ready or degraded; only initial builds and explicit rebuilds publish `indexing`.
+
+Index metadata persists its last measured storage size. Effective
+reconciliations and explicit status refreshes update the measurement; a sync
+coalesced by the minimum interval returns the cached value without recursively
+walking the index directory.
 
 The retrieval database also contains a disposable 15-day daily activity cache.
 Real saved-file changes, documents successfully served through MCP, and
@@ -317,9 +365,33 @@ New review entries may add a backward-compatible passage locator containing
 normalized offsets and bounded surrounding context. `reviewAnchors.ts` resolves
 the original range, contextual repeated matches, and unique legacy quotes
 without guessing. Review highlights are temporary render decorations:
-`reviewDom.ts` maps normalized ranges onto rendered text nodes, while
+`reviewHighlights.ts` indexes the sanitized Markdown text once per review pass
+and creates declarative marks before React owns the DOM. Overlapping comments
+retain separate navigation targets. `reviewDom.ts` only reads the rendered
+selection; it never splits, reparents, or normalizes React-owned text nodes.
 `ReviewEditor.tsx` owns active-comment state and bidirectional navigation.
-Unresolved comments remain durable and are presented as detached.
+Unresolved comments remain durable and are presented as detached. Generated
+Mermaid labels and image-error UI are excluded from the prose anchor projection.
+
+Comment-composer updates do not rerender the memoized Markdown surface.
+Hoisted code, link, and image renderer identities remain stable even when
+workspace callbacks change; a context carries current link-routing data.
+This preserves DOM identity and prevents unnecessary diagram/image restarts.
+
+Document-mode error boundaries leave workspace state and the tab buffer owned
+by `App.tsx`, with explicit Source and retry actions. Review also isolates its
+Markdown surface so a renderer failure does not discard the pending composer.
+An in-memory `ReviewDraftProvider`, keyed to the current tab above the outer
+boundary, retains the selection and latest typed comment if the entire Review
+panel fails. Event-time store writes do not rerender the workspace. Retry or a
+Source/Review round trip in that tab restores the draft; Add comment or Cancel
+clears it. This is temporary recovery state, not autosave or persisted review data.
+Source failures offer Retry and keep the workspace Save action available, without
+a no-op Open Source button. Generated-content exclusions use renderer-owned
+attributes added after sanitization, not document-supplied presentation classes.
+The native `report_document_render_failure` command accepts only a closed set of
+view modes and writes `document_render_failed` to the existing bounded local
+diagnostics. Exception text, stack traces, paths, and Markdown are not accepted.
 
 `DocumentModeSurface.tsx` captures runtime scroll state for each open tab and
 mode. Explicit mode changes transfer a bounded semantic text anchor; the target

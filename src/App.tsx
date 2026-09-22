@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, GitBranch, History, List, MapPin, MoreHorizontal, Moon, Network, PanelLeftClose, PanelLeftOpen, RefreshCw, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, CirclePlus, Clipboard, Columns2, FileText, Folder, FolderOpen, GitBranch, History, List, MapPin, MoreHorizontal, Moon, Network, PanelLeftClose, PanelLeftOpen, Pencil, RefreshCw, Rows3, Search as SearchIcon, Settings2, ShieldCheck, SquareTerminal, Sun, X } from "lucide-react";
 import { api } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import { DocumentModeSurface } from "./DocumentModeSurface";
+import { DocumentErrorBoundary } from "./DocumentErrorBoundary";
 import { buildTypeColorMap, sortFacetsByCount, TAG_PREVIEW_LIMIT, toggleFilterValue, visibleTagFacets, type ExploreFilters } from "./explore";
 import { HealthWorkspace } from "./HealthWorkspace";
 import { deduplicateHistory } from "./history";
@@ -13,11 +14,13 @@ import { KnowledgeGraph } from "./KnowledgeGraph";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { formatOkfValue, type OkfBundleIndex, type OkfConcept, type OkfInspection } from "./okf";
 import { ReviewEditor } from "./ReviewEditor";
+import { ReviewDraftProvider } from "./ReviewDraft";
 import { splitReviewDocument } from "./review";
 import { SearchWorkspace } from "./SearchWorkspace";
 import { rememberSearch } from "./search";
 import { moveQuickOpenSelection } from "./quickOpen";
 import { mostSpecificContainingLocation, parentPath, pathIdentity, pathsEqual, relativePathWithinLocation } from "./paths";
+import { locationNameFromPath, normalizeLocationRecord, renameLocation } from "./locations";
 import {
   defaultSidebarPanelSizes,
   resizeSidebarPanelPair,
@@ -28,7 +31,7 @@ import { relativeDirectoryForFile, selectedTerminal } from "./terminal";
 import type {
   CliInstallResult, DesktopOpenRequest, DocumentTab, FileEntry, FileFingerprint, FileSystemChange, HistoryEvent, HistoryKind,
   IndexStatus, KnowledgeSearchFilters, KnowledgeSearchResult, LayoutNode, LocationGitStatus, LocationRecord,
-  Pane, RecentKnowledgeSearch, SavedPane, SavedWorkspace, SidebarPanelSizes, SidebarSectionId,
+  Pane, RecentKnowledgeSearch, RuntimeIdentity, SavedPane, SavedWorkspace, SidebarPanelSizes, SidebarSectionId,
   TabMode, TerminalApplication, TerminalApplicationId,
 } from "./types";
 import type { DocumentModeTransfer, DocumentViewState } from "./documentPosition";
@@ -46,6 +49,13 @@ const emptyPane = (id: string = crypto.randomUUID()): Pane => ({ id, tabs: [], a
 const defaultPane = emptyPane("main");
 const defaultLayout: LayoutNode = { type: "pane", paneId: "main" };
 const GIT_REMOTE_REFRESH_TTL_MS = 5 * 60_000;
+const fallbackRuntimeIdentity: RuntimeIdentity = {
+  channel: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "release" : "dev",
+  productName: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "Construct" : "Construct Dev",
+  bundleIdentifier: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "com.luisnovo.construct" : "com.luisnovo.construct.dev",
+  cliCommand: import.meta.env.VITE_CONSTRUCT_CHANNEL === "release" ? "construct" : "construct-dev",
+  defaultDataDir: "",
+};
 
 function getPaneIds(node: LayoutNode): string[] {
   return node.type === "pane" ? [node.paneId] : [...getPaneIds(node.first), ...getPaneIds(node.second)];
@@ -71,9 +81,7 @@ function updateSplitRatio(node: LayoutNode, target: LayoutNode, ratio: number): 
   return { ...node, first: updateSplitRatio(node.first, target, ratio), second: updateSplitRatio(node.second, target, ratio) };
 }
 
-function basename(path: string) {
-  return path.split(/[\\/]/).filter(Boolean).at(-1) || path;
-}
+const basename = locationNameFromPath;
 
 function normalizeForSave(content: string, ending: "LF" | "CRLF") {
   const normalized = content.replace(/\r\n/g, "\n");
@@ -225,6 +233,7 @@ function SplitView({ node, panes, activePaneId, onActivate, onRatio, children }:
 }
 
 export default function App() {
+  const [runtimeIdentity, setRuntimeIdentity] = useState<RuntimeIdentity>(fallbackRuntimeIdentity);
   const [locations, setLocations] = useState<LocationRecord[]>([]);
   const [filesByLocation, setFilesByLocation] = useState<Record<string, FileEntry[]>>({});
   const [fingerprints, setFingerprints] = useState<Record<string, FileFingerprint[]>>({});
@@ -268,6 +277,7 @@ export default function App() {
   const [fileContext, setFileContext] = useState<{ file: FileEntry; locationId: string; x: number; y: number } | null>(null);
   const [tabContext, setTabContext] = useState<{ tab: DocumentTab; paneId: string; x: number; y: number } | null>(null);
   const [locationContext, setLocationContext] = useState<{ location: LocationRecord; x: number; y: number } | null>(null);
+  const [locationRename, setLocationRename] = useState<{ location: LocationRecord; name: string; error: string | null } | null>(null);
   const [gitStatusPopover, setGitStatusPopover] = useState<{ locationId: string; x: number; y: number } | null>(null);
   const [pendingClose, setPendingClose] = useState<{ paneId: string; tabId: string } | null>(null);
   const locationsRef = useRef(locations);
@@ -879,13 +889,13 @@ export default function App() {
     try {
       const result = await api.installCliCommand();
       setCliInstallResult(result);
-      notify(result.alreadyInstalled ? "The construct command is already installed." : "The construct command was installed.");
+      notify(result.alreadyInstalled ? `The ${runtimeIdentity.cliCommand} command is already installed.` : `The ${runtimeIdentity.cliCommand} command was installed.`);
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error));
     } finally {
       setInstallingCli(false);
     }
-  }, [notify]);
+  }, [notify, runtimeIdentity.cliCommand]);
 
   const removeLocation = useCallback(async (locationId: string) => {
     const location = locationsRef.current.find((item) => item.id === locationId);
@@ -905,14 +915,33 @@ export default function App() {
     await configureLocations(next);
   }, [configureLocations, notify]);
 
+  const confirmLocationRename = useCallback(() => {
+    if (!locationRename) return;
+    const renamed = renameLocation(locationRename.location, locationRename.name);
+    if (!renamed) {
+      setLocationRename((current) => current ? { ...current, error: "A Location name cannot be empty." } : current);
+      return;
+    }
+    setLocations((current) => current.map((location) => (
+      location.id === renamed.id ? { ...location, name: renamed.name } : location
+    )));
+    setLocationRename(null);
+  }, [locationRename]);
+
+  useEffect(() => {
+    document.title = runtimeIdentity.productName;
+  }, [runtimeIdentity.productName]);
+
   useEffect(() => {
     let mounted = true;
     let workspaceRevealed = false;
     (async () => {
       try {
+        const identity = await api.getRuntimeIdentity().catch(() => null);
+        if (identity && mounted) setRuntimeIdentity(identity);
         const saved = await api.loadState();
         if (!mounted) return;
-        const restoredLocations = saved.locations || [];
+        const restoredLocations = (saved.locations || []).map(normalizeLocationRecord);
         const restoredPanes = saved.panes?.length ? saved.panes : [{ ...defaultPane, tabs: [] } as SavedPane];
         const restoredLayout = saved.layout || defaultLayout;
         setLocations(restoredLocations);
@@ -1281,6 +1310,8 @@ export default function App() {
           {!!okf.findings.length && <ul className="okf-issues">{okf.findings.map((item) => <li key={`${item.code}-${item.message}`} className={item.severity} title={item.code}>{item.message}</li>)}</ul>}
         </aside>}
         <div className="document-content">
+          <ReviewDraftProvider key={tab.id}>
+          <DocumentErrorBoundary key={`${tab.id}:${tab.mode}`} mode={tab.mode} onRequestSource={() => changeTabMode(pane.id, tab, "source")}>
           <DocumentModeSurface
             key={`${tab.id}:${tab.mode}`}
             tabId={tab.id}
@@ -1294,10 +1325,12 @@ export default function App() {
                 <VisualEditor tabId={tab.id} value={tab.content} readOnly={tab.deleted} onChange={changeContent} onRequestSource={() => changeTabMode(pane.id, tab, "source")} />
               </Suspense>
             )}
-            {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} />}
+            {tab.mode === "preview" && <MarkdownPreview content={tab.content} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} onOpenInternal={openPath} onRequestSource={() => changeTabMode(pane.id, tab, "source")} />}
             {tab.mode === "review" && <ReviewEditor content={tab.content} relativePath={tab.relativePath} sourcePath={tab.path} bundleRoot={tabLocation?.okfBundle ? tabLocation.path : undefined} readOnly={tab.deleted} onChange={changeContent} onOpenInternal={openPath} onRequestSource={() => changeTabMode(pane.id, tab, "source")} onNotify={notify} />}
             {tab.mode === "diff" && <DiffView tab={tab} />}
           </DocumentModeSurface>
+          </DocumentErrorBoundary>
+          </ReviewDraftProvider>
         </div>
       </>}
     </section>;
@@ -1316,7 +1349,7 @@ export default function App() {
     {sidebarHidden ? <aside className="sidebar-rail"><button className="sidebar-toggle" onClick={() => setSidebarHidden(false)} title="Show sidebar" aria-label="Show sidebar"><PanelLeftOpen size={16} /></button></aside> : <aside className="sidebar">
       <div className="sidebar-global-toolbar">
         <button className="sidebar-toggle" onClick={() => setSidebarHidden(true)} title="Hide sidebar" aria-label="Hide sidebar"><PanelLeftClose size={16} /></button>
-        <span>CONSTRUCT</span>
+        <span>{runtimeIdentity.productName.toUpperCase()}</span>
         <button className="connect-agents-button" onClick={openMcpDialog} title="Connect agents"><Bot size={14} /><span>Agents</span></button>
         <button className="settings-button" onClick={() => setSettingsOpen(true)} title="Settings" aria-label="Settings"><Settings2 size={14} /></button>
         <button className="theme-button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light theme" : "Use dark theme"} aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button>
@@ -1428,11 +1461,20 @@ export default function App() {
       <footer><button disabled={checkingGitLocationIds.has(gitPopoverLocation.id)} onClick={() => void refreshLocationGitStatus(gitPopoverLocation, true)}><RefreshCw size={12} /> {checkingGitLocationIds.has(gitPopoverLocation.id) ? "Checking…" : "Check again"}</button><button onClick={() => { requestTerminal({ locationId: gitPopoverLocation.id, relativeDirectory: "" }); setGitStatusPopover(null); }}><SquareTerminal size={12} /> Open Terminal</button></footer>
     </div></div>}
     {locationContext && <div className="context-backdrop" onMouseDown={() => setLocationContext(null)}><div className="context-menu" style={{ left: locationContext.x, top: locationContext.y }} onMouseDown={(event) => event.stopPropagation()}>
+      <button onClick={() => { setLocationRename({ location: locationContext.location, name: locationContext.location.name, error: null }); setLocationContext(null); }}><Pencil size={13} /> Rename Location…</button>
       <button onClick={() => { requestTerminal({ locationId: locationContext.location.id, relativeDirectory: "" }); setLocationContext(null); }}><SquareTerminal size={13} /> Open terminal at Location</button>
       <button onClick={() => { openTerminalSettings(); setLocationContext(null); }}><Settings2 size={13} /> Choose terminal application…</button>
       <button onClick={() => { void api.revealInFileManager(locationContext.location.path); setLocationContext(null); }}><Folder size={13} /> Reveal in Finder</button>
       <button onClick={() => { void removeLocation(locationContext.location.id); setLocationContext(null); }}><X size={13} /> Remove Location</button>
     </div></div>}
+    {locationRename && <div className="modal-backdrop" onMouseDown={() => setLocationRename(null)}><form className="rename-location-modal" role="dialog" aria-modal="true" aria-labelledby="rename-location-title" onSubmit={(event) => { event.preventDefault(); confirmLocationRename(); }} onKeyDown={(event) => { if (event.key === "Escape") setLocationRename(null); }} onMouseDown={(event) => event.stopPropagation()}>
+      <h2 id="rename-location-title">Rename Location</h2>
+      <p className="rename-location-path" title={locationRename.location.path}>{locationRename.location.path}</p>
+      <label htmlFor="location-name">Location name</label>
+      <input id="location-name" autoFocus aria-invalid={Boolean(locationRename.error)} aria-describedby={locationRename.error ? "location-name-error" : undefined} value={locationRename.name} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setLocationRename((current) => current ? { ...current, name: event.target.value, error: null } : current)} />
+      {locationRename.error && <p id="location-name-error" className="rename-location-error" role="alert">{locationRename.error}</p>}
+      <div className="rename-location-actions"><button type="button" onClick={() => setLocationRename(null)}>Cancel</button><button className="primary-button" type="submit">Rename</button></div>
+    </form></div>}
     {fileContext && <div className="context-backdrop" onMouseDown={() => setFileContext(null)}><div className="context-menu" style={{ left: fileContext.x, top: fileContext.y }} onMouseDown={(event) => event.stopPropagation()}>
       <button onClick={() => { openFile(fileContext.file); setFileContext(null); }}>Open</button>
       <button onClick={() => { openFile(fileContext.file, true); setFileContext(null); }}>Open to the right</button>
@@ -1479,12 +1521,12 @@ export default function App() {
       <div className="mcp-access-actions"><button onClick={() => setMcpDialog(null)}>Cancel</button><button className="primary-button" disabled={!locations.length || (mcpDialog.mode !== "all" && mcpDialog.mode !== "current" && !mcpDialog.locationIds.length) || (mcpDialog.mode === "current" && !activeLocation)} onClick={() => void copyMcpConfiguration()}>Copy configuration</button></div>
     </div></div>}
     {settingsOpen && <div className="modal-backdrop" onMouseDown={() => setSettingsOpen(false)}><div className="terminal-picker-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onKeyDown={(event) => { if (event.key === "Escape") setSettingsOpen(false); }} onMouseDown={(event) => event.stopPropagation()}>
-      <h2 id="settings-title">Construct settings</h2>
-      <p>Connect Construct to your terminal and preferred terminal application.</p>
+      <h2 id="settings-title">{runtimeIdentity.productName} settings</h2>
+      <p>Connect {runtimeIdentity.productName} to your terminal and preferred terminal application.</p>
       <section className="settings-section">
-        <div><strong>Terminal command</strong><small>Use <code>construct .</code> for a Location or <code>construct file.md</code> to edit a Markdown file.</small></div>
+        <div><strong>Terminal command</strong><small>Use <code>{runtimeIdentity.cliCommand} .</code> for a Location or <code>{runtimeIdentity.cliCommand} file.md</code> to edit a Markdown file.</small></div>
         {cliInstallerSupported && <button className="toolbar-button" disabled={installingCli} onClick={() => void installCliCommand()}>{installingCli ? "Installing…" : cliInstallResult ? "Installed" : "Install command"}</button>}
-        {cliInstallerSupported === false && <small className="settings-result">Automatic installation is not available on Windows yet. Place construct.exe on your PATH manually.</small>}
+        {cliInstallerSupported === false && <small className="settings-result">Automatic installation is not available on Windows yet. Place {runtimeIdentity.cliCommand}.exe on your PATH manually.</small>}
         {cliInstallResult && <small className="settings-result">{cliInstallResult.path}{cliInstallResult.requiresPathSetup ? " · Add ~/.local/bin to your PATH." : ""}</small>}
       </section>
       <section className="settings-section">
