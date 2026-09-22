@@ -1,0 +1,25 @@
+docs/product-spec.md
+  s_3fda20e31ac411::t_0361e1da9f9d42 490
+  s_3fda20e31ac411::t_96282a9f4c13de 665
+src-tauri/src/knowledge.rs
+  s_3fda20e31ac411::t_15d06cbcee17a7 312-318
+src-tauri/src/desktop.rs
+  s_3fda20e31ac411::t_5ef7273a123386 239,241-249,251,264,369-370,407,420,1137,1158,1177
+  s_3fda20e31ac411::t_96282a9f4c13de 240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "478ad31af1a9f1da2cedb639c9f310ffb31a5c49",
+  "prompts": {},
+  "sessions": {
+    "s_3fda20e31ac411": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cb62-a9db-7f13-8cae-74a9ee4d8883",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
