@@ -1,0 +1,43 @@
+CHANGELOG.md
+  s_3fda20e31ac411::t_1fb8a06d7bbba5 31-37
+README.md
+  s_3fda20e31ac411::t_35db2826a96d65 16-17,31-33,68-93
+SECURITY.md
+  s_3fda20e31ac411::t_0f26d0e1b7ded6 41-44
+docs/README.md
+  s_3fda20e31ac411::t_42ff3b50c8a1eb 6-14,50-59
+docs/architecture.md
+  s_3fda20e31ac411::t_9b25e34188808f 57,59,75-76,138-142
+docs/cli.md
+  s_3fda20e31ac411::t_245c58c7718bcd 301-304
+docs/development.md
+  s_3fda20e31ac411::t_6f947dd4d61a8f 24-26,237-239,242-243,299-300
+docs/mcp.md
+  s_3fda20e31ac411::t_5664d205901e9f 38
+docs/product-spec.md
+  s_3fda20e31ac411::t_ff40c5a18b9a81 967-969,1048-1051,1098
+docs/proposals/retrieval/06-okf-linter.md
+  s_3fda20e31ac411::t_26ff029b34b757 3-4,668-670
+docs/proposals/terminal-integration.md
+  s_3fda20e31ac411::t_6faa94c8602dd1 3,7-8,28,73,81,89,107-109,111,119-120,137-138,159,177-178,193,206-207,503,509,517,519,587-589,593-595
+docs/releasing.md
+  s_3fda20e31ac411::t_77082d96547ed4 29-31,65,67,78-79,84,93-95,125-128
+docs/user-guide.md
+  s_3fda20e31ac411::t_3ce883dfb348ee 18,72-92,100-101,138-167,200-203,465-470,518-528
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0f6367cc4a6bcfa6caf8adb2faa528ac156b9820",
+  "prompts": {},
+  "sessions": {
+    "s_3fda20e31ac411": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cb62-a9db-7f13-8cae-74a9ee4d8883",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
