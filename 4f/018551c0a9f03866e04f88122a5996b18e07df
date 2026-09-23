@@ -1,0 +1,19 @@
+.github/workflows/release.yml
+  s_3fda20e31ac411::t_da3b0405b68875 108-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4f018551c0a9f03866e04f88122a5996b18e07df",
+  "prompts": {},
+  "sessions": {
+    "s_3fda20e31ac411": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cb62-a9db-7f13-8cae-74a9ee4d8883",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Luis Novo <lfnovo@gmail.com>"
+    }
+  }
+}
