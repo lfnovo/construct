@@ -105,10 +105,19 @@ jobs:
 
       - name: Verify released macOS identity
         if: runner.os == 'macOS'
-        run: >-
-          node scripts/check-channel-artifact.mjs release
-          src-tauri/target/${{ matrix.target }}/release/bundle/macos/Construct.app
-          src-tauri/target/${{ matrix.target }}/release/construct
+        run: |
+          dmg_files=(src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg)
+          if [[ ${#dmg_files[@]} -ne 1 || ! -f ${dmg_files[0]} ]]; then
+            echo "Expected one macOS DMG for ${{ matrix.target }}." >&2
+            exit 1
+          fi
+          mount_dir="$(mktemp -d)"
+          trap 'hdiutil detach "$mount_dir" -quiet; rmdir "$mount_dir"' EXIT
+          hdiutil attach "${dmg_files[0]}" -readonly -nobrowse -mountpoint "$mount_dir" -quiet
+          node scripts/check-channel-artifact.mjs release \
+            "$mount_dir/Construct.app" \
+            src-tauri/target/${{ matrix.target }}/release/construct
+          codesign --verify --deep --strict --verbose=2 "$mount_dir/Construct.app"
 
       - name: Verify released Windows identity
         if: runner.os == 'Windows'
