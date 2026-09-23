@@ -309,7 +309,13 @@ impl KnowledgeClient {
             .map_err(|error| format!("Could not locate the Construct executable: {error}"))?;
         self.diagnostics
             .info("knowledge_service_start_requested", json!({}));
-        let result = std::process::Command::new(executable)
+        let mut command = std::process::Command::new(executable);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        let result = command
             .arg("service")
             .arg("--data-dir")
             .arg(&self.data_dir)
